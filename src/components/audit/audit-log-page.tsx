@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Activity as ActivityIcon, ArrowLeftRight, CalendarDays, ClipboardList, KeyRound, Landmark, Package, Receipt, Settings, ShoppingCart, Store, Target, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
+import { Activity as ActivityIcon, ArrowLeftRight, CalendarDays, ClipboardList, Contact, KeyRound, Landmark, Package, Receipt, Settings, ShoppingCart, Store, Target, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { ALL, DetailItem, EmptyState, FilterSelect, MetricCard, Panel, SearchBox } from "@/components/shared";
