@@ -23,6 +23,7 @@ export type ReportFilters = {
   branchId?: string | undefined;
   repId?: string | undefined;
   productId?: string | undefined;
+  saleType?: "walk_in" | "customer" | undefined;
 };
 
 /** Branches the caller may report on, narrowed by the branch filter. `[]` = nothing. */
@@ -43,9 +44,13 @@ export const reportMonth = (f: ReportFilters) => f.range.to.slice(0, 7);
 export function getSalesReport(db: Db, scope: AccessScope, f: ReportFilters) {
   const branchIds = branchScope(db, scope, f);
   const rows = branchIds.length
-    ? filterSales(db, { range: f.range, branchIds, repId: f.repId, productId: f.productId }).sort(
-        (a, b) => b.createdAt.localeCompare(a.createdAt),
-      )
+    ? filterSales(db, {
+        range: f.range,
+        branchIds,
+        repId: f.repId,
+        productId: f.productId,
+        saleType: f.saleType,
+      }).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     : [];
   const revenue = rows.reduce((s, x) => s + saleTotal(x), 0);
   return {
@@ -54,6 +59,8 @@ export function getSalesReport(db: Db, scope: AccessScope, f: ReportFilters) {
     count: rows.length,
     units: rows.reduce((s, x) => s + x.quantity, 0),
     average: rows.length ? revenue / rows.length : 0,
+    walkInRevenue: rows.filter((x) => !x.customerId).reduce((s, x) => s + saleTotal(x), 0),
+    customerRevenue: rows.filter((x) => !!x.customerId).reduce((s, x) => s + saleTotal(x), 0),
   };
 }
 

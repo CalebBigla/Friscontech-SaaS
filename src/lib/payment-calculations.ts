@@ -1,4 +1,10 @@
-import type { CustomerPayment, Db, ManagerRemittance, Payment, PaymentStatus } from "@/data/mock-db";
+import type {
+  CustomerPayment,
+  Db,
+  ManagerRemittance,
+  Payment,
+  PaymentStatus,
+} from "@/data/mock-db";
 import type { AccessScope } from "@/lib/session";
 import { saleTotal } from "@/lib/calculations";
 import { daysInMonth } from "@/lib/dates";
@@ -259,22 +265,38 @@ export const paymentMethodLabel: Record<PaymentEntry["method"], string> = {
   none: "—",
 };
 const methodOf = (cash: number, transfer: number): PaymentEntry["method"] =>
-  cash > 0 && transfer > 0 ? "cash_and_transfer" : cash > 0 ? "cash" : transfer > 0 ? "transfer" : "none";
+  cash > 0 && transfer > 0
+    ? "cash_and_transfer"
+    : cash > 0
+      ? "cash"
+      : transfer > 0
+        ? "transfer"
+        : "none";
 
-function trailOf(row: {
-  submittedAt: string;
-  acknowledgedAt?: string | undefined;
-  acknowledgedBy?: string | undefined;
-  confirmedAt?: string | undefined;
-  confirmedBy?: string | undefined;
-  declinedAt?: string | undefined;
-  declinedBy?: string | undefined;
-  declineReason?: string | undefined;
-}, submittedBy: string): PaymentTrailStep[] {
+function trailOf(
+  row: {
+    submittedAt: string;
+    acknowledgedAt?: string | undefined;
+    acknowledgedBy?: string | undefined;
+    confirmedAt?: string | undefined;
+    confirmedBy?: string | undefined;
+    declinedAt?: string | undefined;
+    declinedBy?: string | undefined;
+    declineReason?: string | undefined;
+  },
+  submittedBy: string,
+): PaymentTrailStep[] {
   const steps: PaymentTrailStep[] = [{ step: "submitted", by: submittedBy, at: row.submittedAt }];
-  if (row.acknowledgedAt) steps.push({ step: "acknowledged", by: row.acknowledgedBy, at: row.acknowledgedAt });
+  if (row.acknowledgedAt)
+    steps.push({ step: "acknowledged", by: row.acknowledgedBy, at: row.acknowledgedAt });
   if (row.confirmedAt) steps.push({ step: "confirmed", by: row.confirmedBy, at: row.confirmedAt });
-  if (row.declinedAt) steps.push({ step: "declined", by: row.declinedBy, at: row.declinedAt, note: row.declineReason });
+  if (row.declinedAt)
+    steps.push({
+      step: "declined",
+      by: row.declinedBy,
+      at: row.declinedAt,
+      note: row.declineReason,
+    });
   return steps;
 }
 
@@ -327,7 +349,10 @@ export function toCustomerPaymentEntry(payment: CustomerPayment): PaymentEntry {
 }
 
 export type PaymentEntryFilters = PaymentFilters & { kind?: PaymentKind | "all" };
-function inPaymentScope(scope: AccessScope, row: { tenantId: string; repId: string; managerId: string; branchId: string }) {
+function inPaymentScope(
+  scope: AccessScope,
+  row: { tenantId: string; repId: string; managerId: string; branchId: string },
+) {
   if (row.tenantId !== scope.user.tenantId) return false;
   switch (scope.user.role) {
     case "owner":
@@ -341,13 +366,21 @@ function inPaymentScope(scope: AccessScope, row: { tenantId: string; repId: stri
   }
 }
 /** Every payment the caller may see, rep and customer, newest first. */
-export function getPaymentEntriesForScope(db: Db, scope: AccessScope, filters: PaymentEntryFilters = {}) {
+export function getPaymentEntriesForScope(
+  db: Db,
+  scope: AccessScope,
+  filters: PaymentEntryFilters = {},
+) {
   const rows = [
     ...db.payments
-      .filter((p) => p.tenantId === db.tenant.id && inPaymentScope(scope, { ...p, repId: p.salesRepId }))
+      .filter(
+        (p) => p.tenantId === db.tenant.id && inPaymentScope(scope, { ...p, repId: p.salesRepId }),
+      )
       .map(toPaymentEntry),
     ...db.customerPayments
-      .filter((p) => p.tenantId === db.tenant.id && inPaymentScope(scope, { ...p, repId: p.receivedBy }))
+      .filter(
+        (p) => p.tenantId === db.tenant.id && inPaymentScope(scope, { ...p, repId: p.receivedBy }),
+      )
       .map(toCustomerPaymentEntry),
   ];
   return rows
@@ -363,7 +396,13 @@ export function getPaymentEntriesForScope(db: Db, scope: AccessScope, filters: P
 }
 
 /** Tile figures. Only confirmed money is "received"; outstanding = walk-in sales not yet reported. */
-export function getPaymentOverviewSummary(db: Db, scope: AccessScope, entries: PaymentEntry[], period: string, filters: PaymentFilters = {}) {
+export function getPaymentOverviewSummary(
+  db: Db,
+  scope: AccessScope,
+  entries: PaymentEntry[],
+  period: string,
+  filters: PaymentFilters = {},
+) {
   const sum = (status: PaymentStatus) =>
     entries.filter((e) => e.status === status).reduce((total, e) => total + e.amount, 0);
   const count = (status: PaymentStatus) => entries.filter((e) => e.status === status).length;

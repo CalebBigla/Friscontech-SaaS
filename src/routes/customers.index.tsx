@@ -13,5 +13,13 @@ export const Route = createFileRoute("/customers/")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: () => <RoleGate allow={(s) => s.canViewCustomers} title="Customers" message="Customer accounts are available to Sales Reps, Storekeepers and the Owner."><CustomersPage /></RoleGate>,
+  component: () => (
+    <RoleGate
+      allow={(s) => s.canViewCustomers}
+      title="Customers"
+      message="Customer accounts are available to Sales Reps, Storekeepers and the Owner."
+    >
+      <CustomersPage />
+    </RoleGate>
+  ),
 });

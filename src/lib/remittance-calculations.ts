@@ -45,7 +45,27 @@ export function getManagerEligiblePayments(db: Db, managerId: string, period: st
   });
 }
 
+/** Owner-confirmed customer account payments in the manager's branch for the month. */
+export function getManagerCustomerCollections(db: Db, managerId: string, period: string) {
+  if (!isValidPaymentPeriod(period)) return [];
+  return db.customerPayments.filter(
+    (p) =>
+      p.tenantId === db.tenant.id &&
+      p.managerId === managerId &&
+      p.status === "confirmed" &&
+      p.paymentDate.startsWith(`${period}-`),
+  );
+}
+
+/** Walk-in sales of reps with an eligible payment + confirmed customer payments. Credit orders never count. */
 export function getManagerTotalReceived(db: Db, managerId: string, period: string) {
+  const customer = getManagerCustomerCollections(db, managerId, period).reduce(
+    (s, p) => s + p.amount,
+    0,
+  );
+  return customer + getManagerWalkInReceived(db, managerId, period);
+}
+function getManagerWalkInReceived(db: Db, managerId: string, period: string) {
   const repIds = [
     ...new Set(
       getManagerEligiblePayments(db, managerId, period).map((payment) => payment.salesRepId),
@@ -56,9 +76,14 @@ export function getManagerTotalReceived(db: Db, managerId: string, period: strin
 
 export function getManagerPaymentBreakdown(db: Db, managerId: string, period: string) {
   const payments = getManagerEligiblePayments(db, managerId, period);
+  const customer = getManagerCustomerCollections(db, managerId, period);
   return {
-    cash: payments.reduce((sum, payment) => sum + payment.cashAmount, 0),
-    transfer: payments.reduce((sum, payment) => sum + payment.transferAmount, 0),
+    cash:
+      payments.reduce((sum, payment) => sum + payment.cashAmount, 0) +
+      customer.filter((p) => p.method === "cash").reduce((s, p) => s + p.amount, 0),
+    transfer:
+      payments.reduce((sum, payment) => sum + payment.transferAmount, 0) +
+      customer.filter((p) => p.method === "transfer").reduce((s, p) => s + p.amount, 0),
     outstanding: [...new Set(payments.map((payment) => payment.salesRepId))].reduce(
       (sum, repId) => {
         const repCollected = payments

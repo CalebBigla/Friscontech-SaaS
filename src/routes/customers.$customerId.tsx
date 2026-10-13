@@ -18,5 +18,13 @@ export const Route = createFileRoute("/customers/$customerId")({
 
 function CustomerRoute() {
   const { customerId } = Route.useParams();
-  return <RoleGate allow={(s) => s.canViewCustomers} title="Customers" message="Customer accounts are available to Sales Reps, Storekeepers and the Owner."><CustomerDetailPage customerId={customerId} /></RoleGate>;
+  return (
+    <RoleGate
+      allow={(s) => s.canViewCustomers}
+      title="Customers"
+      message="Customer accounts are available to Sales Reps, Storekeepers and the Owner."
+    >
+      <CustomerDetailPage customerId={customerId} />
+    </RoleGate>
+  );
 }

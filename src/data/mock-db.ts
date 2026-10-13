@@ -1247,13 +1247,84 @@ function seedMovements(sales: Sale[], inventory: InventoryRecord[]): InventoryMo
 }
 
 const customers: Customer[] = [
-  { id: "cust-001", tenantId: T, branchId: "branch-001", name: "Adebayo Supermarket", contactPerson: "Kunle Adebayo", phone: "+234 803 112 4401", email: "orders@adebayosuper.ng", address: "14 Allen Avenue, Ikeja", status: "active", creditLimit: 2_500_000, createdBy: "user-010", createdAt: "2026-06-02T10:00:00", updatedAt: "2026-06-02T10:00:00" },
-  { id: "cust-002", tenantId: T, branchId: "branch-001", name: "Mama Nkechi Provisions", contactPerson: "Nkechi Obi", phone: "+234 806 455 9012", email: "nkechi.obi@gmail.com", address: "Computer Village, Ikeja", status: "active", creditLimit: 800_000, createdBy: "user-011", createdAt: "2026-06-10T09:30:00", updatedAt: "2026-06-10T09:30:00" },
-  { id: "cust-003", tenantId: T, branchId: "branch-001", name: "Lagos Tech Hub Ltd", contactPerson: "Femi Lawal", phone: "+234 809 220 7713", email: "procurement@lagostechhub.ng", address: "3 Obafemi Awolowo Way, Ikeja", status: "active", createdBy: "user-010", createdAt: "2026-07-01T11:15:00", updatedAt: "2026-07-01T11:15:00" },
-  { id: "cust-004", tenantId: T, branchId: "branch-002", name: "Ochei Electronics", contactPerson: "Ifeanyi Ochei", phone: "+234 802 781 3304", email: "ochei.electronics@yahoo.com", address: "Wuse Market, Abuja", status: "active", creditLimit: 1_500_000, createdBy: "user-013", createdAt: "2026-06-18T14:00:00", updatedAt: "2026-06-18T14:00:00" },
-  { id: "cust-005", tenantId: T, branchId: "branch-002", name: "Garki Office Supplies", contactPerson: "Aisha Bello", phone: "+234 811 309 6650", email: "aisha@garkioffice.ng", address: "Area 11, Garki, Abuja", status: "inactive", createdBy: "user-014", createdAt: "2026-05-20T08:45:00", updatedAt: "2026-08-30T16:00:00" },
+  {
+    id: "cust-001",
+    tenantId: T,
+    branchId: "branch-001",
+    name: "Adebayo Supermarket",
+    contactPerson: "Kunle Adebayo",
+    phone: "+234 803 112 4401",
+    email: "orders@adebayosuper.ng",
+    address: "14 Allen Avenue, Ikeja",
+    status: "active",
+    creditLimit: 10_000_000,
+    createdBy: "user-010",
+    createdAt: "2026-06-02T10:00:00",
+    updatedAt: "2026-06-02T10:00:00",
+  },
+  {
+    id: "cust-002",
+    tenantId: T,
+    branchId: "branch-001",
+    name: "Mama Nkechi Provisions",
+    contactPerson: "Nkechi Obi",
+    phone: "+234 806 455 9012",
+    email: "nkechi.obi@gmail.com",
+    address: "Computer Village, Ikeja",
+    status: "active",
+    creditLimit: 5_000_000,
+    createdBy: "user-011",
+    createdAt: "2026-06-10T09:30:00",
+    updatedAt: "2026-06-10T09:30:00",
+  },
+  {
+    id: "cust-003",
+    tenantId: T,
+    branchId: "branch-001",
+    name: "Lagos Tech Hub Ltd",
+    contactPerson: "Femi Lawal",
+    phone: "+234 809 220 7713",
+    email: "procurement@lagostechhub.ng",
+    address: "3 Obafemi Awolowo Way, Ikeja",
+    status: "active",
+    createdBy: "user-010",
+    createdAt: "2026-07-01T11:15:00",
+    updatedAt: "2026-07-01T11:15:00",
+  },
+  {
+    id: "cust-004",
+    tenantId: T,
+    branchId: "branch-002",
+    name: "Ochei Electronics",
+    contactPerson: "Ifeanyi Ochei",
+    phone: "+234 802 781 3304",
+    email: "ochei.electronics@yahoo.com",
+    address: "Wuse Market, Abuja",
+    status: "active",
+    creditLimit: 6_000_000,
+    createdBy: "user-013",
+    createdAt: "2026-06-18T14:00:00",
+    updatedAt: "2026-06-18T14:00:00",
+  },
+  {
+    id: "cust-005",
+    tenantId: T,
+    branchId: "branch-002",
+    name: "Garki Office Supplies",
+    contactPerson: "Aisha Bello",
+    phone: "+234 811 309 6650",
+    email: "aisha@garkioffice.ng",
+    address: "Area 11, Garki, Abuja",
+    status: "inactive",
+    createdBy: "user-014",
+    createdAt: "2026-05-20T08:45:00",
+    updatedAt: "2026-08-30T16:00:00",
+  },
 ];
-const customerBranchReps: Record<string, string[]> = { "branch-001": ["cust-001", "cust-002", "cust-003"], "branch-002": ["cust-004", "cust-005"] };
+const customerBranchReps: Record<string, string[]> = {
+  "branch-001": ["cust-001", "cust-002", "cust-003"],
+  "branch-002": ["cust-004", "cust-005"],
+};
 
 /** Marks a deterministic slice of seeded sales as customer (account) orders. */
 function linkCustomerSales(sales: Sale[]): Sale[] {
@@ -1287,7 +1358,11 @@ function seedCustomerPayments(sales: Sale[]): CustomerPayment[] {
     const target = Math.round(total * p.share);
     const chunks = [0.5, 0.3, 0.2];
     const statuses: PaymentStatus[] =
-      customer.id === "cust-001" ? ["confirmed", "acknowledged", "submitted"] : customer.id === "cust-002" ? ["confirmed", "declined", "submitted"] : ["confirmed", "confirmed", "confirmed"];
+      customer.id === "cust-001"
+        ? ["confirmed", "acknowledged", "submitted"]
+        : customer.id === "cust-002"
+          ? ["confirmed", "declined", "submitted"]
+          : ["confirmed", "confirmed", "confirmed"];
     chunks.forEach((c, i) => {
       const day = ["2026-08-12", "2026-09-10", "2026-09-26"][i]!;
       const status = statuses[i]!;
@@ -1307,9 +1382,19 @@ function seedCustomerPayments(sales: Sale[]): CustomerPayment[] {
         paymentDate: day,
         status,
         submittedAt,
-        ...(status !== "submitted" && status !== "declined" ? { acknowledgedAt: `${day}T17:00:00`, acknowledgedBy: managerId } : {}),
-        ...(status === "confirmed" ? { confirmedAt: `${day}T19:00:00`, confirmedBy: "user-001" } : {}),
-        ...(status === "declined" ? { declinedAt: `${day}T17:30:00`, declinedBy: managerId, declineReason: "Cash count did not match the receipt." } : {}),
+        ...(status !== "submitted" && status !== "declined"
+          ? { acknowledgedAt: `${day}T17:00:00`, acknowledgedBy: managerId }
+          : {}),
+        ...(status === "confirmed"
+          ? { confirmedAt: `${day}T19:00:00`, confirmedBy: "user-001" }
+          : {}),
+        ...(status === "declined"
+          ? {
+              declinedAt: `${day}T17:30:00`,
+              declinedBy: managerId,
+              declineReason: "Cash count did not match the receipt.",
+            }
+          : {}),
         createdAt: submittedAt,
         updatedAt: submittedAt,
       });
@@ -1318,17 +1403,68 @@ function seedCustomerPayments(sales: Sale[]): CustomerPayment[] {
   return out;
 }
 
-function seedNotifications(payments: Payment[], customerPayments: CustomerPayment[]): AppNotification[] {
+function seedNotifications(
+  payments: Payment[],
+  customerPayments: CustomerPayment[],
+): AppNotification[] {
   const rows: AppNotification[] = [];
-  const push = (recipientId: string, type: NotificationType, entityType: AppNotification["entityType"], entityId: string, message: string, createdAt: string) =>
-    rows.push({ id: `ntf-${String(rows.length + 1).padStart(4, "0")}`, tenantId: T, recipientId, type, entityType, entityId, message, createdAt });
+  const push = (
+    recipientId: string,
+    type: NotificationType,
+    entityType: AppNotification["entityType"],
+    entityId: string,
+    message: string,
+    createdAt: string,
+  ) =>
+    rows.push({
+      id: `ntf-${String(rows.length + 1).padStart(4, "0")}`,
+      tenantId: T,
+      recipientId,
+      type,
+      entityType,
+      entityId,
+      message,
+      createdAt,
+    });
   for (const p of payments) {
-    if (p.status === "submitted") push(p.managerId, "payment_awaiting_acknowledgement", "payment", p.id, `${p.id} awaits your acknowledgement`, p.submittedAt);
-    if (p.status === "acknowledged") push("user-001", "payment_awaiting_confirmation", "payment", p.id, `${p.id} awaits owner confirmation`, p.acknowledgedAt ?? p.submittedAt);
+    if (p.status === "submitted")
+      push(
+        p.managerId,
+        "payment_awaiting_acknowledgement",
+        "payment",
+        p.id,
+        `${p.id} awaits your acknowledgement`,
+        p.submittedAt,
+      );
+    if (p.status === "acknowledged")
+      push(
+        "user-001",
+        "payment_awaiting_confirmation",
+        "payment",
+        p.id,
+        `${p.id} awaits owner confirmation`,
+        p.acknowledgedAt ?? p.submittedAt,
+      );
   }
   for (const p of customerPayments) {
-    if (p.status === "submitted") push(p.managerId, "payment_awaiting_acknowledgement", "customer_payment", p.id, `${p.id} awaits your acknowledgement`, p.submittedAt);
-    if (p.status === "acknowledged") push("user-001", "payment_awaiting_confirmation", "customer_payment", p.id, `${p.id} awaits owner confirmation`, p.acknowledgedAt ?? p.submittedAt);
+    if (p.status === "submitted")
+      push(
+        p.managerId,
+        "payment_awaiting_acknowledgement",
+        "customer_payment",
+        p.id,
+        `${p.id} awaits your acknowledgement`,
+        p.submittedAt,
+      );
+    if (p.status === "acknowledged")
+      push(
+        "user-001",
+        "payment_awaiting_confirmation",
+        "customer_payment",
+        p.id,
+        `${p.id} awaits owner confirmation`,
+        p.acknowledgedAt ?? p.submittedAt,
+      );
   }
   return rows;
 }

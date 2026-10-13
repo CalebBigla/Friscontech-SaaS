@@ -56,7 +56,15 @@ export function getCustomerSummary(db: Db, customer: Customer) {
   const owed = Math.max(-balance, 0);
   const creditUsage =
     customer.creditLimit && customer.creditLimit > 0 ? (owed / customer.creditLimit) * 100 : null;
-  return { debits, credits, balance, owed, pending, creditUsage, orders: getCustomerOrders(db, customer.id).length };
+  return {
+    debits,
+    credits,
+    balance,
+    owed,
+    pending,
+    creditUsage,
+    orders: getCustomerOrders(db, customer.id).length,
+  };
 }
 
 export type CustomerOrder = {
@@ -173,9 +181,18 @@ export function customerStatementCsv(db: Db, customer: Customer) {
   const rows = getCustomerLedger(db, customer.id).slice().reverse();
   const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
   return [
-    ["Date", "Type", "Description", "Debit (NGN)", "Credit (NGN)", "Balance (NGN)"].map(esc).join(","),
+    ["Date", "Type", "Description", "Debit (NGN)", "Credit (NGN)", "Balance (NGN)"]
+      .map(esc)
+      .join(","),
     ...rows.map((r) =>
-      [r.date, r.kind === "order" ? "Order" : "Payment", r.description, r.debit, r.credit, r.balance]
+      [
+        r.date,
+        r.kind === "order" ? "Order" : "Payment",
+        r.description,
+        r.debit,
+        r.credit,
+        r.balance,
+      ]
         .map(esc)
         .join(","),
     ),

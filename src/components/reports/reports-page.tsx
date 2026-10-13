@@ -59,6 +59,7 @@ type Draft = {
   branchId: string;
   repId: string;
   productId: string;
+  saleType: string;
 };
 const periods: { value: PeriodKey; label: string }[] = [
   { value: "today", label: "Today" },
@@ -92,6 +93,7 @@ export function ReportsPage() {
     branchId: ALL,
     repId: ALL,
     productId: ALL,
+    saleType: ALL,
   };
   const [draft, setDraft] = useState(init);
   const [applied, setApplied] = useState(init);
@@ -122,6 +124,7 @@ export function ReportsPage() {
     branchId: opt(applied.branchId),
     repId: opt(applied.repId),
     productId: opt(applied.productId),
+    saleType: opt(applied.saleType) as ReportFilters["saleType"],
   };
   const name = (id: string | null | undefined) => db.users.find((u) => u.id === id)?.name ?? "—";
   const bname = (id: string) => db.branches.find((b) => b.id === id)?.name ?? "—";
@@ -308,6 +311,19 @@ export function ReportsPage() {
               ]}
             />
           </Ctl>
+          <Ctl label="Sale type">
+            <FilterSelect
+              label="Sale type"
+              className="w-full"
+              value={draft.saleType}
+              onChange={(v) => set({ saleType: v })}
+              options={[
+                { value: ALL, label: "Walk-in & customer" },
+                { value: "walk_in", label: "Walk-in only" },
+                { value: "customer", label: "Customer orders" },
+              ]}
+            />
+          </Ctl>
           <div className="flex items-end">
             <Button className="w-full" onClick={generate} disabled={loading}>
               <BarChart3 className="size-4" />
@@ -356,7 +372,7 @@ export function ReportsPage() {
                   tone="success"
                   label="Total revenue"
                   value={formatNaira(sales.revenue)}
-                  detail={rangeLabel}
+                  detail={`Walk-in ${formatNaira(sales.walkInRevenue)} · Customer ${formatNaira(sales.customerRevenue)}`}
                 />
                 <MetricCard
                   icon={ShoppingCart}
