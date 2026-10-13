@@ -517,6 +517,13 @@ export function SalesPage() {
               </div>
             </dl>
           )}
+          {selected &&
+            scope.user.role !== "owner" &&
+            db.users.find((u) => u.id === selected.salesRepId)?.role === "owner" && (
+              <p className="rounded-md bg-muted p-3 text-[11px] text-muted-foreground">
+                Recorded by the Business Owner for this branch. View only.
+              </p>
+            )}
         </DialogContent>
       </Dialog>
       <RecordSaleDialog
@@ -531,13 +538,23 @@ export function SalesPage() {
 
 function SaleTypeBadge({ db, sale }: { db: ReturnType<typeof useDb>; sale: Sale }) {
   const customer = sale.customerId ? db.customers.find((c) => c.id === sale.customerId) : undefined;
-  return sale.customerId ? (
-    <span className="status status-violet whitespace-nowrap" title={customer?.name}>
-      Customer
-    </span>
-  ) : (
-    <span className="status status-brand whitespace-nowrap" title={sale.walkInName}>
-      Walk-in
+  const byOwner = db.users.find((u) => u.id === sale.salesRepId)?.role === "owner";
+  return (
+    <span className="inline-flex gap-1">
+      {sale.customerId ? (
+        <span className="status status-violet whitespace-nowrap" title={customer?.name}>
+          Customer
+        </span>
+      ) : (
+        <span className="status status-brand whitespace-nowrap" title={sale.walkInName}>
+          Walk-in
+        </span>
+      )}
+      {byOwner && (
+        <span className="status status-warning whitespace-nowrap" title="Recorded by the Business Owner">
+          Owner sale
+        </span>
+      )}
     </span>
   );
 }
