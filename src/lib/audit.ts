@@ -51,3 +51,18 @@ export function formatPrefDate(iso: string, fmt: DateFormatPref) {
   if (fmt === "YYYY-MM-DD") return `${y}-${m}-${d}`;
   return `${MONTHS[Number(m) - 1]} ${Number(d)}, ${y}`;
 }
+
+/** Owner activity overview: actions per role and most active people over the given rows. */
+export function getActivityOverview(db: Db, rows: AuditRow[]) {
+  const byRole = new Map<string, number>();
+  const byUser = new Map<string, number>();
+  for (const a of rows) {
+    const role = db.users.find((u) => u.id === a.actorId)?.role ?? "unknown";
+    byRole.set(role, (byRole.get(role) ?? 0) + 1);
+    byUser.set(a.actorId, (byUser.get(a.actorId) ?? 0) + 1);
+  }
+  return {
+    byRole: [...byRole.entries()].map(([role, count]) => ({ role, count })).sort((a, b) => b.count - a.count),
+    topUsers: [...byUser.entries()].map(([userId, count]) => ({ userId, count })).sort((a, b) => b.count - a.count).slice(0, 5),
+  };
+}
