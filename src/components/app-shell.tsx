@@ -200,7 +200,7 @@ export function AppShell({
   const [sidebarPreferenceReady, setSidebarPreferenceReady] = useState(false);
   useEffect(() => {
     try {
-      setSidebarCollapsed(window.localStorage.getItem("salesflow-sidebar-collapsed") === "true");
+      setSidebarCollapsed(window.localStorage.getItem("friscontech-sidebar-collapsed") === "true");
     } catch {
       setSidebarCollapsed(false);
     }
@@ -209,7 +209,7 @@ export function AppShell({
   useEffect(() => {
     if (!sidebarPreferenceReady) return;
     try {
-      window.localStorage.setItem("salesflow-sidebar-collapsed", String(sidebarCollapsed));
+      window.localStorage.setItem("friscontech-sidebar-collapsed", String(sidebarCollapsed));
     } catch {
       // The sidebar remains usable if local storage is unavailable.
     }
