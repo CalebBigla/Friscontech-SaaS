@@ -26,3 +26,7 @@
 - Reports (`src/lib/reports.ts`) only compose existing Sales/Targets/Inventory/Team selectors, scoped by `canViewReports` + `branchIds`; so reports never become a second source of truth.
 - Audit history is one dataset (`db.activities`, model in `src/data/auditLogs.ts`) written only via `createAuditLog` in services and read only via role-scoped selectors in `src/lib/audit.ts`; so no module keeps its own log and rows are filtered before reaching the UI.
 - Organization settings live on `db.tenant`, per-user preferences in `db.preferences`, written via `settingsService` (owner-only for tenant fields); passwords are never stored in app data.
+- Payment chain for rep and customer payments: submitted → acknowledged (manager, `canAcknowledgePayments`) → confirmed (owner, `canConfirmPayments`) | declined; only `confirmed` counts as received; the unified view lives in `getPaymentEntriesForScope` in `src/lib/payment-calculations.ts`; so every payment screen reads one chain.
+- Approver handoffs write `db.notifications` via `createNotification` in services; so a notification UI can be added without touching flows.
+- Customers: `Sale.customerId` marks an account order (empty = walk-in), `Sale.orderId` groups lines; balances, ledger and order paid status are derived only in `src/lib/customer-calculations.ts`; so nothing about balances is stored.
+- Rep expected remittance counts walk-in sales only; customer money enters manager remittance only as owner-confirmed customer payments; so credit orders are never double counted.
