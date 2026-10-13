@@ -6,7 +6,6 @@ import {
   ArrowLeftRight,
   BadgeCheck,
   BarChart3,
-  Bell,
   Boxes,
   ClipboardCheck,
   ClipboardList,
@@ -48,6 +47,23 @@ import {
   type AccessScope,
 } from "@/lib/session";
 import { initials, roleLabel } from "@/lib/format";
+import { NotificationBell } from "@/components/notifications/notification-bell";
+
+/** Phone tab bar for field roles; "More" opens the full menu. */
+const mobileTabs: Record<string, { label: string; icon: LucideIcon; to: NavTo }[]> = {
+  sales_rep: [
+    { label: "Home", icon: LayoutDashboard, to: "/" },
+    { label: "Sales", icon: ShoppingCart, to: "/sales" },
+    { label: "Customers", icon: Contact, to: "/customers" },
+    { label: "Payment", icon: Wallet, to: "/payment" },
+  ],
+  storekeeper: [
+    { label: "Home", icon: LayoutDashboard, to: "/" },
+    { label: "Inventory", icon: Boxes, to: "/inventory" },
+    { label: "Requests", icon: ClipboardList, to: "/stock-requests" },
+    { label: "Approvals", icon: BadgeCheck, to: "/approvals" },
+  ],
+};
 
 type NavTo =
   | "/"
@@ -226,6 +242,7 @@ export function AppShell({
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const branch = db.branches.find((b) => b.id === scope.user.branchId);
+  const tabs = mobileTabs[scope.user.role];
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -399,14 +416,42 @@ export function AppShell({
             )}
           </div>
           {headerExtra}
-          <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
-            <Bell className="size-4" />
-            <span className="absolute right-2 top-2 size-1.5 rounded-full bg-destructive" />
-          </Button>
+          <NotificationBell />
           {actions}
         </header>
-        <main className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-7">{children}</main>
+        <main
+          className={`mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-7 ${tabs ? "pb-24 lg:pb-7" : ""}`}
+        >
+          {children}
+        </main>
       </div>
+      {tabs && (
+        <nav
+          aria-label="Quick navigation"
+          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+        >
+          {tabs.map(({ label, icon: Icon, to }) => (
+            <Link
+              key={to}
+              to={to}
+              activeOptions={{ exact: to === "/" }}
+              className="flex min-h-14 flex-col items-center justify-center gap-1 text-[10px] font-semibold text-muted-foreground"
+              activeProps={{ className: "!text-primary" }}
+            >
+              <Icon className="size-5" />
+              {label}
+            </Link>
+          ))}
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="flex min-h-14 flex-col items-center justify-center gap-1 text-[10px] font-semibold text-muted-foreground"
+          >
+            <Menu className="size-5" />
+            More
+          </button>
+        </nav>
+      )}
     </div>
   );
 }

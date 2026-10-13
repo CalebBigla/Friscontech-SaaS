@@ -10,5 +10,5 @@
 
 - [x] Phase 5: product Excel import, batch expiry, FEFO, expiry alerts widget/settings
 - [x] Phase 6: owner sales labelled + view-only for managers, owner activity overview, RBAC route check
-- [ ] Phase 7: notifications + mobile shells for rep/storekeeper
+- [x] Phase 7: notifications (bell, unread, stock request alerts) + phone tab bar for rep/storekeeper
 - [ ] Phase 8: consistency, QA and cleanup

@@ -35,3 +35,4 @@
 - Onboarding links are one-time: no reopen after submit; activation requires the Owner to accept the guarantor (decline needs a reason); so each hire has one auditable path.
 - Expiry is batch-level in `db.stockBatches`; `applyInventoryChange` keeps batches in step (additions with batch info open a lot, removals drain first-expiry-first-out) and all expiry maths lives in `src/lib/expiry-calculations.ts`; so stock and lots never disagree.
 - Product spreadsheet import parses in the browser with `xlsx` (dynamic import), validates in `src/lib/product-import.ts`, and writes only via `productService.importProducts`; so imported products follow the same rules and audit as manual ones.
+- Notifications are read only via the bell (`notification-bell.tsx`), filtered to the signed-in recipient; read state changes only via `notificationService`; so nobody sees others' alerts.
