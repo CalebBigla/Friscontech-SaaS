@@ -5,9 +5,9 @@ import { TeamPage } from "@/components/team/team-page";
 export const Route = createFileRoute("/team/")({
   head: () => ({
     meta: [
-      { title: "Team — SalesFlow Pro" },
+      { title: "Team — Friscontech" },
       { name: "description", content: "Manage the managers, storekeepers and sales representatives in your organization." },
-      { property: "og:title", content: "Team — SalesFlow Pro" },
+      { property: "og:title", content: "Team — Friscontech" },
       { property: "og:description", content: "Invite, edit and activate team members by role and branch." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

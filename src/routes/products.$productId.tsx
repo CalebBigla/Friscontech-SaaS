@@ -5,9 +5,9 @@ import { ProductDetailPage } from "@/components/products/product-detail-page";
 export const Route = createFileRoute("/products/$productId")({
   head: () => ({
     meta: [
-      { title: "Product details — SalesFlow Pro" },
+      { title: "Product details — Friscontech" },
       { name: "description", content: "Product information, stock by branch, sales and movement history." },
-      { property: "og:title", content: "Product details — SalesFlow Pro" },
+      { property: "og:title", content: "Product details — Friscontech" },
       { property: "og:description", content: "See branch stock, sales and movements for a product." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

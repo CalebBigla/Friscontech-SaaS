@@ -4,9 +4,9 @@ import { RequestDetailPage } from "@/components/stock-requests/request-detail-pa
 export const Route = createFileRoute("/stock-requests/$requestId")({
   head: () => ({
     meta: [
-      { title: "Stock request — SalesFlow Pro" },
+      { title: "Stock request — Friscontech" },
       { name: "description", content: "Request details, live stock availability and the approval-to-fulfilment timeline." },
-      { property: "og:title", content: "Stock request — SalesFlow Pro" },
+      { property: "og:title", content: "Stock request — Friscontech" },
       { property: "og:description", content: "Track a stock request from submission to fulfilment." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

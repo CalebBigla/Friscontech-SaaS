@@ -90,8 +90,8 @@ export function MemberStatusDialog({ member, onClose, actorId }: { member: User 
           <AlertDialogTitle>{deleting ? `Delete ${member?.name}?` : deactivating ? "Deactivate this team member?" : `Activate ${member?.name}?`}</AlertDialogTitle>
           <AlertDialogDescription>{deactivating
             ? deleting
-              ? `${member?.name} will be marked inactive and lose access to SalesFlow Pro. Their sales, payments, targets, stock requests and audit history will be preserved.`
-              : `${member?.name} will no longer be able to access SalesFlow Pro. Their sales, targets, stock requests and audit history are kept.`
+              ? `${member?.name} will be marked inactive and lose access to Friscontech. Their sales, payments, targets, stock requests and audit history will be preserved.`
+              : `${member?.name} will no longer be able to access Friscontech. Their sales, targets, stock requests and audit history are kept.`
             : "They regain access with their existing role and branch."}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -5,9 +5,9 @@ import { BranchDetailsPage } from "@/components/branches/branch-details-page";
 export const Route = createFileRoute("/branches/$branchId")({
   head: () => ({
     meta: [
-      { title: "Branch details — SalesFlow Pro" },
+      { title: "Branch details — Friscontech" },
       { name: "description", content: "Branch revenue, target achievement, staff, sales and inventory health." },
-      { property: "og:title", content: "Branch details — SalesFlow Pro" },
+      { property: "og:title", content: "Branch details — Friscontech" },
       { property: "og:description", content: "A complete operational view of a single branch." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

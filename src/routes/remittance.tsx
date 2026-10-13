@@ -5,7 +5,7 @@ import { RemittancePage } from "@/components/remittances/remittance-page";
 export const Route = createFileRoute("/remittance")({
   head: () => ({
     meta: [
-      { title: "Remittance — SalesFlow Pro" },
+      { title: "Remittance — Friscontech" },
       { name: "description", content: "Submit and confirm manager remittances." },
     ],
   }),

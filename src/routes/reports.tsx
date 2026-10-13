@@ -5,9 +5,9 @@ import { ReportsPage } from "@/components/reports/reports-page";
 export const Route = createFileRoute("/reports")({
   head: () => ({
     meta: [
-      { title: "Reports — SalesFlow Pro" },
+      { title: "Reports — Friscontech" },
       { name: "description", content: "Sales, target, inventory and team performance reports calculated from live records." },
-      { property: "og:title", content: "Reports — SalesFlow Pro" },
+      { property: "og:title", content: "Reports — Friscontech" },
       { property: "og:description", content: "Analyze sales, targets, inventory and team performance." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

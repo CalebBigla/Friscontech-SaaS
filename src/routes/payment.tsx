@@ -5,7 +5,7 @@ import { PaymentPage } from "@/components/payments/payment-page";
 export const Route = createFileRoute("/payment")({
   head: () => ({
     meta: [
-      { title: "Payment — SalesFlow Pro" },
+      { title: "Payment — Friscontech" },
       { name: "description", content: "Submit, review and reconcile sales payments." },
     ],
   }),

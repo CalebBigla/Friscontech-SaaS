@@ -12,9 +12,9 @@ import { getInventoryMovements, movementTypeLabel } from "@/lib/inventory-calcul
 export const Route = createFileRoute("/stock-movements")({
   head: () => ({
     meta: [
-      { title: "Stock Movements — SalesFlow Pro" },
+      { title: "Stock Movements — Friscontech" },
       { name: "description", content: "Every stock addition, issue, sale and adjustment at your branch." },
-      { property: "og:title", content: "Stock Movements — SalesFlow Pro" },
+      { property: "og:title", content: "Stock Movements — Friscontech" },
       { property: "og:description", content: "A traceable history of every inventory change." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

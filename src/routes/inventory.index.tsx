@@ -12,9 +12,9 @@ export const Route = createFileRoute("/inventory/")({
   validateSearch: (search) => searchSchema.parse(search),
   head: () => ({
     meta: [
-      { title: "Inventory — SalesFlow Pro" },
+      { title: "Inventory — Friscontech" },
       { name: "description", content: "Monitor stock levels, availability, and inventory movement across your branches." },
-      { property: "og:title", content: "Inventory — SalesFlow Pro" },
+      { property: "og:title", content: "Inventory — Friscontech" },
       { property: "og:description", content: "Branch-aware stock levels, low-stock alerts and inventory value." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
