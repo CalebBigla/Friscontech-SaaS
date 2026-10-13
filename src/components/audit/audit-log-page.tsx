@@ -18,7 +18,7 @@ import type { AuditEntity } from "@/data/mock-db";
 
 const entityIcon: Record<AuditEntity, LucideIcon> = {
   product: Package, sale: ShoppingCart, payment: Wallet, expense: Receipt, remittance: Landmark, stock_request: ClipboardList, target: Target, team_member: Users,
-  branch: Store, inventory: ArrowLeftRight, settings: Settings, session: KeyRound,
+  branch: Store, inventory: ArrowLeftRight, settings: Settings, session: KeyRound, customer: Contact,
 };
 const periods = [{ value: ALL, label: "All time" }, { value: "today", label: "Today" }, { value: "week", label: "Last 7 days" }, { value: "month", label: "This month" }, { value: "quarter", label: "This quarter" }];
 
