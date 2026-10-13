@@ -178,14 +178,18 @@ export type NotificationType =
   | "payment_confirmed"
   | "payment_declined"
   | "onboarding_submitted"
-  | "guarantor_completed";
+  | "guarantor_completed"
+  | "stock_request_submitted"
+  | "stock_request_approved"
+  | "stock_request_rejected"
+  | "stock_request_fulfilled";
 /** Notifications-ready rows for the next approver; delivery is added later. */
 export type AppNotification = {
   id: string;
   tenantId: string;
   recipientId: string;
   type: NotificationType;
-  entityType: "payment" | "customer_payment" | "onboarding";
+  entityType: "payment" | "customer_payment" | "onboarding" | "stock_request";
   entityId: string;
   message: string;
   createdAt: string;
