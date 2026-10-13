@@ -25,6 +25,12 @@ import type {
   Expense,
   ExpenseCategory,
   ManagerRemittance,
+  AppNotification,
+  Customer,
+  CustomerPayment,
+  CustomerPaymentMethod,
+  CustomerStatus,
+  NotificationType,
 } from "@/data/mock-db";
 import type {
   OwnerRemittance,
@@ -93,7 +99,13 @@ export type FieldErrors = Partial<
     | "paymentMethod"
     | "remittanceDate"
     | "reference"
-    | "payeeType",
+    | "payeeType"
+    | "customerId"
+    | "contactPerson"
+    | "creditLimit"
+    | "method"
+    | "paymentDate"
+    | "proof",
     string
   >
 > & { itemErrors?: Record<number, Partial<Record<"productId" | "quantity", string>>> };
@@ -115,6 +127,12 @@ export type SaleInput = {
   quantity: number;
   unitPrice: number;
   saleDate: string;
+};
+/** Order-level details shared by every line of one sale/order. */
+export type SaleOrderInput = {
+  customerId?: string | undefined;
+  walkInName?: string | undefined;
+  walkInPhone?: string | undefined;
 };
 
 const latency = () => new Promise((r) => setTimeout(r, 350));
@@ -160,6 +178,29 @@ export function createAuditLog(
   };
 }
 const activity = createAuditLog;
+
+/** Notifications-ready row for the next approver in a chain (delivery added later). */
+export function createNotification(
+  db: Db,
+  recipientId: string,
+  type: NotificationType,
+  entityType: AppNotification["entityType"],
+  entityId: string,
+  message: string,
+): AppNotification {
+  return {
+    id: `ntf-${db.notifications.length + 1}-${Math.random().toString(36).slice(2, 6)}`,
+    tenantId: db.tenant.id,
+    recipientId,
+    type,
+    entityType,
+    entityId,
+    message,
+    createdAt: nowOnReferenceDay(db),
+  };
+}
+const ownerIds = (db: Db) =>
+  db.users.filter((u) => u.tenantId === db.tenant.id && u.role === "owner" && u.status === "active").map((u) => u.id);
 
 export function validateBranch(db: Db, input: BranchInput, editingId?: string) {
   const errors: FieldErrors = {};
@@ -301,10 +342,25 @@ export const mockSalesService = {
     const result = await this.recordMany([input], actorId);
     return result.ok ? { ok: true, data: result.data[0]! } : result;
   },
-  async recordMany(inputs: SaleInput[], actorId: string): Promise<Result<Sale[]>> {
+  async recordMany(
+    inputs: SaleInput[],
+    actorId: string,
+    order: SaleOrderInput = {},
+  ): Promise<Result<Sale[]>> {
     await latency();
     const current = getDb();
     const actor = getAccessScope(current, actorId);
+    if (order.customerId) {
+      const customer = current.customers.find(
+        (c) => c.id === order.customerId && c.tenantId === current.tenant.id,
+      );
+      if (!actor.canManageCustomers)
+        return { ok: false, errors: { form: "Only sales representatives can raise customer orders" } };
+      if (!customer || customer.status !== "active")
+        return { ok: false, errors: { customerId: "Choose an active customer" } };
+      if (customer.branchId && actor.user.branchId && customer.branchId !== actor.user.branchId)
+        return { ok: false, errors: { customerId: "This customer belongs to another branch" } };
+    }
     // Sales reps always record against themselves, their branch and tenant.
     if (!inputs.length) return { ok: false, errors: { items: "Add at least one item" } };
     if (
@@ -357,13 +413,23 @@ export const mockSalesService = {
       errors.items = "Review the highlighted sale items";
     if (Object.keys(errors).length) return { ok: false, errors };
     let next = current;
-    const sales = inputs.map((input, index) => {
+    const orderId = `ORD-${10001 + current.sales.length}`;
+    const walkInName = order.walkInName?.trim();
+    const walkInPhone = order.walkInPhone?.trim();
+    const sales: Sale[] = inputs.map((input, index) => {
       const n = current.sales.length + index + 1;
       return {
         id: `sale-${String(n).padStart(5, "0")}`,
         tenantId: current.tenant.id,
         code: `SAL-${10000 + n}`,
         ...input,
+        orderId,
+        ...(order.customerId
+          ? { customerId: order.customerId }
+          : {
+              ...(walkInName ? { walkInName } : {}),
+              ...(walkInPhone ? { walkInPhone } : {}),
+            }),
         createdAt:
           input.saleDate === current.tenant.referenceDate
             ? nowOnReferenceDay(current)
@@ -395,7 +461,12 @@ export const mockSalesService = {
           entityId: sale.id,
           branchId: sale.branchId,
           productId: sale.productId,
-          metadata: { salesRepId: sale.salesRepId },
+          metadata: {
+            salesRepId: sale.salesRepId,
+            saleType: sale.customerId ? "customer" : "walk_in",
+            ...(sale.customerId ? { customerId: sale.customerId } : {}),
+            orderId,
+          },
         },
       );
     });
