@@ -203,6 +203,10 @@ export function createNotification(
     createdAt: nowOnReferenceDay(db),
   };
 }
+const storekeeperIds = (db: Db, branchId: string) =>
+  db.users
+    .filter((u) => u.tenantId === db.tenant.id && u.role === "storekeeper" && u.status === "active" && u.branchId === branchId)
+    .map((u) => u.id);
 const ownerIds = (db: Db) =>
   db.users
     .filter((u) => u.tenantId === db.tenant.id && u.role === "owner" && u.status === "active")
@@ -815,6 +819,13 @@ export const mockStockRequestService = {
     setDb((d) => ({
       ...d,
       stockRequests: [...reqs, ...d.stockRequests],
+      notifications: [
+        ...storekeeperIds(d, input.branchId).map((sk) =>
+          createNotification(d, sk, "stock_request_submitted", "stock_request", reqs[0]!.id,
+            `${scope.user.name} requested ${reqs.length} item${reqs.length > 1 ? "s" : ""}${batchId ? ` (${batchId})` : ` · ${reqs[0]!.id}`}`),
+        ),
+        ...d.notifications,
+      ],
       activities: [
         ...reqs
           .map((r) =>
@@ -905,6 +916,12 @@ export const mockStockRequestService = {
     setDb((d) => ({
       ...d,
       stockRequests: [req, ...d.stockRequests],
+      notifications: [
+        ...storekeeperIds(d, req.branchId).map((sk) =>
+          createNotification(d, sk, "stock_request_submitted", "stock_request", req.id, `${scope.user.name} requested ${req.quantityRequested} units · ${req.id}`),
+        ),
+        ...d.notifications,
+      ],
       activities: [
         activity(
           d,
@@ -934,6 +951,10 @@ export const mockStockRequestService = {
         approvedBy: actorId,
         processedBy: actorId,
       }),
+      notifications: [
+        createNotification(d, check.req.repId, "stock_request_approved", "stock_request", id, `${id} was approved and is waiting to be issued`),
+        ...d.notifications,
+      ],
       activities: [
         activity(
           d,
@@ -962,6 +983,10 @@ export const mockStockRequestService = {
         processedBy: actorId,
         rejectionReason: reason.trim(),
       }),
+      notifications: [
+        createNotification(d, check.req.repId, "stock_request_rejected", "stock_request", id, `${id} was rejected: ${reason.trim()}`),
+        ...d.notifications,
+      ],
       activities: [
         activity(d, actorId, "Stock request rejected", `${id} · ${reason.trim()}`),
         ...d.activities,
@@ -1022,6 +1047,11 @@ export const mockStockRequestService = {
           processedBy: actorId,
         },
       ),
+      notifications: [
+        createNotification(d, req.repId, "stock_request_fulfilled", "stock_request", id,
+          status === "fulfilled" ? `${id} is ready: ${quantity} units issued to you` : `${id}: ${quantity} units issued, more to follow`),
+        ...d.notifications,
+      ],
       activities: [
         activity(
           d,
@@ -3098,6 +3128,25 @@ export const mockCustomerPaymentService = {
       activities: [log, ...d.activities],
     }));
     return { ok: true, data: updated };
+  },
+};
+/** Read state of the signed-in user's own notifications. */
+export const notificationService = {
+  markRead(id: string, actorId: string) {
+    setDb((d) => ({
+      ...d,
+      notifications: d.notifications.map((n) =>
+        n.id === id && n.recipientId === actorId && !n.readAt ? { ...n, readAt: nowOnReferenceDay(d) } : n,
+      ),
+    }));
+  },
+  markAllRead(actorId: string) {
+    setDb((d) => ({
+      ...d,
+      notifications: d.notifications.map((n) =>
+        n.recipientId === actorId && !n.readAt ? { ...n, readAt: nowOnReferenceDay(d) } : n,
+      ),
+    }));
   },
 };
 export const customerService = mockCustomerService;
