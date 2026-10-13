@@ -161,10 +161,10 @@ function CorrectionDialog({ open, onOpenChange, onSubmit }: { open: boolean; onO
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Request corrections</DialogTitle><DialogDescription className="text-xs">The member's link reopens for 7 days so they can fix their form.</DialogDescription></DialogHeader>
-        <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What needs to change?" rows={4} />
+        <DialogHeader><DialogTitle>Decline guarantor</DialogTitle><DialogDescription className="text-xs">The reason is saved in the audit log. The member can't be activated.</DialogDescription></DialogHeader>
+        <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason for declining" rows={4} />
         {err && <p className="text-[11px] font-medium text-destructive">{err}</p>}
-        <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={async () => { const r = await onSubmit(note); if (!r.ok) { setErr(r.errors?.form ?? "Failed"); return; } toast.success("Corrections requested — share the link again"); onOpenChange(false); }}>Send back</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={async () => { const r = await onSubmit(note); if (!r.ok) { setErr(r.errors?.form ?? "Failed"); return; } toast.success("Guarantor declined"); onOpenChange(false); }}>Decline</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

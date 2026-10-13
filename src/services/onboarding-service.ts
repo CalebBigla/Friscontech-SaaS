@@ -176,15 +176,6 @@ export const onboardingService = {
   },
 
   // ---- owner review ----
-  async requestCorrections(id: string, note: string, actorId: string): Promise<R<Onboarding>> {
-    await latency();
-    if (!isOwner(getDb(), actorId)) return fail("Only the Owner can review onboarding.");
-    return fail("Onboarding links are one-time only; submitted forms can't be reopened.");
-    if (note.trim().length < 5) return { ok: false, errors: { form: "Explain what needs correcting." } };
-    const r = update(id, (x) => ({ ...x, status: "in_progress", tokenUsed: false, tokenRevoked: false, tokenExpiresAt: expiry(), correctionNote: note.trim() }),
-      (d, x) => createAuditLog(d, actorId, "Team onboarding corrections requested", `${x.employeeId} · ${note.trim()}`, { entityId: x.userId }));
-    return r ? { ok: true, data: r } : fail("Not found");
-  },
   async reviewGuarantor(id: string, decision: "accepted" | "declined", reason: string, actorId: string): Promise<R<Onboarding>> {
     await latency();
     const db = getDb();
