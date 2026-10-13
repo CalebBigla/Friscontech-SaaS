@@ -58,6 +58,7 @@ import {
   validateRemittanceReconciliation,
 } from "@/lib/remittance-calculations";
 
+import { buildOnboarding } from "@/services/onboarding-service";
 export type FieldErrors = Partial<
   Record<
     | "name"
@@ -1412,6 +1413,10 @@ export const mockTeamService = {
       ...d,
       users: [...d.users, user],
       branches: syncBranches(d, user),
+      onboardings:
+        user.status === "pending"
+          ? [buildOnboarding({ ...d, users: [...d.users, user] }, user.id, user.createdAt), ...d.onboardings]
+          : d.onboardings,
       activities: [
         activity(
           d,
@@ -1646,10 +1651,11 @@ export const mockApprovalService = {
           role: m.role,
           branchId: m.branchId,
           managerId: branchManager(d, m.role, m.branchId),
-          status: "active",
+          status: "pending",
           createdAt: at,
         };
         next = { ...next, users: [...next.users, user], branches: syncBranches(next, user) };
+        next = { ...next, onboardings: [buildOnboarding(next, user.id, at), ...next.onboardings] };
         log = activity(
           d,
           actorId,
@@ -3017,6 +3023,7 @@ export const customerPaymentService = mockCustomerPaymentService;
 
 export const approvalService = mockApprovalService;
 export const teamService = mockTeamService;
+export { onboardingService } from "@/services/onboarding-service";
 export const targetService = mockTargetService;
 export const productService = mockProductService;
 export const branchService = mockBranchService;

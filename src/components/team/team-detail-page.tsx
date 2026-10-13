@@ -11,6 +11,7 @@ import {
   RoleBadge,
   TeamMemberDialog,
 } from "@/components/team/team-dialogs";
+import { OnboardingPanel } from "@/components/team/onboarding-panel";
 import { TargetProgressBar, TargetStatusBadge } from "@/components/targets/target-shared";
 import {
   CircleDollarSign,
@@ -129,6 +130,7 @@ export function TeamDetailPage({ userId: memberId }: { userId: string }) {
           </div>
         </div>
       </Panel>
+      <OnboardingPanel member={u} scope={scope} />
       {u.role === "sales_rep" && (
         <RepSection
           repId={u.id}

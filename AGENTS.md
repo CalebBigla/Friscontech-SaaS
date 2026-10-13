@@ -30,3 +30,4 @@
 - Approver handoffs write `db.notifications` via `createNotification` in services; so a notification UI can be added without touching flows.
 - Customers: `Sale.customerId` marks an account order (empty = walk-in), `Sale.orderId` groups lines; balances, ledger and order paid status are derived only in `src/lib/customer-calculations.ts`; so nothing about balances is stored.
 - Rep expected remittance counts walk-in sales only; customer money enters manager remittance only as owner-confirmed customer payments; so credit orders are never double counted.
+- Staff onboarding lives in `db.onboardings` (model + security note in `src/data/onboarding.ts`, selectors/validation in `src/lib/onboarding.ts`, writes only via `onboardingService`); public token pages `/onboard/$token` and `/guarantor/$token` render outside AppShell; so the demo flow can later move to a real backend (hashed tokens, private file storage, auth-managed passwords) in one place.

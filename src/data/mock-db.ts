@@ -1,3 +1,4 @@
+import type { Onboarding } from "@/data/onboarding";
 import { seedAuditLogs } from "./auditLogs";
 import { seedOwnerRemittances, type OwnerRemittance } from "./remittances";
 /**
@@ -173,14 +174,16 @@ export type NotificationType =
   | "payment_awaiting_acknowledgement"
   | "payment_awaiting_confirmation"
   | "payment_confirmed"
-  | "payment_declined";
+  | "payment_declined"
+  | "onboarding_submitted"
+  | "guarantor_completed";
 /** Notifications-ready rows for the next approver; delivery is added later. */
 export type AppNotification = {
   id: string;
   tenantId: string;
   recipientId: string;
   type: NotificationType;
-  entityType: "payment" | "customer_payment";
+  entityType: "payment" | "customer_payment" | "onboarding";
   entityId: string;
   message: string;
   createdAt: string;
@@ -414,6 +417,7 @@ export type Db = {
   customers: Customer[];
   customerPayments: CustomerPayment[];
   notifications: AppNotification[];
+  onboardings: Onboarding[];
 };
 
 const T = "tenant-001";
@@ -1481,6 +1485,7 @@ export function createSeedDb(): Db {
     customers: customers.map((x) => ({ ...x })),
     customerPayments,
     notifications: seedNotifications(payments, customerPayments),
+    onboardings: [],
     tenant,
     branches: branches.map((x) => ({ ...x })),
     users: users.map((x) => ({ ...x })),

@@ -12,7 +12,9 @@ import type { Role, User, UserStatus } from "@/data/mock-db";
 import { getAccessScope, type AccessScope } from "@/lib/session";
 import { roleLabel } from "@/lib/format";
 import { assignableRoles, roleNeedsBranch, userStatusLabel } from "@/lib/team";
-import { useDb } from "@/services/mock-store";
+import { getDb, useDb } from "@/services/mock-store";
+import { findOnboardingByUser, onboardingUrl } from "@/lib/onboarding";
+import { copyText } from "@/components/team/onboarding-panel";
 import { teamService, type FieldErrors } from "@/services/services";
 
 const NONE = "none";
@@ -50,10 +52,14 @@ export function TeamMemberDialog({ open, onOpenChange, scope, member }: { open: 
       toast.success("Sent to the Owner for approval.", { description: `${q.data.member?.name} joins the team once approved (${q.data.id}).` });
       onOpenChange(false); return;
     }
-    const r = member ? await teamService.update(member.id, input, scope.user.id) : await teamService.create(input, scope.user.id);
+    const r = member ? await teamService.update(member.id, input, scope.user.id) : await teamService.create({ ...input, status: "pending" }, scope.user.id);
     setSaving(false);
     if (!r.ok) { setErrors(r.errors); toast.error(r.errors.form ?? "Please fix the highlighted fields"); return; }
-    toast.success(member ? `${r.data.name} updated` : `${r.data.name} added to the team`, member ? undefined : { description: r.data.status === "pending" ? "Invitation pending — the account activates once accepted." : undefined });
+    if (member) toast.success(`${r.data.name} updated`);
+    else {
+      const ob = findOnboardingByUser(getDb(), r.data.id);
+      toast.success(`${r.data.name} added — onboarding link ready`, ob ? { description: "Copy it now or later from their profile.", action: { label: "Copy link", onClick: () => void copyText(onboardingUrl(ob.token)) }, duration: 10000 } : undefined);
+    }
     onOpenChange(false);
   }
   return (
@@ -69,7 +75,8 @@ export function TeamMemberDialog({ open, onOpenChange, scope, member }: { open: 
             <div><Label className="text-xs">Branch {roleNeedsBranch(form.role) ? "*" : ""}</Label><div className="mt-1.5"><FilterSelect label="Branch" className="w-full" value={form.branchId} onChange={(v) => setForm({ ...form, branchId: v })}
               options={[{ value: NONE, label: roleNeedsBranch(form.role) ? "Select branch" : "Unassigned" }, ...branches.map((b) => ({ value: b.id, label: `${b.name}${b.status === "inactive" ? " (inactive)" : ""}` }))]} /></div><FieldError message={errors.branchId} /></div>
           </div>
-          <div><Label className="text-xs">Status *</Label><div className="mt-1.5"><FilterSelect label="Status" className="w-full" value={form.status} onChange={(v) => setForm({ ...form, status: v as UserStatus })} options={(["pending", "active", "inactive"] as UserStatus[]).map((s) => ({ value: s, label: userStatusLabel[s] }))} /></div><FieldError message={errors.status} /></div>
+          {member && <div><Label className="text-xs">Status *</Label><div className="mt-1.5"><FilterSelect label="Status" className="w-full" value={form.status} onChange={(v) => setForm({ ...form, status: v as UserStatus })} options={(["pending", "active", "inactive"] as UserStatus[]).map((s) => ({ value: s, label: userStatusLabel[s] }))} /></div><FieldError message={errors.status} /></div>}
+          {!member && scope.user.role === "owner" && <p className="text-[11px] text-muted-foreground">The member starts as Pending and gets a 7-day onboarding link to fill in their employee form.</p>}
           <FieldError message={errors.form} />
           <DialogFooter className="gap-2"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" disabled={saving}>{saving && <Loader2 className="size-4 animate-spin" />}{member ? "Save changes" : scope.user.role === "owner" ? "Add member" : "Send for approval"}</Button></DialogFooter>
         </form>

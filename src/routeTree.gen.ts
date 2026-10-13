@@ -24,8 +24,10 @@ import { Route as BranchesIndexRouteImport } from './routes/branches.index'
 import { Route as BranchesBranchIdRouteImport } from './routes/branches.$branchId'
 import { Route as CustomersIndexRouteImport } from './routes/customers.index'
 import { Route as CustomersCustomerIdRouteImport } from './routes/customers.$customerId'
+import { Route as GuarantorTokenRouteImport } from './routes/guarantor.$token'
 import { Route as InventoryIndexRouteImport } from './routes/inventory.index'
 import { Route as InventoryInventoryIdRouteImport } from './routes/inventory.$inventoryId'
+import { Route as OnboardTokenRouteImport } from './routes/onboard.$token'
 import { Route as ProductsIndexRouteImport } from './routes/products.index'
 import { Route as ProductsProductIdRouteImport } from './routes/products.$productId'
 import { Route as StockRequestsIndexRouteImport } from './routes/stock-requests.index'
@@ -112,6 +114,11 @@ const CustomersCustomerIdRoute = CustomersCustomerIdRouteImport.update({
   path: '/customers/$customerId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuarantorTokenRoute = GuarantorTokenRouteImport.update({
+  id: '/guarantor/$token',
+  path: '/guarantor/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InventoryIndexRoute = InventoryIndexRouteImport.update({
   id: '/inventory/',
   path: '/inventory/',
@@ -120,6 +127,11 @@ const InventoryIndexRoute = InventoryIndexRouteImport.update({
 const InventoryInventoryIdRoute = InventoryInventoryIdRouteImport.update({
   id: '/inventory/$inventoryId',
   path: '/inventory/$inventoryId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardTokenRoute = OnboardTokenRouteImport.update({
+  id: '/onboard/$token',
+  path: '/onboard/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductsIndexRoute = ProductsIndexRouteImport.update({
@@ -188,7 +200,9 @@ export interface FileRoutesByFullPath {
   '/stock-movements': typeof StockMovementsRoute
   '/branches/$branchId': typeof BranchesBranchIdRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
+  '/guarantor/$token': typeof GuarantorTokenRoute
   '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
+  '/onboard/$token': typeof OnboardTokenRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
   '/targets/$targetId': typeof TargetsTargetIdRoute
@@ -217,7 +231,9 @@ export interface FileRoutesByTo {
   '/stock-movements': typeof StockMovementsRoute
   '/branches/$branchId': typeof BranchesBranchIdRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
+  '/guarantor/$token': typeof GuarantorTokenRoute
   '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
+  '/onboard/$token': typeof OnboardTokenRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
   '/targets/$targetId': typeof TargetsTargetIdRoute
@@ -247,7 +263,9 @@ export interface FileRoutesById {
   '/stock-movements': typeof StockMovementsRoute
   '/branches/$branchId': typeof BranchesBranchIdRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
+  '/guarantor/$token': typeof GuarantorTokenRoute
   '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
+  '/onboard/$token': typeof OnboardTokenRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
   '/targets/$targetId': typeof TargetsTargetIdRoute
@@ -278,7 +296,9 @@ export interface FileRouteTypes {
     | '/stock-movements'
     | '/branches/$branchId'
     | '/customers/$customerId'
+    | '/guarantor/$token'
     | '/inventory/$inventoryId'
+    | '/onboard/$token'
     | '/products/$productId'
     | '/stock-requests/$requestId'
     | '/targets/$targetId'
@@ -307,7 +327,9 @@ export interface FileRouteTypes {
     | '/stock-movements'
     | '/branches/$branchId'
     | '/customers/$customerId'
+    | '/guarantor/$token'
     | '/inventory/$inventoryId'
+    | '/onboard/$token'
     | '/products/$productId'
     | '/stock-requests/$requestId'
     | '/targets/$targetId'
@@ -336,7 +358,9 @@ export interface FileRouteTypes {
     | '/stock-movements'
     | '/branches/$branchId'
     | '/customers/$customerId'
+    | '/guarantor/$token'
     | '/inventory/$inventoryId'
+    | '/onboard/$token'
     | '/products/$productId'
     | '/stock-requests/$requestId'
     | '/targets/$targetId'
@@ -366,7 +390,9 @@ export interface RootRouteChildren {
   StockMovementsRoute: typeof StockMovementsRoute
   BranchesBranchIdRoute: typeof BranchesBranchIdRoute
   CustomersCustomerIdRoute: typeof CustomersCustomerIdRoute
+  GuarantorTokenRoute: typeof GuarantorTokenRoute
   InventoryInventoryIdRoute: typeof InventoryInventoryIdRoute
+  OnboardTokenRoute: typeof OnboardTokenRoute
   ProductsProductIdRoute: typeof ProductsProductIdRoute
   StockRequestsRequestIdRoute: typeof StockRequestsRequestIdRoute
   TargetsTargetIdRoute: typeof TargetsTargetIdRoute
@@ -489,6 +515,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CustomersCustomerIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/guarantor/$token': {
+      id: '/guarantor/$token'
+      path: '/guarantor/$token'
+      fullPath: '/guarantor/$token'
+      preLoaderRoute: typeof GuarantorTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/inventory/': {
       id: '/inventory/'
       path: '/inventory'
@@ -501,6 +534,13 @@ declare module '@tanstack/react-router' {
       path: '/inventory/$inventoryId'
       fullPath: '/inventory/$inventoryId'
       preLoaderRoute: typeof InventoryInventoryIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboard/$token': {
+      id: '/onboard/$token'
+      path: '/onboard/$token'
+      fullPath: '/onboard/$token'
+      preLoaderRoute: typeof OnboardTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/products/': {
@@ -590,7 +630,9 @@ const rootRouteChildren: RootRouteChildren = {
   StockMovementsRoute: StockMovementsRoute,
   BranchesBranchIdRoute: BranchesBranchIdRoute,
   CustomersCustomerIdRoute: CustomersCustomerIdRoute,
+  GuarantorTokenRoute: GuarantorTokenRoute,
   InventoryInventoryIdRoute: InventoryInventoryIdRoute,
+  OnboardTokenRoute: OnboardTokenRoute,
   ProductsProductIdRoute: ProductsProductIdRoute,
   StockRequestsRequestIdRoute: StockRequestsRequestIdRoute,
   TargetsTargetIdRoute: TargetsTargetIdRoute,
