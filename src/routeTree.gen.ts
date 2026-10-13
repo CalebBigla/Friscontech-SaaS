@@ -10,33 +10,337 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApprovalsRouteImport } from './routes/approvals'
+import { Route as AuditLogRouteImport } from './routes/audit-log'
+import { Route as ExpensesRouteImport } from './routes/expenses'
+import { Route as PaymentRouteImport } from './routes/payment'
+import { Route as RemittanceRouteImport } from './routes/remittance'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as SalesRouteImport } from './routes/sales'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as StockMovementsRouteImport } from './routes/stock-movements'
+import { Route as BranchesIndexRouteImport } from './routes/branches.index'
+import { Route as BranchesBranchIdRouteImport } from './routes/branches.$branchId'
+import { Route as InventoryIndexRouteImport } from './routes/inventory.index'
+import { Route as InventoryInventoryIdRouteImport } from './routes/inventory.$inventoryId'
+import { Route as ProductsIndexRouteImport } from './routes/products.index'
+import { Route as ProductsProductIdRouteImport } from './routes/products.$productId'
+import { Route as StockRequestsIndexRouteImport } from './routes/stock-requests.index'
+import { Route as StockRequestsRequestIdRouteImport } from './routes/stock-requests.$requestId'
+import { Route as TargetsIndexRouteImport } from './routes/targets.index'
+import { Route as TargetsTargetIdRouteImport } from './routes/targets.$targetId'
+import { Route as TeamIndexRouteImport } from './routes/team.index'
+import { Route as TeamUserIdRouteImport } from './routes/team.$userId'
+import { Route as OwnerRemittanceIndexRouteImport } from './routes/owner.remittance.index'
+import { Route as OwnerRemittanceRemittanceIdRouteImport } from './routes/owner.remittance.$remittanceId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApprovalsRoute = ApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditLogRoute = AuditLogRouteImport.update({
+  id: '/audit-log',
+  path: '/audit-log',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExpensesRoute = ExpensesRouteImport.update({
+  id: '/expenses',
+  path: '/expenses',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentRoute = PaymentRouteImport.update({
+  id: '/payment',
+  path: '/payment',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RemittanceRoute = RemittanceRouteImport.update({
+  id: '/remittance',
+  path: '/remittance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SalesRoute = SalesRouteImport.update({
+  id: '/sales',
+  path: '/sales',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StockMovementsRoute = StockMovementsRouteImport.update({
+  id: '/stock-movements',
+  path: '/stock-movements',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BranchesIndexRoute = BranchesIndexRouteImport.update({
+  id: '/branches/',
+  path: '/branches/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BranchesBranchIdRoute = BranchesBranchIdRouteImport.update({
+  id: '/branches/$branchId',
+  path: '/branches/$branchId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventoryIndexRoute = InventoryIndexRouteImport.update({
+  id: '/inventory/',
+  path: '/inventory/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventoryInventoryIdRoute = InventoryInventoryIdRouteImport.update({
+  id: '/inventory/$inventoryId',
+  path: '/inventory/$inventoryId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsIndexRoute = ProductsIndexRouteImport.update({
+  id: '/products/',
+  path: '/products/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsProductIdRoute = ProductsProductIdRouteImport.update({
+  id: '/products/$productId',
+  path: '/products/$productId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StockRequestsIndexRoute = StockRequestsIndexRouteImport.update({
+  id: '/stock-requests/',
+  path: '/stock-requests/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StockRequestsRequestIdRoute = StockRequestsRequestIdRouteImport.update({
+  id: '/stock-requests/$requestId',
+  path: '/stock-requests/$requestId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TargetsIndexRoute = TargetsIndexRouteImport.update({
+  id: '/targets/',
+  path: '/targets/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TargetsTargetIdRoute = TargetsTargetIdRouteImport.update({
+  id: '/targets/$targetId',
+  path: '/targets/$targetId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeamIndexRoute = TeamIndexRouteImport.update({
+  id: '/team/',
+  path: '/team/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeamUserIdRoute = TeamUserIdRouteImport.update({
+  id: '/team/$userId',
+  path: '/team/$userId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OwnerRemittanceIndexRoute = OwnerRemittanceIndexRouteImport.update({
+  id: '/owner/remittance/',
+  path: '/owner/remittance/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OwnerRemittanceRemittanceIdRoute =
+  OwnerRemittanceRemittanceIdRouteImport.update({
+    id: '/owner/remittance/$remittanceId',
+    path: '/owner/remittance/$remittanceId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/approvals': typeof ApprovalsRoute
+  '/audit-log': typeof AuditLogRoute
+  '/expenses': typeof ExpensesRoute
+  '/payment': typeof PaymentRoute
+  '/remittance': typeof RemittanceRoute
+  '/reports': typeof ReportsRoute
+  '/sales': typeof SalesRoute
+  '/settings': typeof SettingsRoute
+  '/stock-movements': typeof StockMovementsRoute
+  '/branches/$branchId': typeof BranchesBranchIdRoute
+  '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
+  '/products/$productId': typeof ProductsProductIdRoute
+  '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
+  '/targets/$targetId': typeof TargetsTargetIdRoute
+  '/team/$userId': typeof TeamUserIdRoute
+  '/branches/': typeof BranchesIndexRoute
+  '/inventory/': typeof InventoryIndexRoute
+  '/products/': typeof ProductsIndexRoute
+  '/stock-requests/': typeof StockRequestsIndexRoute
+  '/targets/': typeof TargetsIndexRoute
+  '/team/': typeof TeamIndexRoute
+  '/owner/remittance/$remittanceId': typeof OwnerRemittanceRemittanceIdRoute
+  '/owner/remittance/': typeof OwnerRemittanceIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/approvals': typeof ApprovalsRoute
+  '/audit-log': typeof AuditLogRoute
+  '/expenses': typeof ExpensesRoute
+  '/payment': typeof PaymentRoute
+  '/remittance': typeof RemittanceRoute
+  '/reports': typeof ReportsRoute
+  '/sales': typeof SalesRoute
+  '/settings': typeof SettingsRoute
+  '/stock-movements': typeof StockMovementsRoute
+  '/branches/$branchId': typeof BranchesBranchIdRoute
+  '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
+  '/products/$productId': typeof ProductsProductIdRoute
+  '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
+  '/targets/$targetId': typeof TargetsTargetIdRoute
+  '/team/$userId': typeof TeamUserIdRoute
+  '/branches': typeof BranchesIndexRoute
+  '/inventory': typeof InventoryIndexRoute
+  '/products': typeof ProductsIndexRoute
+  '/stock-requests': typeof StockRequestsIndexRoute
+  '/targets': typeof TargetsIndexRoute
+  '/team': typeof TeamIndexRoute
+  '/owner/remittance/$remittanceId': typeof OwnerRemittanceRemittanceIdRoute
+  '/owner/remittance': typeof OwnerRemittanceIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/approvals': typeof ApprovalsRoute
+  '/audit-log': typeof AuditLogRoute
+  '/expenses': typeof ExpensesRoute
+  '/payment': typeof PaymentRoute
+  '/remittance': typeof RemittanceRoute
+  '/reports': typeof ReportsRoute
+  '/sales': typeof SalesRoute
+  '/settings': typeof SettingsRoute
+  '/stock-movements': typeof StockMovementsRoute
+  '/branches/$branchId': typeof BranchesBranchIdRoute
+  '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
+  '/products/$productId': typeof ProductsProductIdRoute
+  '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
+  '/targets/$targetId': typeof TargetsTargetIdRoute
+  '/team/$userId': typeof TeamUserIdRoute
+  '/branches/': typeof BranchesIndexRoute
+  '/inventory/': typeof InventoryIndexRoute
+  '/products/': typeof ProductsIndexRoute
+  '/stock-requests/': typeof StockRequestsIndexRoute
+  '/targets/': typeof TargetsIndexRoute
+  '/team/': typeof TeamIndexRoute
+  '/owner/remittance/$remittanceId': typeof OwnerRemittanceRemittanceIdRoute
+  '/owner/remittance/': typeof OwnerRemittanceIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/approvals'
+    | '/audit-log'
+    | '/expenses'
+    | '/payment'
+    | '/remittance'
+    | '/reports'
+    | '/sales'
+    | '/settings'
+    | '/stock-movements'
+    | '/branches/$branchId'
+    | '/inventory/$inventoryId'
+    | '/products/$productId'
+    | '/stock-requests/$requestId'
+    | '/targets/$targetId'
+    | '/team/$userId'
+    | '/branches/'
+    | '/inventory/'
+    | '/products/'
+    | '/stock-requests/'
+    | '/targets/'
+    | '/team/'
+    | '/owner/remittance/$remittanceId'
+    | '/owner/remittance/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/approvals'
+    | '/audit-log'
+    | '/expenses'
+    | '/payment'
+    | '/remittance'
+    | '/reports'
+    | '/sales'
+    | '/settings'
+    | '/stock-movements'
+    | '/branches/$branchId'
+    | '/inventory/$inventoryId'
+    | '/products/$productId'
+    | '/stock-requests/$requestId'
+    | '/targets/$targetId'
+    | '/team/$userId'
+    | '/branches'
+    | '/inventory'
+    | '/products'
+    | '/stock-requests'
+    | '/targets'
+    | '/team'
+    | '/owner/remittance/$remittanceId'
+    | '/owner/remittance'
+  id:
+    | '__root__'
+    | '/'
+    | '/approvals'
+    | '/audit-log'
+    | '/expenses'
+    | '/payment'
+    | '/remittance'
+    | '/reports'
+    | '/sales'
+    | '/settings'
+    | '/stock-movements'
+    | '/branches/$branchId'
+    | '/inventory/$inventoryId'
+    | '/products/$productId'
+    | '/stock-requests/$requestId'
+    | '/targets/$targetId'
+    | '/team/$userId'
+    | '/branches/'
+    | '/inventory/'
+    | '/products/'
+    | '/stock-requests/'
+    | '/targets/'
+    | '/team/'
+    | '/owner/remittance/$remittanceId'
+    | '/owner/remittance/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApprovalsRoute: typeof ApprovalsRoute
+  AuditLogRoute: typeof AuditLogRoute
+  ExpensesRoute: typeof ExpensesRoute
+  PaymentRoute: typeof PaymentRoute
+  RemittanceRoute: typeof RemittanceRoute
+  ReportsRoute: typeof ReportsRoute
+  SalesRoute: typeof SalesRoute
+  SettingsRoute: typeof SettingsRoute
+  StockMovementsRoute: typeof StockMovementsRoute
+  BranchesBranchIdRoute: typeof BranchesBranchIdRoute
+  InventoryInventoryIdRoute: typeof InventoryInventoryIdRoute
+  ProductsProductIdRoute: typeof ProductsProductIdRoute
+  StockRequestsRequestIdRoute: typeof StockRequestsRequestIdRoute
+  TargetsTargetIdRoute: typeof TargetsTargetIdRoute
+  TeamUserIdRoute: typeof TeamUserIdRoute
+  BranchesIndexRoute: typeof BranchesIndexRoute
+  InventoryIndexRoute: typeof InventoryIndexRoute
+  ProductsIndexRoute: typeof ProductsIndexRoute
+  StockRequestsIndexRoute: typeof StockRequestsIndexRoute
+  TargetsIndexRoute: typeof TargetsIndexRoute
+  TeamIndexRoute: typeof TeamIndexRoute
+  OwnerRemittanceRemittanceIdRoute: typeof OwnerRemittanceRemittanceIdRoute
+  OwnerRemittanceIndexRoute: typeof OwnerRemittanceIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +352,195 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/approvals': {
+      id: '/approvals'
+      path: '/approvals'
+      fullPath: '/approvals'
+      preLoaderRoute: typeof ApprovalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audit-log': {
+      id: '/audit-log'
+      path: '/audit-log'
+      fullPath: '/audit-log'
+      preLoaderRoute: typeof AuditLogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/expenses': {
+      id: '/expenses'
+      path: '/expenses'
+      fullPath: '/expenses'
+      preLoaderRoute: typeof ExpensesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment': {
+      id: '/payment'
+      path: '/payment'
+      fullPath: '/payment'
+      preLoaderRoute: typeof PaymentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/remittance': {
+      id: '/remittance'
+      path: '/remittance'
+      fullPath: '/remittance'
+      preLoaderRoute: typeof RemittanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sales': {
+      id: '/sales'
+      path: '/sales'
+      fullPath: '/sales'
+      preLoaderRoute: typeof SalesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stock-movements': {
+      id: '/stock-movements'
+      path: '/stock-movements'
+      fullPath: '/stock-movements'
+      preLoaderRoute: typeof StockMovementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/branches/': {
+      id: '/branches/'
+      path: '/branches'
+      fullPath: '/branches/'
+      preLoaderRoute: typeof BranchesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/branches/$branchId': {
+      id: '/branches/$branchId'
+      path: '/branches/$branchId'
+      fullPath: '/branches/$branchId'
+      preLoaderRoute: typeof BranchesBranchIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory/': {
+      id: '/inventory/'
+      path: '/inventory'
+      fullPath: '/inventory/'
+      preLoaderRoute: typeof InventoryIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory/$inventoryId': {
+      id: '/inventory/$inventoryId'
+      path: '/inventory/$inventoryId'
+      fullPath: '/inventory/$inventoryId'
+      preLoaderRoute: typeof InventoryInventoryIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products/': {
+      id: '/products/'
+      path: '/products'
+      fullPath: '/products/'
+      preLoaderRoute: typeof ProductsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products/$productId': {
+      id: '/products/$productId'
+      path: '/products/$productId'
+      fullPath: '/products/$productId'
+      preLoaderRoute: typeof ProductsProductIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stock-requests/': {
+      id: '/stock-requests/'
+      path: '/stock-requests'
+      fullPath: '/stock-requests/'
+      preLoaderRoute: typeof StockRequestsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stock-requests/$requestId': {
+      id: '/stock-requests/$requestId'
+      path: '/stock-requests/$requestId'
+      fullPath: '/stock-requests/$requestId'
+      preLoaderRoute: typeof StockRequestsRequestIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/targets/': {
+      id: '/targets/'
+      path: '/targets'
+      fullPath: '/targets/'
+      preLoaderRoute: typeof TargetsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/targets/$targetId': {
+      id: '/targets/$targetId'
+      path: '/targets/$targetId'
+      fullPath: '/targets/$targetId'
+      preLoaderRoute: typeof TargetsTargetIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/team/': {
+      id: '/team/'
+      path: '/team'
+      fullPath: '/team/'
+      preLoaderRoute: typeof TeamIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/team/$userId': {
+      id: '/team/$userId'
+      path: '/team/$userId'
+      fullPath: '/team/$userId'
+      preLoaderRoute: typeof TeamUserIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/owner/remittance/': {
+      id: '/owner/remittance/'
+      path: '/owner/remittance'
+      fullPath: '/owner/remittance/'
+      preLoaderRoute: typeof OwnerRemittanceIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/owner/remittance/$remittanceId': {
+      id: '/owner/remittance/$remittanceId'
+      path: '/owner/remittance/$remittanceId'
+      fullPath: '/owner/remittance/$remittanceId'
+      preLoaderRoute: typeof OwnerRemittanceRemittanceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApprovalsRoute: ApprovalsRoute,
+  AuditLogRoute: AuditLogRoute,
+  ExpensesRoute: ExpensesRoute,
+  PaymentRoute: PaymentRoute,
+  RemittanceRoute: RemittanceRoute,
+  ReportsRoute: ReportsRoute,
+  SalesRoute: SalesRoute,
+  SettingsRoute: SettingsRoute,
+  StockMovementsRoute: StockMovementsRoute,
+  BranchesBranchIdRoute: BranchesBranchIdRoute,
+  InventoryInventoryIdRoute: InventoryInventoryIdRoute,
+  ProductsProductIdRoute: ProductsProductIdRoute,
+  StockRequestsRequestIdRoute: StockRequestsRequestIdRoute,
+  TargetsTargetIdRoute: TargetsTargetIdRoute,
+  TeamUserIdRoute: TeamUserIdRoute,
+  BranchesIndexRoute: BranchesIndexRoute,
+  InventoryIndexRoute: InventoryIndexRoute,
+  ProductsIndexRoute: ProductsIndexRoute,
+  StockRequestsIndexRoute: StockRequestsIndexRoute,
+  TargetsIndexRoute: TargetsIndexRoute,
+  TeamIndexRoute: TeamIndexRoute,
+  OwnerRemittanceRemittanceIdRoute: OwnerRemittanceRemittanceIdRoute,
+  OwnerRemittanceIndexRoute: OwnerRemittanceIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
