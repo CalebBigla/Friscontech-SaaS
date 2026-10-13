@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Check, Clock, X } from "lucide-react";
 import { toast } from "sonner";
@@ -81,6 +81,11 @@ export function PaymentPage() {
   const [status, setStatus] = useState("all");
   const [kind, setKind] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [quickAction, setQuickAction] = useState<QuickAction>(null);
+  const quick = (id: string, a: QuickAction) => {
+    setSelectedId(id);
+    setQuickAction(a);
+  };
   const [submitOpen, setSubmitOpen] = useState(false);
 
   const filters = {
@@ -250,7 +255,7 @@ export function PaymentPage() {
             <table className="w-full min-w-[680px] text-left text-xs">
               <thead className="border-b border-border bg-muted/40 text-[10px] uppercase text-muted-foreground">
                 <tr>
-                  {["Date", "Rep / customer", "Amount", "Method", "Status", "Handled by"].map(
+                  {["Date", "Rep / customer", "Amount", "Method", "Status", "Handled by", ...(role === "sales_rep" ? [] : ["Action"])].map(
                     (h) => (
                       <th key={h} className="px-4 py-3 font-semibold">
                         {h}
@@ -285,6 +290,25 @@ export function PaymentPage() {
                       {role === "sales_rep" && <MiniProgress entry={e} />}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{userName(db, e.handledBy)}</td>
+                    {role !== "sales_rep" && (
+                      <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
+                        {(() => {
+                          const ack = scope.canAcknowledgePayments && e.status === "submitted" && e.managerId === scope.user.id;
+                          const conf = scope.canConfirmPayments && e.status === "acknowledged";
+                          if (!ack && !conf) return <span className="text-muted-foreground">—</span>;
+                          return (
+                            <div className="flex gap-1.5">
+                              <Button size="sm" className="h-7 px-2 text-[11px]" onClick={() => quick(e.id, ack ? "acknowledge" : "confirm")}>
+                                {ack ? "Acknowledge" : "Confirm"}
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] text-destructive" onClick={() => quick(e.id, "decline")}>
+                                Decline
+                              </Button>
+                            </div>
+                          );
+                        })()}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -298,7 +322,16 @@ export function PaymentPage() {
         )}
       </Panel>
 
-      <PaymentDrawer db={db} scope={scope} entry={selected} onClose={() => setSelectedId(null)} />
+      <PaymentDrawer
+        db={db}
+        scope={scope}
+        entry={selected}
+        initialAction={quickAction}
+        onClose={() => {
+          setSelectedId(null);
+          setQuickAction(null);
+        }}
+      />
       {role === "sales_rep" && (
         <SubmitPaymentDialog
           db={db}
@@ -320,15 +353,18 @@ const partyName = (db: Db, e: PaymentEntry) =>
     ? (db.customers.find((c) => c.id === e.customerId)?.name ?? "Customer")
     : userName(db, e.repId);
 
+type QuickAction = "acknowledge" | "confirm" | "decline" | null;
 function PaymentDrawer({
   db,
   scope,
   entry,
+  initialAction,
   onClose,
 }: {
   db: Db;
   scope: AccessScope;
   entry: PaymentEntry | null;
+  initialAction?: QuickAction;
   onClose: () => void;
 }) {
   const [action, setAction] = useState<"acknowledge" | "confirm" | "decline" | null>(null);
@@ -353,6 +389,10 @@ function PaymentDrawer({
     setReason("");
     setErrors({});
   };
+  useEffect(() => {
+    if (entry && initialAction) open(initialAction);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry?.id, initialAction]);
   const run = async () => {
     if (!entry || !action) return;
     setBusy(true);
