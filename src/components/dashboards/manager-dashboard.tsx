@@ -1,3 +1,4 @@
+import { ExpiringSoonPanel } from "@/components/expiry/expiry-widgets";
 import { Link } from "@tanstack/react-router";
 import { BadgeCheck, Boxes, CircleDollarSign, ClipboardList, Wallet } from "lucide-react";
 
@@ -90,6 +91,8 @@ export function ManagerDashboard() {
           />
         </Link>
       </section>
+
+      <ExpiringSoonPanel db={db} branchIds={scope.branchIds} />
 
       <section className="mt-4 grid gap-4">
         <Panel title="Needs attention" subtitle="Approvals and stock alerts">

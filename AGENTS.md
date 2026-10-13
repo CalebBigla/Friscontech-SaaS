@@ -10,11 +10,11 @@
 <!-- LOVABLE:END -->
 
 - Keep Phase 1 frontend-only with tenant-scoped mock records in `src/data`; this preserves realistic relationships while deferring persistence.
-- Keep dashboard controls reusable through shared UI components; this prevents role dashboards from diverging as later phases are added.
+- Dashboard controls come from shared components; so role dashboards don't diverge.
 - Mock data lives in `src/data/mock-db.ts` (relational, ID-linked, no derived values); all business math lives in `src/lib/calculations.ts`; so pages never duplicate numbers.
 - Writes go through `src/services/services.ts` (async, API-shaped) over the store in `src/services/mock-store.ts`; so swapping to a real API touches one file.
 - Demo RBAC scope comes from `src/lib/session.ts` (`getAccessScope`); so every page filters data by role the same way.
-- Use Instrument Sans for the product interface and IBM Plex Sans Light only for subdued supporting copy; this keeps hierarchy clear without weakening primary information.
+- Instrument Sans for UI, IBM Plex Sans Light only for subdued copy; keeps hierarchy clear.
 
 - Inventory/stock-request math lives in `src/lib/inventory-calculations.ts` (available = onHand − reserved, status, value, availability, timelines); so stock numbers are never computed in components.
 - `applyInventoryChange` in `src/services/services.ts` is the only writer of `quantityOnHand` and always appends an `inventoryMovements` row, refusing negatives; so every stock change is traceable (sales, stock issues, additions, adjustments).
@@ -33,3 +33,5 @@
 - Staff onboarding lives in `db.onboardings` (model + security note in `src/data/onboarding.ts`, selectors/validation in `src/lib/onboarding.ts`, writes only via `onboardingService`); public token pages `/onboard/$token` and `/guarantor/$token` render outside AppShell; so the demo flow can later move to a real backend (hashed tokens, private file storage, auth-managed passwords) in one place.
 - Sign-in, owner first sign-up and password reset go through `src/services/mock-auth.ts` (credentials kept apart from `db`, hashed); onboarding submit creates the account; so switching to Lovable Cloud auth replaces one file.
 - Onboarding links are one-time: no reopen after submit; activation requires the Owner to accept the guarantor (decline needs a reason); so each hire has one auditable path.
+- Expiry is batch-level in `db.stockBatches`; `applyInventoryChange` keeps batches in step (additions with batch info open a lot, removals drain first-expiry-first-out) and all expiry maths lives in `src/lib/expiry-calculations.ts`; so stock and lots never disagree.
+- Product spreadsheet import parses in the browser with `xlsx` (dynamic import), validates in `src/lib/product-import.ts`, and writes only via `productService.importProducts`; so imported products follow the same rules and audit as manual ones.

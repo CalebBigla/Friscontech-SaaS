@@ -46,7 +46,7 @@ export function SettingsPage() {
         <div className="min-w-0">
           {!ready ? <div className="space-y-3 rounded-lg border border-border bg-card p-5"><Skeleton className="h-5 w-40" />{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
             : current === "general" ? <GeneralSection key={db.tenant.updatedAt} />
-            : current === "organization" ? <OrganizationSection key={db.tenant.updatedAt} />
+            : current === "organization" ? <div className="space-y-4"><OrganizationSection key={db.tenant.updatedAt} /><ExpiryAlertSection key={`exp-${db.tenant.expiryAlertMonths}`} /></div>
             : current === "preferences" ? <PreferencesSection />
             : <SecuritySection />}
         </div>
@@ -131,6 +131,35 @@ function OrganizationSection() {
           </div>
         </div>
         {edit && <FormActions dirty={legalName !== db.tenant.legalName} saving={saving} onCancel={() => { setLegalName(db.tenant.legalName); setErrors({}); }} />}
+      </form>
+    </Panel>
+  );
+}
+
+function ExpiryAlertSection() {
+  const db = useDb();
+  const actorId = useCurrentUserId();
+  const scope = getAccessScope(db, actorId);
+  const [months, setMonths] = useState(String(db.tenant.expiryAlertMonths));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const edit = scope.canManageSettings;
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    const r = await settingsService.updateExpiryAlertMonths(Number(months), actorId);
+    setSaving(false);
+    if (!r.ok) { setError(r.errors.form ?? "Couldn't save"); return; }
+    setError(""); toast.success("Expiry alert setting saved.");
+  };
+  return (
+    <Panel title="Expiry alerts" subtitle="How early stock batches are flagged before they expire">
+      {!edit && <ReadOnlyNote />}
+      <form onSubmit={submit} noValidate>
+        <div className="grid gap-4 p-5 sm:grid-cols-2">
+          <Field id="exp-months" label="Start alerts this many months before expiry" error={error}><Input id="exp-months" type="number" min={1} max={24} step={1} inputMode="numeric" value={months} disabled={!edit} onChange={(e) => setMonths(e.target.value)} /></Field>
+          <p className="self-end text-xs text-muted-foreground">Alerts also escalate at 3 months, 1 month and once expired.</p>
+        </div>
+        {edit && <FormActions dirty={months !== String(db.tenant.expiryAlertMonths)} saving={saving} onCancel={() => { setMonths(String(db.tenant.expiryAlertMonths)); setError(""); }} />}
       </form>
     </Panel>
   );

@@ -7,3 +7,8 @@
 
 - [x] Phase 4b: one-time onboarding, guarantor accept/decline, email+password sign-in and reset (mock auth)
 - [ ] Move auth to Lovable Cloud — waits on going live with real data
+
+- [x] Phase 5: product Excel import, batch expiry, FEFO, expiry alerts widget/settings
+- [ ] Phase 6: owner sales visibility, activity overview, RBAC check
+- [ ] Phase 7: notifications + mobile shells for rep/storekeeper
+- [ ] Phase 8: consistency, QA and cleanup

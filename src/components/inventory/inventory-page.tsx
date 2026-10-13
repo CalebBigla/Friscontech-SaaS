@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Eye, History, Layers, MoreHorizontal, Package, PackageX, Plus, SlidersHorizontal, Wallet } from "lucide-react";
 
+import { NearestExpiryBadge } from "@/components/expiry/expiry-widgets";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -115,7 +116,7 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
           <table className="w-full min-w-[900px] text-left">
             <thead><tr className="text-[10px] uppercase text-muted-foreground">
               <SortHead k="product" label="Product" /><th className="hidden px-4 py-3 xl:table-cell">SKU</th><th className="px-4 py-3">Branch</th>
-              <th className="px-4 py-3 text-right">On hand</th><th className="px-4 py-3 text-right">Reserved</th><SortHead k="available" label="Available" right /><th className="px-4 py-3 text-right">Threshold</th>
+              <th className="px-4 py-3 text-right">On hand</th><th className="px-4 py-3 text-right">Reserved</th><SortHead k="available" label="Available" right /><th className="px-4 py-3 text-right">Threshold</th><th className="px-4 py-3">Nearest expiry</th>
               <SortHead k="status" label="Status" /><SortHead k="updated" label="Last updated" /><th className="px-4 py-3 text-right">Actions</th>
             </tr></thead>
             <tbody>{shown.map((r) => (
@@ -127,6 +128,7 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
                 <td className="px-4 py-3.5 text-right text-muted-foreground">{r.record.quantityReserved}</td>
                 <td className="px-4 py-3.5 text-right font-bold">{formatNumber(r.available)}</td>
                 <td className="px-4 py-3.5 text-right text-muted-foreground">{r.record.lowStockThreshold}</td>
+                <td className="px-4 py-3.5"><NearestExpiryBadge db={db} productId={r.product.id} branchIds={scope.branchIds} branchId={r.branch.id} /></td>
                 <td className="px-4 py-3.5"><StockStatusBadge status={r.status} /></td>
                 <td className="px-4 py-3.5 text-muted-foreground">{formatDayTime(r.record.lastUpdated, db.tenant.referenceDate)}</td>
                 <td className="px-4 py-2 text-right">{actions(r)}</td>

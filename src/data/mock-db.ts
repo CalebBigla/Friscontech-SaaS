@@ -24,6 +24,8 @@ export type Tenant = {
   phone: string;
   timezone: string;
   plan: string;
+  /** Months before expiry when stock alerts start (owner-editable). */
+  expiryAlertMonths: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -247,6 +249,18 @@ export type InventoryRecord = {
   reorderLevel: number;
   lastUpdated: string;
 };
+/** A received lot of one product in one branch. quantityRemaining is reduced first-expiry-first-out. */
+export type StockBatch = {
+  id: string;
+  tenantId: string;
+  branchId: string;
+  productId: string;
+  batchNumber: string;
+  expiryDate: string;
+  quantityReceived: number;
+  quantityRemaining: number;
+  receivedAt: string;
+};
 export type MovementType = "stock_added" | "stock_issued" | "sale" | "adjustment";
 /** quantity is a signed delta applied to quantityOnHand. */
 export type InventoryMovement = {
@@ -326,6 +340,8 @@ export type ApprovalRequest = {
   appliedAt?: string;
   productId?: string;
   quantity?: number;
+  batchNumber?: string;
+  expiryDate?: string;
   member?: { name: string; email: string; role: Role; branchId: string | null };
 };
 export type AuditEntity =
@@ -418,6 +434,7 @@ export type Db = {
   customerPayments: CustomerPayment[];
   notifications: AppNotification[];
   onboardings: Onboarding[];
+  stockBatches: StockBatch[];
 };
 
 const T = "tenant-001";
@@ -434,6 +451,7 @@ const tenant: Tenant = {
   phone: "+234 802 555 0100",
   timezone: "Africa/Lagos",
   plan: "Growth",
+  expiryAlertMonths: 6,
   createdAt: "2025-01-15",
   updatedAt: "2026-08-02T10:00:00",
 };
@@ -971,6 +989,26 @@ function seedTargets(): Target[] {
   return out;
 }
 
+/** Every 3rd record gets two dated batches (spread from expired to 14 months out) covering its on-hand stock. */
+function seedBatches(inventory: InventoryRecord[]): StockBatch[] {
+  const out: StockBatch[] = [];
+  const offsets = [-10, 20, 45, 75, 120, 170, 240, 420];
+  inventory.forEach((inv, i) => {
+    if (i % 3 !== 0 || inv.quantityOnHand <= 0) return;
+    const first = Math.ceil(inv.quantityOnHand / 3);
+    [first, inv.quantityOnHand - first].forEach((qty, k) => {
+      if (qty <= 0) return;
+      const off = offsets[(i + k * 3) % offsets.length]!;
+      out.push({
+        id: `bat-${inv.id}-${k}`, tenantId: T, branchId: inv.branchId, productId: inv.productId,
+        batchNumber: `B${String(i).padStart(3, "0")}-${k + 1}`, expiryDate: addDays(REF, off + k * 60),
+        quantityReceived: qty, quantityRemaining: qty, receivedAt: addDays(REF, -60),
+      });
+    });
+  });
+  return out;
+}
+
 function seedInventory(): InventoryRecord[] {
   const rand = rng(7);
   const out: InventoryRecord[] = [];
@@ -1486,7 +1524,8 @@ export function createSeedDb(): Db {
     customerPayments,
     notifications: seedNotifications(payments, customerPayments),
     onboardings: [],
-    tenant,
+    stockBatches: seedBatches(inventory),
+    tenant: { ...tenant },
     branches: branches.map((x) => ({ ...x })),
     users: users.map((x) => ({ ...x })),
     products,

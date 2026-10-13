@@ -5,6 +5,7 @@ import { ArrowLeft, Boxes, CircleDollarSign, Pencil, Power, ShoppingCart, Trash2
 import { AppShell, RestrictedNotice } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { DetailItem, EmptyState, MetricCard, Panel, StockStatusBadge } from "@/components/shared";
+import { NearestExpiryBadge } from "@/components/expiry/expiry-widgets";
 import { MovementList } from "@/components/inventory/movement-list";
 import { ProductFormDialog } from "@/components/products/add-product-dialog";
 import { ProductStatusBadge, ProductStatusDialog } from "@/components/products/product-status";
@@ -50,7 +51,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
             <DetailItem label="Name">{product.name}</DetailItem><DetailItem label="SKU"><span className="font-mono">{product.sku}</span></DetailItem>
             <DetailItem label="Category">{product.category}</DetailItem><DetailItem label="Unit">{product.unit}</DetailItem>
             <DetailItem label="Selling price">{formatNaira(product.unitPrice)}</DetailItem><DetailItem label="Unit cost">{formatNaira(product.unitCost)}</DetailItem>
-            <DetailItem label="Low-stock threshold">{formatNumber(product.lowStockThreshold)} units</DetailItem><DetailItem label="Status"><ProductStatusBadge status={product.status} /></DetailItem>
+            <DetailItem label="Low-stock threshold">{formatNumber(product.lowStockThreshold)} units</DetailItem><DetailItem label="Status"><ProductStatusBadge status={product.status} /></DetailItem><DetailItem label="Nearest expiry"><NearestExpiryBadge db={db} productId={product.id} branchIds={scope.branchIds} /></DetailItem>
             <div className="col-span-2"><p className="text-[11px] text-muted-foreground">Description</p><p className="mt-1 text-sm">{product.description ?? <span className="text-muted-foreground">No description</span>}</p></div>
           </div>
         </Panel>

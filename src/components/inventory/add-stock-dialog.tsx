@@ -16,7 +16,7 @@ import { formatUnits } from "@/lib/format";
 
 export function AddStockDialog({ open, onOpenChange, scope, defaults }: { open: boolean; onOpenChange: (o: boolean) => void; scope: AccessScope; defaults?: { branchId?: string | undefined; productId?: string | undefined } | undefined }) {
   const db = useDb();
-  const [form, setForm] = useState({ branchId: "", productId: "", quantity: "", note: "", emergency: false, emergencyReason: "" });
+  const [form, setForm] = useState({ branchId: "", productId: "", quantity: "", note: "", emergency: false, emergencyReason: "", batchNumber: "", expiryDate: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
   const branches = db.branches.filter((b) => b.status === "active" && (!scope.branchIds || scope.branchIds.includes(b.id)));
@@ -24,7 +24,7 @@ export function AddStockDialog({ open, onOpenChange, scope, defaults }: { open: 
   useEffect(() => {
     if (!open) return;
     setErrors({});
-    setForm({ branchId: defaults?.branchId ?? (branches.length === 1 ? branches[0]!.id : ""), productId: defaults?.productId ?? "", quantity: "", note: "", emergency: false, emergencyReason: "" });
+    setForm({ branchId: defaults?.branchId ?? (branches.length === 1 ? branches[0]!.id : ""), productId: defaults?.productId ?? "", quantity: "", note: "", emergency: false, emergencyReason: "", batchNumber: "", expiryDate: "" });
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const product = db.products.find((p) => p.id === form.productId);
@@ -35,7 +35,7 @@ export function AddStockDialog({ open, onOpenChange, scope, defaults }: { open: 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    const r = await inventoryService.addStock({ branchId: form.branchId, productId: form.productId, quantity: qty, note: form.note, emergency: form.emergency, emergencyReason: form.emergencyReason }, scope.user.id);
+    const r = await inventoryService.addStock({ branchId: form.branchId, productId: form.productId, quantity: qty, note: form.note, emergency: form.emergency, emergencyReason: form.emergencyReason, batchNumber: form.batchNumber, expiryDate: form.expiryDate }, scope.user.id);
     setSaving(false);
     if (!r.ok) { setErrors(r.errors); toast.error(r.errors.form ?? "Please fix the highlighted fields"); return; }
     if (r.data.emergency) toast.success("Emergency stock added.", { description: `${product?.name} · +${formatUnits(qty)} · your manager will review it (${r.data.id})` });
@@ -53,6 +53,10 @@ export function AddStockDialog({ open, onOpenChange, scope, defaults }: { open: 
           <div className="grid grid-cols-2 gap-3">
             <div><Label htmlFor="stock-qty" className="text-xs">Quantity *</Label><Input id="stock-qty" type="number" inputMode="numeric" min={1} step={1} value={form.quantity} onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))} className="mt-1.5 h-10" placeholder="100" /><FieldError message={errors.quantity} /></div>
             <div><Label htmlFor="stock-unit" className="text-xs">Unit</Label><Input id="stock-unit" value={product?.unit ?? "—"} readOnly disabled className="mt-1.5 h-10" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label htmlFor="stock-batch" className="text-xs">Batch number</Label><Input id="stock-batch" value={form.batchNumber} onChange={(e) => setForm((f) => ({ ...f, batchNumber: e.target.value }))} className="mt-1.5 h-10" placeholder="LOT-2401" /></div>
+            <div><Label htmlFor="stock-expiry" className="text-xs">Expiry date</Label><Input id="stock-expiry" type="date" value={form.expiryDate} onChange={(e) => setForm((f) => ({ ...f, expiryDate: e.target.value }))} className="mt-1.5 h-10" /><FieldError message={errors.expiryDate} /></div>
           </div>
           <div><Label htmlFor="stock-note" className="text-xs">Reference / note</Label><Textarea id="stock-note" value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} className="mt-1.5 text-sm" rows={2} placeholder="New shipment received" /></div>
           <div className={`rounded-md border p-3 ${form.emergency ? "border-destructive/40 bg-destructive/5" : "border-border"}`}>
