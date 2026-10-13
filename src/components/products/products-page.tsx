@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowUpDown, CheckCircle2, Eye, Layers, MoreHorizontal, Package, Pencil, Plus, Power, Trash2, XCircle } from "lucide-react";
+import { ArrowUpDown, CheckCircle2, Eye, Layers, MoreHorizontal, Package, Pencil, Plus, Power, Upload, Trash2, XCircle } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ALL, EmptyState, FilterSelect, MetricCard, Panel, SearchBox, StockStatusBadge } from "@/components/shared";
 import { ProductFormDialog } from "@/components/products/add-product-dialog";
+import { ImportProductsDialog } from "@/components/products/import-products-dialog";
 import { ProductStatusDialog, ProductStatusBadge } from "@/components/products/product-status";
 import type { Product } from "@/data/mock-db";
 import { useDb } from "@/services/mock-store";
@@ -31,6 +32,7 @@ export function ProductsPage() {
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [editing, setEditing] = useState<Product | null | "new">(null);
   const [toggling, setToggling] = useState<Product | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const summary = getProductSummary(db);
   const categories = getProductCategories(db);
@@ -56,7 +58,8 @@ export function ProductsPage() {
   );
 
   return (
-    <AppShell title="Products" subtitle={manage ? "Central product catalogue" : "Products you can sell"} actions={manage ? <Button onClick={() => setEditing("new")}><Plus className="size-4" /><span className="hidden sm:inline">Add Product</span></Button> : undefined}>
+    <AppShell title="Products" subtitle={manage ? "Central product catalogue" : "Products you can sell"} actions={manage ? <div className="flex gap-2"><Button variant="outline" onClick={() => setImporting(true)}><Upload className="size-4" /><span className="hidden sm:inline">Import</span></Button><Button onClick={() => setEditing("new")}><Plus className="size-4" /><span className="hidden sm:inline">Add Product</span></Button></div> : undefined}>
+      {manage && <ImportProductsDialog open={importing} onOpenChange={setImporting} db={db} scope={scope} />}
       <div className="mb-5"><h1 className="text-xl font-bold">Products</h1><p className="mt-1 text-xs text-muted-foreground">{manage ? "Manage your product catalogue and product information." : "Active products and what's available at your branch."}</p></div>
       {manage && <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <MetricCard icon={Package} tone="brand" label="Total products" value={formatNumber(summary.total)} detail="In the tenant catalogue" />

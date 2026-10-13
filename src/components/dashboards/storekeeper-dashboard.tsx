@@ -1,3 +1,4 @@
+import { ExpiringSoonPanel } from "@/components/expiry/expiry-widgets";
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, ArrowRight, ClipboardList, Layers, Package, PackageX } from "lucide-react";
 

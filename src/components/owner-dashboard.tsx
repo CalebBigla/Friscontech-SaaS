@@ -1,3 +1,4 @@
+import { ExpiringSoonPanel } from "@/components/expiry/expiry-widgets";
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
@@ -206,6 +207,8 @@ export function OwnerDashboard() {
           />
         </Link>
       </section>
+
+      <ExpiringSoonPanel db={db} branchIds={scope.branchIds} />
 
       <section className="mt-4">
         <Panel title="Inventory summary" subtitle="Shared inventory records · on hand × unit cost">
