@@ -198,7 +198,7 @@ export function getOwnerPaymentSummary(db: Db, rows: Payment[]) {
     submitted: rows.filter((payment) => payment.status === "submitted").length,
     acknowledged: rows.filter((payment) => payment.status === "acknowledged").length,
     pendingConfirmation: rows.filter((payment) => payment.status === "acknowledged").length,
-    reconciled: rows.filter((payment) => payment.status === "reconciled").length,
+    reconciled: rows.filter((payment) => payment.status === "confirmed").length,
     declined: rows.filter((payment) => payment.status === "declined").length,
   };
 }

@@ -286,7 +286,7 @@ export function PaymentPage() {
                     ? "Pending Manager Acknowledgement"
                     : latest.status === "acknowledged"
                       ? "Acknowledged by Manager. Awaiting Owner confirmation."
-                      : latest.status === "reconciled"
+                      : latest.status === "confirmed"
                         ? "Owner confirmed this payment. Reconciliation is complete."
                         : "This payment was declined. Review the reason and submit again."}
                 </p>

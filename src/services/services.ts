@@ -1919,7 +1919,7 @@ export const mockPaymentService = {
     const confirmedAt = nowOnReferenceDay(db);
     const updated: Payment = {
       ...payment,
-      status: "reconciled",
+      status: "confirmed",
       confirmedAt,
       confirmedBy: actorId,
       updatedAt: confirmedAt,

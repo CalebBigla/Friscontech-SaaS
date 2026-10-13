@@ -90,8 +90,14 @@ export type Sale = {
   saleDate: string;
   createdAt: string;
   status: SaleStatus;
+  /** Set = customer (account) order; empty = walk-in sale. */
+  customerId?: string;
+  /** Groups the lines of one multi-item order; defaults to the sale id when absent. */
+  orderId?: string;
+  walkInName?: string;
+  walkInPhone?: string;
 };
-export type PaymentStatus = "submitted" | "acknowledged" | "declined" | "reconciled";
+export type PaymentStatus = "submitted" | "acknowledged" | "declined" | "confirmed";
 /** Cash and transfer are submitted values; total sales and outstanding are always derived. */
 export type Payment = {
   id: string;
@@ -112,9 +118,73 @@ export type Payment = {
   declinedAt?: string;
   declinedBy?: string;
   declineReason?: string;
+  /** Optional proof of transfer attached by the manager on acknowledgement (file name only). */
+  proofName?: string;
   note?: string;
   createdAt: string;
   updatedAt: string;
+};
+export type CustomerStatus = "active" | "inactive";
+export type Customer = {
+  id: string;
+  tenantId: string;
+  branchId: string | null;
+  name: string;
+  contactPerson: string;
+  phone: string;
+  email: string;
+  address: string;
+  status: CustomerStatus;
+  /** Owner-set credit ceiling in naira; undefined = no limit. */
+  creditLimit?: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+export type CustomerPaymentMethod = "cash" | "transfer";
+/** A credit on a customer account. Follows the same chain as Payment. */
+export type CustomerPayment = {
+  id: string;
+  tenantId: string;
+  customerId: string;
+  branchId: string;
+  managerId: string;
+  amount: number;
+  method: CustomerPaymentMethod;
+  reference?: string;
+  receivedBy: string;
+  orderId?: string;
+  paymentDate: string;
+  status: PaymentStatus;
+  submittedAt: string;
+  acknowledgedAt?: string;
+  acknowledgedBy?: string;
+  confirmedAt?: string;
+  confirmedBy?: string;
+  declinedAt?: string;
+  declinedBy?: string;
+  declineReason?: string;
+  proofName?: string;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+export type NotificationType =
+  | "payment_awaiting_acknowledgement"
+  | "payment_awaiting_confirmation"
+  | "payment_confirmed"
+  | "payment_declined";
+/** Notifications-ready rows for the next approver; delivery is added later. */
+export type AppNotification = {
+  id: string;
+  tenantId: string;
+  recipientId: string;
+  type: NotificationType;
+  entityType: "payment" | "customer_payment";
+  entityId: string;
+  message: string;
+  createdAt: string;
+  readAt?: string;
 };
 export type ExpenseCategory =
   "transport" | "logistics" | "office" | "communication" | "maintenance" | "other";
@@ -335,6 +405,9 @@ export type Db = {
   expenses: Expense[];
   remittances: ManagerRemittance[];
   ownerRemittances: OwnerRemittance[];
+  customers: Customer[];
+  customerPayments: CustomerPayment[];
+  notifications: AppNotification[];
 };
 
 const T = "tenant-001";
@@ -633,7 +706,7 @@ function seedPayments(sales: Sale[]): Payment[] {
     },
     {
       repId: "user-015",
-      status: "reconciled",
+      status: "confirmed",
       submittedDay: "16",
       cashShare: 0.25,
       transferShare: 0.65,
@@ -667,10 +740,10 @@ function seedPayments(sales: Sale[]): Payment[] {
         transferReference: `TRF-SEP-${3001 + index}`,
         status: row.status,
         submittedAt,
-        ...(row.status === "acknowledged" || row.status === "reconciled"
+        ...(row.status === "acknowledged" || row.status === "confirmed"
           ? { acknowledgedAt: reviewedAt, acknowledgedBy: branch.managerId }
           : {}),
-        ...(row.status === "reconciled"
+        ...(row.status === "confirmed"
           ? { confirmedAt: "2026-09-18T11:00:00", confirmedBy: "user-001" }
           : {}),
         ...(row.status === "declined"
@@ -681,7 +754,7 @@ function seedPayments(sales: Sale[]): Payment[] {
             }
           : {}),
         createdAt: submittedAt,
-        updatedAt: row.status === "reconciled" ? "2026-09-18T11:00:00" : reviewedAt,
+        updatedAt: row.status === "confirmed" ? "2026-09-18T11:00:00" : reviewedAt,
       },
     ];
   });
@@ -725,7 +798,7 @@ function seedPaymentAuditLogs(payments: Payment[]): Activity[] {
         actorId: payment.confirmedBy,
         action: "Payment confirmed",
         createdAt: payment.confirmedAt,
-        detail: `${payment.period} payment confirmed and reconciled`,
+        detail: `${payment.period} payment confirmed by owner`,
       });
   }
   return events.map((event, index) => ({

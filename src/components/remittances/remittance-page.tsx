@@ -251,7 +251,7 @@ export function RemittancePage() {
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
           <Panel
             title="Eligible payment position"
-            subtitle="From acknowledged or reconciled Sales Rep payments. Outstanding is not cash held."
+            subtitle="From acknowledged or confirmed Sales Rep payments. Outstanding is not cash held."
           >
             <dl className="divide-y divide-border px-5 text-sm">
               {[

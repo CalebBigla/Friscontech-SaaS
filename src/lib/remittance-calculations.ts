@@ -38,7 +38,7 @@ export function getManagerEligiblePayments(db: Db, managerId: string, period: st
       payment.tenantId === db.tenant.id &&
       payment.managerId === managerId &&
       payment.period === period &&
-      (payment.status === "acknowledged" || payment.status === "reconciled") &&
+      (payment.status === "acknowledged" || payment.status === "confirmed") &&
       branch?.tenantId === db.tenant.id &&
       branch.managerId === managerId
     );
