@@ -56,6 +56,7 @@ export function StorekeeperDashboard() {
           <tbody>{attention.map((r) => <tr key={r.record.id} className="border-t border-border text-xs"><td className="px-5 py-3 font-semibold"><Link to="/inventory/$inventoryId" params={{ inventoryId: r.record.id }} className="hover:text-primary">{r.product.name}</Link></td><td className="px-5 py-3 text-right font-bold">{formatNumber(r.available)}</td><td className="px-5 py-3 text-right text-muted-foreground">{r.record.lowStockThreshold}</td><td className="px-5 py-3 text-right"><StockStatusBadge status={r.status} /></td></tr>)}</tbody></table>
           : <EmptyState title="All products are above their thresholds." />}
       </Panel>
+      <ExpiringSoonPanel db={db} branchIds={scope.branchIds} />
       <RepHoldingsPanel db={db} branchIds={scope.branchIds} />
     </AppShell>
   );

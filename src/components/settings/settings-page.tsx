@@ -46,7 +46,7 @@ export function SettingsPage() {
         <div className="min-w-0">
           {!ready ? <div className="space-y-3 rounded-lg border border-border bg-card p-5"><Skeleton className="h-5 w-40" />{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
             : current === "general" ? <GeneralSection key={db.tenant.updatedAt} />
-            : current === "organization" ? <OrganizationSection key={db.tenant.updatedAt} />
+            : current === "organization" ? <div className="space-y-4"><OrganizationSection key={db.tenant.updatedAt} /><ExpiryAlertSection key={`exp-${db.tenant.expiryAlertMonths}`} /></div>
             : current === "preferences" ? <PreferencesSection />
             : <SecuritySection />}
         </div>
