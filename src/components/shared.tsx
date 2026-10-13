@@ -70,3 +70,13 @@ export function SearchBox({ value, onChange, placeholder, className = "sm:w-60" 
 export function DetailItem({ label, children }: { label: string; children: ReactNode }) {
   return <div className="min-w-0"><p className="text-[11px] text-muted-foreground">{label}</p><div className="mt-1 truncate text-sm font-semibold">{children}</div></div>;
 }
+/** Compact summary tile for dense overview rows. */
+export function StatTile({ label, value, detail, tone = "brand" }: { label: string; value: string; detail?: string | undefined; tone?: "success" | "brand" | "violet" | "warning" | "danger" }) {
+  return (
+    <article className="min-w-0 rounded-lg border border-border bg-card px-4 py-3 shadow-panel">
+      <div className="flex items-center gap-2"><span className={`size-2 shrink-0 rounded-full ${tone === "success" ? "bg-success" : tone === "warning" ? "bg-warning" : tone === "danger" ? "bg-destructive" : tone === "violet" ? "bg-violet" : "bg-primary"}`} /><p className="truncate text-[11px] text-muted-foreground">{label}</p></div>
+      <p className="mt-1 truncate text-base font-bold tabular-nums sm:text-lg">{value}</p>
+      {detail && <p className="truncate text-[10px] text-muted-foreground">{detail}</p>}
+    </article>
+  );
+}

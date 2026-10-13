@@ -63,6 +63,16 @@ export type AccessScope = {
   canDeactivateProducts: boolean;
   /** confirm receipt of fulfilled stock (sales reps) */
   canAcknowledgeStock: boolean;
+  /** payment chain step 2: acknowledge rep and customer payments (manager only) */
+  canAcknowledgePayments: boolean;
+  /** payment chain step 3: confirm or decline acknowledged payments (owner only) */
+  canConfirmPayments: boolean;
+  /** Customers module (sales rep, storekeeper, owner) */
+  canViewCustomers: boolean;
+  /** create/edit customers, raise customer orders, record customer payments (sales rep) */
+  canManageCustomers: boolean;
+  /** set a customer's credit limit (owner) */
+  canSetCreditLimit: boolean;
 };
 
 const none = {
@@ -88,6 +98,11 @@ export function getAccessScope(db: Db, userId: string): AccessScope {
     canReviewApprovals: r === "owner" || r === "manager",
     canDeactivateProducts: r === "owner" || r === "manager",
     canAcknowledgeStock: r === "sales_rep",
+    canAcknowledgePayments: r === "manager",
+    canConfirmPayments: r === "owner",
+    canViewCustomers: r === "sales_rep" || r === "storekeeper" || r === "owner",
+    canManageCustomers: r === "sales_rep",
+    canSetCreditLimit: r === "owner",
   };
 }
 type Extra =
@@ -96,7 +111,12 @@ type Extra =
   | "canViewOrganizationSettings"
   | "canReviewApprovals"
   | "canDeactivateProducts"
-  | "canAcknowledgeStock";
+  | "canAcknowledgeStock"
+  | "canAcknowledgePayments"
+  | "canConfirmPayments"
+  | "canViewCustomers"
+  | "canManageCustomers"
+  | "canSetCreditLimit";
 function baseScope(db: Db, userId: string): Omit<AccessScope, Extra> {
   const user = (db.users.find((x) => x.id === userId) ?? db.users[0])!;
   const own = user.branchId ? [user.branchId] : [];

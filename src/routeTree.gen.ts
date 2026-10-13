@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApprovalsRouteImport } from './routes/approvals'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as ExpensesRouteImport } from './routes/expenses'
+import { Route as ManagerRemittancesRouteImport } from './routes/manager-remittances'
 import { Route as PaymentRouteImport } from './routes/payment'
 import { Route as RemittanceRouteImport } from './routes/remittance'
 import { Route as ReportsRouteImport } from './routes/reports'
@@ -21,6 +22,8 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StockMovementsRouteImport } from './routes/stock-movements'
 import { Route as BranchesIndexRouteImport } from './routes/branches.index'
 import { Route as BranchesBranchIdRouteImport } from './routes/branches.$branchId'
+import { Route as CustomersIndexRouteImport } from './routes/customers.index'
+import { Route as CustomersCustomerIdRouteImport } from './routes/customers.$customerId'
 import { Route as InventoryIndexRouteImport } from './routes/inventory.index'
 import { Route as InventoryInventoryIdRouteImport } from './routes/inventory.$inventoryId'
 import { Route as ProductsIndexRouteImport } from './routes/products.index'
@@ -52,6 +55,11 @@ const AuditLogRoute = AuditLogRouteImport.update({
 const ExpensesRoute = ExpensesRouteImport.update({
   id: '/expenses',
   path: '/expenses',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManagerRemittancesRoute = ManagerRemittancesRouteImport.update({
+  id: '/manager-remittances',
+  path: '/manager-remittances',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PaymentRoute = PaymentRouteImport.update({
@@ -92,6 +100,16 @@ const BranchesIndexRoute = BranchesIndexRouteImport.update({
 const BranchesBranchIdRoute = BranchesBranchIdRouteImport.update({
   id: '/branches/$branchId',
   path: '/branches/$branchId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomersIndexRoute = CustomersIndexRouteImport.update({
+  id: '/customers/',
+  path: '/customers/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomersCustomerIdRoute = CustomersCustomerIdRouteImport.update({
+  id: '/customers/$customerId',
+  path: '/customers/$customerId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InventoryIndexRoute = InventoryIndexRouteImport.update({
@@ -161,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/approvals': typeof ApprovalsRoute
   '/audit-log': typeof AuditLogRoute
   '/expenses': typeof ExpensesRoute
+  '/manager-remittances': typeof ManagerRemittancesRoute
   '/payment': typeof PaymentRoute
   '/remittance': typeof RemittanceRoute
   '/reports': typeof ReportsRoute
@@ -168,12 +187,14 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/stock-movements': typeof StockMovementsRoute
   '/branches/$branchId': typeof BranchesBranchIdRoute
+  '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
   '/targets/$targetId': typeof TargetsTargetIdRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/branches/': typeof BranchesIndexRoute
+  '/customers/': typeof CustomersIndexRoute
   '/inventory/': typeof InventoryIndexRoute
   '/products/': typeof ProductsIndexRoute
   '/stock-requests/': typeof StockRequestsIndexRoute
@@ -187,6 +208,7 @@ export interface FileRoutesByTo {
   '/approvals': typeof ApprovalsRoute
   '/audit-log': typeof AuditLogRoute
   '/expenses': typeof ExpensesRoute
+  '/manager-remittances': typeof ManagerRemittancesRoute
   '/payment': typeof PaymentRoute
   '/remittance': typeof RemittanceRoute
   '/reports': typeof ReportsRoute
@@ -194,12 +216,14 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/stock-movements': typeof StockMovementsRoute
   '/branches/$branchId': typeof BranchesBranchIdRoute
+  '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
   '/targets/$targetId': typeof TargetsTargetIdRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/branches': typeof BranchesIndexRoute
+  '/customers': typeof CustomersIndexRoute
   '/inventory': typeof InventoryIndexRoute
   '/products': typeof ProductsIndexRoute
   '/stock-requests': typeof StockRequestsIndexRoute
@@ -214,6 +238,7 @@ export interface FileRoutesById {
   '/approvals': typeof ApprovalsRoute
   '/audit-log': typeof AuditLogRoute
   '/expenses': typeof ExpensesRoute
+  '/manager-remittances': typeof ManagerRemittancesRoute
   '/payment': typeof PaymentRoute
   '/remittance': typeof RemittanceRoute
   '/reports': typeof ReportsRoute
@@ -221,12 +246,14 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/stock-movements': typeof StockMovementsRoute
   '/branches/$branchId': typeof BranchesBranchIdRoute
+  '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
   '/targets/$targetId': typeof TargetsTargetIdRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/branches/': typeof BranchesIndexRoute
+  '/customers/': typeof CustomersIndexRoute
   '/inventory/': typeof InventoryIndexRoute
   '/products/': typeof ProductsIndexRoute
   '/stock-requests/': typeof StockRequestsIndexRoute
@@ -242,6 +269,7 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/audit-log'
     | '/expenses'
+    | '/manager-remittances'
     | '/payment'
     | '/remittance'
     | '/reports'
@@ -249,12 +277,14 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stock-movements'
     | '/branches/$branchId'
+    | '/customers/$customerId'
     | '/inventory/$inventoryId'
     | '/products/$productId'
     | '/stock-requests/$requestId'
     | '/targets/$targetId'
     | '/team/$userId'
     | '/branches/'
+    | '/customers/'
     | '/inventory/'
     | '/products/'
     | '/stock-requests/'
@@ -268,6 +298,7 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/audit-log'
     | '/expenses'
+    | '/manager-remittances'
     | '/payment'
     | '/remittance'
     | '/reports'
@@ -275,12 +306,14 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stock-movements'
     | '/branches/$branchId'
+    | '/customers/$customerId'
     | '/inventory/$inventoryId'
     | '/products/$productId'
     | '/stock-requests/$requestId'
     | '/targets/$targetId'
     | '/team/$userId'
     | '/branches'
+    | '/customers'
     | '/inventory'
     | '/products'
     | '/stock-requests'
@@ -294,6 +327,7 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/audit-log'
     | '/expenses'
+    | '/manager-remittances'
     | '/payment'
     | '/remittance'
     | '/reports'
@@ -301,12 +335,14 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stock-movements'
     | '/branches/$branchId'
+    | '/customers/$customerId'
     | '/inventory/$inventoryId'
     | '/products/$productId'
     | '/stock-requests/$requestId'
     | '/targets/$targetId'
     | '/team/$userId'
     | '/branches/'
+    | '/customers/'
     | '/inventory/'
     | '/products/'
     | '/stock-requests/'
@@ -321,6 +357,7 @@ export interface RootRouteChildren {
   ApprovalsRoute: typeof ApprovalsRoute
   AuditLogRoute: typeof AuditLogRoute
   ExpensesRoute: typeof ExpensesRoute
+  ManagerRemittancesRoute: typeof ManagerRemittancesRoute
   PaymentRoute: typeof PaymentRoute
   RemittanceRoute: typeof RemittanceRoute
   ReportsRoute: typeof ReportsRoute
@@ -328,12 +365,14 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   StockMovementsRoute: typeof StockMovementsRoute
   BranchesBranchIdRoute: typeof BranchesBranchIdRoute
+  CustomersCustomerIdRoute: typeof CustomersCustomerIdRoute
   InventoryInventoryIdRoute: typeof InventoryInventoryIdRoute
   ProductsProductIdRoute: typeof ProductsProductIdRoute
   StockRequestsRequestIdRoute: typeof StockRequestsRequestIdRoute
   TargetsTargetIdRoute: typeof TargetsTargetIdRoute
   TeamUserIdRoute: typeof TeamUserIdRoute
   BranchesIndexRoute: typeof BranchesIndexRoute
+  CustomersIndexRoute: typeof CustomersIndexRoute
   InventoryIndexRoute: typeof InventoryIndexRoute
   ProductsIndexRoute: typeof ProductsIndexRoute
   StockRequestsIndexRoute: typeof StockRequestsIndexRoute
@@ -371,6 +410,13 @@ declare module '@tanstack/react-router' {
       path: '/expenses'
       fullPath: '/expenses'
       preLoaderRoute: typeof ExpensesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manager-remittances': {
+      id: '/manager-remittances'
+      path: '/manager-remittances'
+      fullPath: '/manager-remittances'
+      preLoaderRoute: typeof ManagerRemittancesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/payment': {
@@ -427,6 +473,20 @@ declare module '@tanstack/react-router' {
       path: '/branches/$branchId'
       fullPath: '/branches/$branchId'
       preLoaderRoute: typeof BranchesBranchIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customers/': {
+      id: '/customers/'
+      path: '/customers'
+      fullPath: '/customers/'
+      preLoaderRoute: typeof CustomersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customers/$customerId': {
+      id: '/customers/$customerId'
+      path: '/customers/$customerId'
+      fullPath: '/customers/$customerId'
+      preLoaderRoute: typeof CustomersCustomerIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inventory/': {
@@ -521,6 +581,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApprovalsRoute: ApprovalsRoute,
   AuditLogRoute: AuditLogRoute,
   ExpensesRoute: ExpensesRoute,
+  ManagerRemittancesRoute: ManagerRemittancesRoute,
   PaymentRoute: PaymentRoute,
   RemittanceRoute: RemittanceRoute,
   ReportsRoute: ReportsRoute,
@@ -528,12 +589,14 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   StockMovementsRoute: StockMovementsRoute,
   BranchesBranchIdRoute: BranchesBranchIdRoute,
+  CustomersCustomerIdRoute: CustomersCustomerIdRoute,
   InventoryInventoryIdRoute: InventoryInventoryIdRoute,
   ProductsProductIdRoute: ProductsProductIdRoute,
   StockRequestsRequestIdRoute: StockRequestsRequestIdRoute,
   TargetsTargetIdRoute: TargetsTargetIdRoute,
   TeamUserIdRoute: TeamUserIdRoute,
   BranchesIndexRoute: BranchesIndexRoute,
+  CustomersIndexRoute: CustomersIndexRoute,
   InventoryIndexRoute: InventoryIndexRoute,
   ProductsIndexRoute: ProductsIndexRoute,
   StockRequestsIndexRoute: StockRequestsIndexRoute,

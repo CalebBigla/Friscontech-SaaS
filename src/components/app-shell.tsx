@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
+  Contact,
   Activity,
   ArrowLeftRight,
   BadgeCheck,
@@ -117,6 +118,8 @@ const ownerSections: NavSection[] = [
       { label: "Team", icon: Users, to: "/team" },
       { label: "Reports", icon: BarChart3, to: "/reports" },
       { label: "Payment", icon: Wallet, to: "/payment" },
+      { label: "Manager Remittances", icon: Landmark, to: "/manager-remittances" },
+      { label: "Customers", icon: Contact, to: "/customers" },
       { label: "Expenses", icon: Receipt, to: "/expenses" },
     ],
   },
@@ -134,6 +137,7 @@ const repSections: NavSection[] = [
     title: "Sales",
     items: [
       { label: "My Sales", icon: ShoppingCart, to: "/sales" },
+      { label: "Customers", icon: Contact, to: "/customers" },
       { label: "Payment", icon: Wallet, to: "/payment" },
       { label: "Stock Requests", icon: ClipboardList, to: "/stock-requests" },
     ],
@@ -154,6 +158,7 @@ const storekeeperSections: NavSection[] = [
       { label: "Inventory", icon: Boxes, to: "/inventory" },
       { label: "Products", icon: Package, to: "/products" },
       { label: "Stock Movements", icon: ArrowLeftRight, to: "/stock-movements" },
+      { label: "Customers", icon: Contact, to: "/customers" },
     ],
   },
   {
