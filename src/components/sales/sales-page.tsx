@@ -441,7 +441,7 @@ export function SalesPage() {
                 <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                   #{s.code} · {name(s.salesRepId)} · {branchName(s.branchId)}
                 </p>
-                <p className="text-[11px] text-muted-foreground">{formatDate(s.saleDate)}</p>
+                <p className="flex items-center gap-2 text-[11px] text-muted-foreground">{formatDate(s.saleDate)} <SaleTypeBadge db={db} sale={s} /></p>
               </div>
               <div className="text-right">
                 <p className="text-xs font-bold">{formatNaira(saleTotal(s))}</p>
