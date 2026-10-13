@@ -136,6 +136,35 @@ function OrganizationSection() {
   );
 }
 
+function ExpiryAlertSection() {
+  const db = useDb();
+  const actorId = useCurrentUserId();
+  const scope = getAccessScope(db, actorId);
+  const [months, setMonths] = useState(String(db.tenant.expiryAlertMonths));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const edit = scope.canManageSettings;
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    const r = await settingsService.updateExpiryAlertMonths(Number(months), actorId);
+    setSaving(false);
+    if (!r.ok) { setError(r.errors.form ?? "Couldn't save"); return; }
+    setError(""); toast.success("Expiry alert setting saved.");
+  };
+  return (
+    <Panel title="Expiry alerts" subtitle="How early stock batches are flagged before they expire">
+      {!edit && <ReadOnlyNote />}
+      <form onSubmit={submit} noValidate>
+        <div className="grid gap-4 p-5 sm:grid-cols-2">
+          <Field id="exp-months" label="Start alerts this many months before expiry" error={error}><Input id="exp-months" type="number" min={1} max={24} step={1} inputMode="numeric" value={months} disabled={!edit} onChange={(e) => setMonths(e.target.value)} /></Field>
+          <p className="self-end text-xs text-muted-foreground">Alerts also escalate at 3 months, 1 month and once expired.</p>
+        </div>
+        {edit && <FormActions dirty={months !== String(db.tenant.expiryAlertMonths)} saving={saving} onCancel={() => { setMonths(String(db.tenant.expiryAlertMonths)); setError(""); }} />}
+      </form>
+    </Panel>
+  );
+}
+
 const dateFormats: DateFormatPref[] = ["MMM D, YYYY", "DD/MM/YYYY", "YYYY-MM-DD"];
 const reportPeriods: { value: ReportPeriodPref; label: string }[] = [{ value: "today", label: "Today" }, { value: "week", label: "Last 7 days" }, { value: "month", label: "This month" }, { value: "quarter", label: "This quarter" }];
 
