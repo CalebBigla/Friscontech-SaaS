@@ -722,6 +722,7 @@ function seedPayments(sales: Sale[]): Payment[] {
           sale.tenantId === T &&
           sale.salesRepId === rep.id &&
           sale.status === "completed" &&
+          !sale.customerId &&
           sale.saleDate.startsWith("2026-09"),
       )
       .reduce((sum, sale) => sum + sale.quantity * sale.unitPrice, 0);
@@ -1239,14 +1240,105 @@ function seedMovements(sales: Sale[], inventory: InventoryRecord[]): InventoryMo
     .map((m, n) => ({ ...m, id: `mov-${String(n + 1).padStart(5, "0")}` }));
 }
 
+const customers: Customer[] = [
+  { id: "cust-001", tenantId: T, branchId: "branch-001", name: "Adebayo Supermarket", contactPerson: "Kunle Adebayo", phone: "+234 803 112 4401", email: "orders@adebayosuper.ng", address: "14 Allen Avenue, Ikeja", status: "active", creditLimit: 2_500_000, createdBy: "user-010", createdAt: "2026-06-02T10:00:00", updatedAt: "2026-06-02T10:00:00" },
+  { id: "cust-002", tenantId: T, branchId: "branch-001", name: "Mama Nkechi Provisions", contactPerson: "Nkechi Obi", phone: "+234 806 455 9012", email: "nkechi.obi@gmail.com", address: "Computer Village, Ikeja", status: "active", creditLimit: 800_000, createdBy: "user-011", createdAt: "2026-06-10T09:30:00", updatedAt: "2026-06-10T09:30:00" },
+  { id: "cust-003", tenantId: T, branchId: "branch-001", name: "Lagos Tech Hub Ltd", contactPerson: "Femi Lawal", phone: "+234 809 220 7713", email: "procurement@lagostechhub.ng", address: "3 Obafemi Awolowo Way, Ikeja", status: "active", createdBy: "user-010", createdAt: "2026-07-01T11:15:00", updatedAt: "2026-07-01T11:15:00" },
+  { id: "cust-004", tenantId: T, branchId: "branch-002", name: "Ochei Electronics", contactPerson: "Ifeanyi Ochei", phone: "+234 802 781 3304", email: "ochei.electronics@yahoo.com", address: "Wuse Market, Abuja", status: "active", creditLimit: 1_500_000, createdBy: "user-013", createdAt: "2026-06-18T14:00:00", updatedAt: "2026-06-18T14:00:00" },
+  { id: "cust-005", tenantId: T, branchId: "branch-002", name: "Garki Office Supplies", contactPerson: "Aisha Bello", phone: "+234 811 309 6650", email: "aisha@garkioffice.ng", address: "Area 11, Garki, Abuja", status: "inactive", createdBy: "user-014", createdAt: "2026-05-20T08:45:00", updatedAt: "2026-08-30T16:00:00" },
+];
+const customerBranchReps: Record<string, string[]> = { "branch-001": ["cust-001", "cust-002", "cust-003"], "branch-002": ["cust-004", "cust-005"] };
+
+/** Marks a deterministic slice of seeded sales as customer (account) orders. */
+function linkCustomerSales(sales: Sale[]): Sale[] {
+  let k = 0;
+  return sales.map((sale, index) => {
+    const ids = customerBranchReps[sale.branchId];
+    if (!ids || sale.status !== "completed" || index % 6 !== 0) return sale;
+    const customerId = ids[k++ % ids.length]!;
+    if (customerId === "cust-005" && sale.saleDate > "2026-08-30") return sale;
+    return { ...sale, customerId, orderId: `ORD-${sale.code.slice(4)}` };
+  });
+}
+
+function seedCustomerPayments(sales: Sale[]): CustomerPayment[] {
+  const managerOf: Record<string, string> = Object.fromEntries(
+    branches.filter((b) => b.managerId).map((b) => [b.id, b.managerId!]),
+  );
+  const out: CustomerPayment[] = [];
+  const plan: Record<string, { share: number; repId: string }> = {
+    "cust-001": { share: 0.85, repId: "user-010" },
+    "cust-002": { share: 0.5, repId: "user-011" },
+    "cust-003": { share: 1.1, repId: "user-010" },
+    "cust-004": { share: 0.7, repId: "user-013" },
+    "cust-005": { share: 1, repId: "user-014" },
+  };
+  for (const customer of customers) {
+    const orders = sales.filter((s) => s.customerId === customer.id && s.status === "completed");
+    const total = orders.reduce((sum, s) => sum + s.quantity * s.unitPrice, 0);
+    const p = plan[customer.id]!;
+    const branchId = customer.branchId!;
+    const target = Math.round(total * p.share);
+    const chunks = [0.5, 0.3, 0.2];
+    const statuses: PaymentStatus[] =
+      customer.id === "cust-001" ? ["confirmed", "acknowledged", "submitted"] : customer.id === "cust-002" ? ["confirmed", "declined", "submitted"] : ["confirmed", "confirmed", "confirmed"];
+    chunks.forEach((c, i) => {
+      const day = ["2026-08-12", "2026-09-10", "2026-09-26"][i]!;
+      const status = statuses[i]!;
+      const method = i % 2 === 0 ? "transfer" : "cash";
+      const submittedAt = `${day}T14:00:00`;
+      const managerId = managerOf[branchId] ?? "user-002";
+      out.push({
+        id: `CPY-${String(5001 + out.length)}`,
+        tenantId: T,
+        customerId: customer.id,
+        branchId,
+        managerId,
+        amount: Math.round((target * c) / 100) * 100,
+        method,
+        ...(method === "transfer" ? { reference: `TRF-${customer.id.slice(-3)}-${i + 1}` } : {}),
+        receivedBy: p.repId,
+        paymentDate: day,
+        status,
+        submittedAt,
+        ...(status !== "submitted" && status !== "declined" ? { acknowledgedAt: `${day}T17:00:00`, acknowledgedBy: managerId } : {}),
+        ...(status === "confirmed" ? { confirmedAt: `${day}T19:00:00`, confirmedBy: "user-001" } : {}),
+        ...(status === "declined" ? { declinedAt: `${day}T17:30:00`, declinedBy: managerId, declineReason: "Cash count did not match the receipt." } : {}),
+        createdAt: submittedAt,
+        updatedAt: submittedAt,
+      });
+    });
+  }
+  return out;
+}
+
+function seedNotifications(payments: Payment[], customerPayments: CustomerPayment[]): AppNotification[] {
+  const rows: AppNotification[] = [];
+  const push = (recipientId: string, type: NotificationType, entityType: AppNotification["entityType"], entityId: string, message: string, createdAt: string) =>
+    rows.push({ id: `ntf-${String(rows.length + 1).padStart(4, "0")}`, tenantId: T, recipientId, type, entityType, entityId, message, createdAt });
+  for (const p of payments) {
+    if (p.status === "submitted") push(p.managerId, "payment_awaiting_acknowledgement", "payment", p.id, `${p.id} awaits your acknowledgement`, p.submittedAt);
+    if (p.status === "acknowledged") push("user-001", "payment_awaiting_confirmation", "payment", p.id, `${p.id} awaits owner confirmation`, p.acknowledgedAt ?? p.submittedAt);
+  }
+  for (const p of customerPayments) {
+    if (p.status === "submitted") push(p.managerId, "payment_awaiting_acknowledgement", "customer_payment", p.id, `${p.id} awaits your acknowledgement`, p.submittedAt);
+    if (p.status === "acknowledged") push("user-001", "payment_awaiting_confirmation", "customer_payment", p.id, `${p.id} awaits owner confirmation`, p.acknowledgedAt ?? p.submittedAt);
+  }
+  return rows;
+}
+
 export function createSeedDb(): Db {
-  const sales = seedSales();
+  const sales = linkCustomerSales(seedSales());
   const inventory = seedInventory();
   const movements = seedMovements(sales, inventory);
   const targets = seedTargets();
   const payments = seedPayments(sales);
   const expenses = seedExpenses();
+  const customerPayments = seedCustomerPayments(sales);
   return {
+    customers: customers.map((x) => ({ ...x })),
+    customerPayments,
+    notifications: seedNotifications(payments, customerPayments),
     tenant,
     branches: branches.map((x) => ({ ...x })),
     users: users.map((x) => ({ ...x })),
