@@ -19,6 +19,8 @@ import { salesService, type FieldErrors } from "@/services/services";
 import type { AccessScope } from "@/lib/session";
 import { formatNaira, formatUnits } from "@/lib/format";
 import { getAvailableStock } from "@/lib/inventory-calculations";
+import { getCustomersForScope } from "@/lib/customer-calculations";
+import { CustomerFormDialog } from "@/components/customers/customer-dialogs";
 
 type Line = { key: number; productId: string; quantity: string; unitPrice: string };
 
@@ -27,11 +29,13 @@ export function RecordSaleDialog({
   onOpenChange,
   scope,
   defaultBranchId,
+  presetCustomerId,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   scope: AccessScope;
   defaultBranchId?: string | undefined;
+  presetCustomerId?: string | undefined;
 }) {
   const db = useDb();
   const [branchId, setBranchId] = useState("");
@@ -42,6 +46,18 @@ export function RecordSaleDialog({
   const [nextKey, setNextKey] = useState(2);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
+  const [saleType, setSaleType] = useState<"walk_in" | "customer">("walk_in");
+  const [customerId, setCustomerId] = useState("");
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [walkInName, setWalkInName] = useState("");
+  const [walkInPhone, setWalkInPhone] = useState("");
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false);
+  const customers = getCustomersForScope(db, scope).filter((c) => c.status === "active");
+  const needle = customerQuery.trim().toLowerCase();
+  const customerMatches = customers
+    .filter((c) => !needle || [c.name, c.phone, c.contactPerson].some((v) => v.toLowerCase().includes(needle)))
+    .slice(0, 6);
+  const selectedCustomer = customers.find((c) => c.id === customerId);
 
   const branches = db.branches.filter(
     (b) => b.status === "active" && (!scope.branchIds || scope.branchIds.includes(b.id)),
@@ -56,6 +72,11 @@ export function RecordSaleDialog({
     setLines([{ key: 1, productId: "", quantity: "1", unitPrice: "" }]);
     setNextKey(2);
     setErrors({});
+    setSaleType(presetCustomerId ? "customer" : "walk_in");
+    setCustomerId(presetCustomerId ?? "");
+    setCustomerQuery("");
+    setWalkInName("");
+    setWalkInPhone("");
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const total = lines.reduce(
@@ -70,6 +91,10 @@ export function RecordSaleDialog({
     setLines((rows) => rows.map((line) => (line.key === key ? { ...line, ...patch } : line)));
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (saleType === "customer" && !customerId) {
+      setErrors({ customerId: "Choose a customer" });
+      return;
+    }
     setSaving(true);
     const result = await salesService.recordMany(
       lines.map((line) => ({
@@ -81,6 +106,7 @@ export function RecordSaleDialog({
         saleDate,
       })),
       scope.user.id,
+      saleType === "customer" ? { customerId } : { walkInName, walkInPhone },
     );
     setSaving(false);
     if (!result.ok) {
@@ -105,6 +131,45 @@ export function RecordSaleDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
+          {scope.canManageCustomers && !presetCustomerId && (
+            <div role="radiogroup" aria-label="Sale type" className="grid grid-cols-2 gap-2 rounded-md bg-muted p-1">
+              {([["walk_in", "Walk-in sale", "Pay now"], ["customer", "Customer order", "On account"]] as const).map(([value, label, hint]) => (
+                <button key={value} type="button" role="radio" aria-checked={saleType === value} onClick={() => setSaleType(value)} className={`rounded-sm px-3 py-2 text-left text-xs transition-colors ${saleType === value ? "bg-card font-semibold shadow-panel" : "text-muted-foreground hover:text-foreground"}`}>
+                  {label}<span className="block text-[10px] font-normal text-muted-foreground">{hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {saleType === "walk_in" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div><Label htmlFor="walkin-name" className="text-xs">Buyer name (optional)</Label><Input id="walkin-name" className="mt-1.5 h-9" value={walkInName} onChange={(e) => setWalkInName(e.target.value)} /></div>
+              <div><Label htmlFor="walkin-phone" className="text-xs">Buyer phone (optional)</Label><Input id="walkin-phone" className="mt-1.5 h-9" value={walkInPhone} onChange={(e) => setWalkInPhone(e.target.value)} /></div>
+            </div>
+          ) : (
+            <div>
+              <Label className="text-xs">Customer *</Label>
+              {selectedCustomer ? (
+                <div className="mt-1.5 flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs">
+                  <span><strong>{selectedCustomer.name}</strong> · {selectedCustomer.phone}</span>
+                  {!presetCustomerId && <Button type="button" variant="ghost" size="sm" onClick={() => setCustomerId("")}>Change</Button>}
+                </div>
+              ) : (
+                <div className="mt-1.5 space-y-2">
+                  <Input placeholder="Search customers by name or phone" aria-label="Search customers" value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} className="h-9" />
+                  <div className="max-h-40 divide-y divide-border overflow-y-auto rounded-md border border-border">
+                    {customerMatches.map((c) => (
+                      <button key={c.id} type="button" onClick={() => setCustomerId(c.id)} className="block w-full px-3 py-2 text-left text-xs hover:bg-muted">
+                        <strong>{c.name}</strong> <span className="text-muted-foreground">· {c.phone}</span>
+                      </button>
+                    ))}
+                    {!customerMatches.length && <p className="px-3 py-2 text-xs text-muted-foreground">No matching customers.</p>}
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setAddCustomerOpen(true)}><Plus className="size-3.5" />Add customer</Button>
+                </div>
+              )}
+              <FieldError message={errors.customerId} />
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label className="text-xs">Branch *</Label>
@@ -274,6 +339,9 @@ export function RecordSaleDialog({
           </DialogFooter>
         </form>
       </DialogContent>
+      {scope.canManageCustomers && (
+        <CustomerFormDialog open={addCustomerOpen} onOpenChange={setAddCustomerOpen} actorId={scope.user.id} onSaved={(c) => setCustomerId(c.id)} />
+      )}
     </Dialog>
   );
 }
