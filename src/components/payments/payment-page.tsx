@@ -282,6 +282,7 @@ export function PaymentPage() {
                     <td className="px-4 py-3">{paymentMethodLabel[e.method]}</td>
                     <td className="px-4 py-3">
                       <PaymentStatusBadge status={e.status} />
+                      {role === "sales_rep" && <MiniProgress entry={e} />}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{userName(db, e.handledBy)}</td>
                   </tr>
@@ -620,6 +621,34 @@ const stepLabel = {
   confirmed: "Confirmed by owner",
   declined: "Declined",
 };
+function MiniProgress({ entry }: { entry: PaymentEntry }) {
+  const done = (step: PaymentTrailStepName) => entry.trail.some((s) => s.step === step);
+  const declined = entry.status === "declined";
+  const steps: { key: PaymentTrailStepName; label: string }[] = [
+    { key: "submitted", label: "Submitted" },
+    { key: "acknowledged", label: "Manager" },
+    { key: "confirmed", label: "Owner" },
+  ];
+  return (
+    <div className="mt-1.5 flex items-center gap-1" aria-label="Payment progress">
+      {steps.map((s, i) => {
+        const isDone = done(s.key);
+        const isDeclinedHere = declined && !isDone && (i === 0 || done(steps[i - 1]!.key));
+        return (
+          <div key={s.key} className="flex items-center gap-1">
+            {i > 0 && <span className={`h-px w-3 ${isDone ? "bg-success" : "bg-border"}`} />}
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${isDone ? "bg-success/10 text-success" : isDeclinedHere ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}
+            >
+              {isDeclinedHere ? "Declined" : s.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+type PaymentTrailStepName = PaymentEntry["trail"][number]["step"];
 function Trail({ db, entry }: { db: Db; entry: PaymentEntry }) {
   const steps = [...entry.trail];
   if (entry.status === "submitted") steps.push({ step: "acknowledged" });
