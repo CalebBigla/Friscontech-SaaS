@@ -65,7 +65,9 @@ type NavTo =
   | "/team"
   | "/reports"
   | "/settings"
-  | "/approvals";
+  | "/approvals"
+  | "/customers"
+  | "/manager-remittances";
 type NavItem = {
   label: string;
   icon: LucideIcon;
