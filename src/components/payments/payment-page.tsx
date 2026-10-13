@@ -79,7 +79,7 @@ export function PaymentPage() {
   const [submitOpen, setSubmitOpen] = useState(false);
 
   const filters = {
-    period: isValidPaymentPeriod(period) ? period : undefined,
+    ...(isValidPaymentPeriod(period) ? { period } : {}),
     ...(branchId !== "all" ? { branchId } : {}),
     ...(repId !== "all" ? { salesRepId: repId } : {}),
   };
