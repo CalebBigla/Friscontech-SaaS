@@ -22,6 +22,8 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StockMovementsRouteImport } from './routes/stock-movements'
 import { Route as BranchesIndexRouteImport } from './routes/branches.index'
 import { Route as BranchesBranchIdRouteImport } from './routes/branches.$branchId'
+import { Route as CustomersIndexRouteImport } from './routes/customers.index'
+import { Route as CustomersCustomerIdRouteImport } from './routes/customers.$customerId'
 import { Route as InventoryIndexRouteImport } from './routes/inventory.index'
 import { Route as InventoryInventoryIdRouteImport } from './routes/inventory.$inventoryId'
 import { Route as ProductsIndexRouteImport } from './routes/products.index'
@@ -100,6 +102,16 @@ const BranchesBranchIdRoute = BranchesBranchIdRouteImport.update({
   path: '/branches/$branchId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CustomersIndexRoute = CustomersIndexRouteImport.update({
+  id: '/customers/',
+  path: '/customers/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomersCustomerIdRoute = CustomersCustomerIdRouteImport.update({
+  id: '/customers/$customerId',
+  path: '/customers/$customerId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InventoryIndexRoute = InventoryIndexRouteImport.update({
   id: '/inventory/',
   path: '/inventory/',
@@ -175,12 +187,14 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/stock-movements': typeof StockMovementsRoute
   '/branches/$branchId': typeof BranchesBranchIdRoute
+  '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
   '/targets/$targetId': typeof TargetsTargetIdRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/branches/': typeof BranchesIndexRoute
+  '/customers/': typeof CustomersIndexRoute
   '/inventory/': typeof InventoryIndexRoute
   '/products/': typeof ProductsIndexRoute
   '/stock-requests/': typeof StockRequestsIndexRoute
@@ -202,12 +216,14 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/stock-movements': typeof StockMovementsRoute
   '/branches/$branchId': typeof BranchesBranchIdRoute
+  '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
   '/targets/$targetId': typeof TargetsTargetIdRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/branches': typeof BranchesIndexRoute
+  '/customers': typeof CustomersIndexRoute
   '/inventory': typeof InventoryIndexRoute
   '/products': typeof ProductsIndexRoute
   '/stock-requests': typeof StockRequestsIndexRoute
@@ -230,12 +246,14 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/stock-movements': typeof StockMovementsRoute
   '/branches/$branchId': typeof BranchesBranchIdRoute
+  '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
   '/targets/$targetId': typeof TargetsTargetIdRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/branches/': typeof BranchesIndexRoute
+  '/customers/': typeof CustomersIndexRoute
   '/inventory/': typeof InventoryIndexRoute
   '/products/': typeof ProductsIndexRoute
   '/stock-requests/': typeof StockRequestsIndexRoute
@@ -259,12 +277,14 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stock-movements'
     | '/branches/$branchId'
+    | '/customers/$customerId'
     | '/inventory/$inventoryId'
     | '/products/$productId'
     | '/stock-requests/$requestId'
     | '/targets/$targetId'
     | '/team/$userId'
     | '/branches/'
+    | '/customers/'
     | '/inventory/'
     | '/products/'
     | '/stock-requests/'
@@ -286,12 +306,14 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stock-movements'
     | '/branches/$branchId'
+    | '/customers/$customerId'
     | '/inventory/$inventoryId'
     | '/products/$productId'
     | '/stock-requests/$requestId'
     | '/targets/$targetId'
     | '/team/$userId'
     | '/branches'
+    | '/customers'
     | '/inventory'
     | '/products'
     | '/stock-requests'
@@ -313,12 +335,14 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stock-movements'
     | '/branches/$branchId'
+    | '/customers/$customerId'
     | '/inventory/$inventoryId'
     | '/products/$productId'
     | '/stock-requests/$requestId'
     | '/targets/$targetId'
     | '/team/$userId'
     | '/branches/'
+    | '/customers/'
     | '/inventory/'
     | '/products/'
     | '/stock-requests/'
@@ -341,12 +365,14 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   StockMovementsRoute: typeof StockMovementsRoute
   BranchesBranchIdRoute: typeof BranchesBranchIdRoute
+  CustomersCustomerIdRoute: typeof CustomersCustomerIdRoute
   InventoryInventoryIdRoute: typeof InventoryInventoryIdRoute
   ProductsProductIdRoute: typeof ProductsProductIdRoute
   StockRequestsRequestIdRoute: typeof StockRequestsRequestIdRoute
   TargetsTargetIdRoute: typeof TargetsTargetIdRoute
   TeamUserIdRoute: typeof TeamUserIdRoute
   BranchesIndexRoute: typeof BranchesIndexRoute
+  CustomersIndexRoute: typeof CustomersIndexRoute
   InventoryIndexRoute: typeof InventoryIndexRoute
   ProductsIndexRoute: typeof ProductsIndexRoute
   StockRequestsIndexRoute: typeof StockRequestsIndexRoute
@@ -449,6 +475,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BranchesBranchIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/customers/': {
+      id: '/customers/'
+      path: '/customers'
+      fullPath: '/customers/'
+      preLoaderRoute: typeof CustomersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customers/$customerId': {
+      id: '/customers/$customerId'
+      path: '/customers/$customerId'
+      fullPath: '/customers/$customerId'
+      preLoaderRoute: typeof CustomersCustomerIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/inventory/': {
       id: '/inventory/'
       path: '/inventory'
@@ -549,12 +589,14 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   StockMovementsRoute: StockMovementsRoute,
   BranchesBranchIdRoute: BranchesBranchIdRoute,
+  CustomersCustomerIdRoute: CustomersCustomerIdRoute,
   InventoryInventoryIdRoute: InventoryInventoryIdRoute,
   ProductsProductIdRoute: ProductsProductIdRoute,
   StockRequestsRequestIdRoute: StockRequestsRequestIdRoute,
   TargetsTargetIdRoute: TargetsTargetIdRoute,
   TeamUserIdRoute: TeamUserIdRoute,
   BranchesIndexRoute: BranchesIndexRoute,
+  CustomersIndexRoute: CustomersIndexRoute,
   InventoryIndexRoute: InventoryIndexRoute,
   ProductsIndexRoute: ProductsIndexRoute,
   StockRequestsIndexRoute: StockRequestsIndexRoute,
