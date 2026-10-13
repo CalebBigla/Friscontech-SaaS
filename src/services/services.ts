@@ -42,6 +42,7 @@ import { findInventory, getAvailable, getRequestOutstanding } from "@/lib/invent
 import { getAccessScope } from "@/lib/session";
 import { assignableRoles, canEditMember, roleNeedsBranch } from "@/lib/team";
 import { getDb, setDb } from "@/services/mock-store";
+import type { ImportRow } from "@/lib/product-import";
 import { entityFromAction } from "@/data/auditLogs";
 import {
   getPaymentOutstandingAmount,
@@ -1079,7 +1080,58 @@ const clean = (input: ProductInput) => ({
   ...(input.description?.trim() ? { description: input.description.trim() } : {}),
 });
 
+export type ImportSummary = {
+  created: number; updated: number; skipped: number; failed: number;
+  failures: { rowNumber: number; sku: string; name: string; reason: string }[];
+};
+
 export const mockProductService = {
+  /**
+   * Bulk import. Rows must already be validated (lib/product-import); they are re-checked here.
+   * Opening stock goes through applyInventoryChange into `branchId`, with the row's batch/expiry.
+   */
+  async importProducts(rows: ImportRow[], mode: "update" | "skip", branchId: string, actorId: string): Promise<Result<ImportSummary>> {
+    await latency();
+    const current = getDb();
+    const scope = getAccessScope(current, actorId);
+    if (!scope.canManageProducts) return { ok: false, errors: { form: "You cannot import products" } };
+    const branch = current.branches.find((b) => b.id === branchId && b.status === "active");
+    if (rows.some((r) => r.openingQuantity > 0) && (!branch || (scope.branchIds && !scope.branchIds.includes(branchId))))
+      return { ok: false, errors: { form: "Choose one of your active branches for opening stock" } };
+    const summary: ImportSummary = { created: 0, updated: 0, skipped: 0, failed: 0, failures: [] };
+    const at = nowOnReferenceDay(current);
+    setDb((d0) => {
+      let d = d0;
+      for (const r of rows) {
+        const input: ProductInput = { name: r.name, sku: r.sku, category: r.category, unit: r.unit, unitPrice: r.unitPrice, unitCost: r.unitCost, lowStockThreshold: r.lowStockThreshold, description: r.description };
+        const existing = d.products.find((p) => p.sku.toUpperCase() === r.sku.toUpperCase());
+        if (r.errors.length) { summary.failed++; summary.failures.push({ rowNumber: r.rowNumber, sku: r.sku, name: r.name, reason: r.errors.join("; ") }); continue; }
+        if (existing && mode === "skip") { summary.skipped++; summary.failures.push({ rowNumber: r.rowNumber, sku: r.sku, name: r.name, reason: "Skipped: SKU already exists" }); continue; }
+        const errs = validateProduct(d, input, existing?.id);
+        if (Object.keys(errs).length) { summary.failed++; summary.failures.push({ rowNumber: r.rowNumber, sku: r.sku, name: r.name, reason: Object.values(errs).join("; ") }); continue; }
+        let productId: string;
+        if (existing) {
+          const { description: _x, ...rest } = existing;
+          d = { ...d, products: d.products.map((p) => (p.id === existing.id ? { ...rest, ...clean(input), updatedAt: at } : p)), activities: [activity(d, actorId, "Product updated", `${existing.name} · ${existing.sku} · via import`), ...d.activities] };
+          productId = existing.id;
+          summary.updated++;
+        } else {
+          productId = `product-${String(d.products.length + 1).padStart(3, "0")}-${Date.now().toString(36)}`;
+          const product: Product = { id: productId, tenantId: d.tenant.id, ...clean(input), status: "active", createdAt: at, updatedAt: at };
+          const bIds = scope.branchIds ?? d.branches.filter((b) => b.status === "active").map((b) => b.id);
+          const records: InventoryRecord[] = bIds.map((bid, i) => ({ id: `inv-${productId}-${i}`, tenantId: d.tenant.id, branchId: bid, productId, quantityOnHand: 0, quantityReserved: 0, lowStockThreshold: input.lowStockThreshold, reorderLevel: input.lowStockThreshold * 2, lastUpdated: at }));
+          d = { ...d, products: [...d.products, product], inventory: [...d.inventory, ...records], activities: [activity(d, actorId, "Product created", `${product.name} · ${product.sku} · via import`), ...d.activities] };
+          summary.created++;
+        }
+        if (r.openingQuantity > 0) {
+          d = applyInventoryChange(d, { branchId, productId, delta: r.openingQuantity, type: "stock_added", referenceType: "manual", performedBy: actorId, at, note: "Opening stock from import", batch: r.expiryDate ? { batchNumber: r.batchNumber, expiryDate: r.expiryDate } : undefined });
+          d = { ...d, activities: [activity(d, actorId, "Stock added", `${labels(d, branchId, productId)} · +${r.openingQuantity} opening stock (import)`, { branchId, productId }), ...d.activities] };
+        }
+      }
+      return { ...d, activities: [activity(d, actorId, "Products imported", `${summary.created} created · ${summary.updated} updated · ${summary.skipped} skipped · ${summary.failed} failed`), ...d.activities] };
+    });
+    return { ok: true, data: summary };
+  },
   /** Adds to the shared catalogue and opens zero-stock inventory records in the actor's branches. */
   async create(input: ProductInput, actorId: string): Promise<Result<Product>> {
     await latency();
