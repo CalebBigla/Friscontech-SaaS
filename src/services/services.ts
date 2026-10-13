@@ -4,6 +4,7 @@
  */
 import type {
   ApprovalRequest,
+  StockBatch,
   DateFormatPref,
   ReportPeriodPref,
   UserPreference,
