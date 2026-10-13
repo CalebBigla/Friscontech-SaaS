@@ -9,6 +9,7 @@ const searchSchema = z.object({
   branch: z.string().optional().catch(undefined),
   rep: z.string().optional().catch(undefined),
   product: z.string().optional().catch(undefined),
+  type: z.enum(["walk_in", "customer"]).optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/sales")({

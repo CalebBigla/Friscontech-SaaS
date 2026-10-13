@@ -93,8 +93,9 @@ export function SalesPage() {
         ? search.rep
         : undefined);
   const productId = search.product;
+  const saleType = search.type;
 
-  const filters: SalesFilters = { range, branchId, branchIds: scope.branchIds, repId, productId };
+  const filters: SalesFilters = { range, branchId, branchIds: scope.branchIds, repId, productId, saleType };
   const data = useMemo(() => {
     const revenue = getSalesRevenue(db, filters);
     const count = getSalesCount(db, filters);
@@ -118,7 +119,7 @@ export function SalesPage() {
       rows,
       series: getRevenueSeries(db, range, filters),
     };
-  }, [db, range.from, range.to, branchId, repId, productId, scope.branchIds, scope.user.role]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [db, range.from, range.to, branchId, repId, productId, saleType, scope.branchIds, scope.user.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const repProgress = scope.repId ? getRepTargetProgress(db, scope.repId, monthOf(today)) : null;
   const ownerMySales =
@@ -172,6 +173,16 @@ export function SalesPage() {
         options={[
           { value: ALL, label: "All Products" },
           ...db.products.map((p) => ({ value: p.id, label: p.name })),
+        ]}
+      />
+      <FilterSelect
+        label="Sale type filter"
+        value={saleType ?? ALL}
+        onChange={(v) => update({ type: v === ALL ? undefined : (v as "walk_in" | "customer") })}
+        options={[
+          { value: ALL, label: "Walk-in & customer" },
+          { value: "walk_in", label: "Walk-in only" },
+          { value: "customer", label: "Customer orders" },
         ]}
       />
     </div>
@@ -376,6 +387,7 @@ export function SalesPage() {
                   scope.user.role === "owner" ? "Seller" : "Sales rep",
                   "Branch",
                   "Product",
+                  "Type",
                   "Qty",
                   "Revenue",
                   "Status",
@@ -399,6 +411,7 @@ export function SalesPage() {
                   <td className="px-4 py-3 font-semibold">{name(s.salesRepId)}</td>
                   <td className="px-4 py-3">{branchName(s.branchId)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{product(s.productId)?.name}</td>
+                  <td className="px-4 py-3"><SaleTypeBadge db={db} sale={s} /></td>
                   <td className="px-4 py-3">{s.quantity}</td>
                   <td className="px-4 py-3 font-bold">{formatNaira(saleTotal(s))}</td>
                   <td className="px-4 py-3">
@@ -492,5 +505,14 @@ export function SalesPage() {
         defaultBranchId={branchId}
       />
     </AppShell>
+  );
+}
+
+function SaleTypeBadge({ db, sale }: { db: ReturnType<typeof useDb>; sale: Sale }) {
+  const customer = sale.customerId ? db.customers.find((c) => c.id === sale.customerId) : undefined;
+  return sale.customerId ? (
+    <span className="status status-violet whitespace-nowrap" title={customer?.name}>Customer</span>
+  ) : (
+    <span className="status status-brand whitespace-nowrap" title={sale.walkInName}>Walk-in</span>
   );
 }
