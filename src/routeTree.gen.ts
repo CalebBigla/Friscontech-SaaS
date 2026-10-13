@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApprovalsRouteImport } from './routes/approvals'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as ExpensesRouteImport } from './routes/expenses'
+import { Route as ManagerRemittancesRouteImport } from './routes/manager-remittances'
 import { Route as PaymentRouteImport } from './routes/payment'
 import { Route as RemittanceRouteImport } from './routes/remittance'
 import { Route as ReportsRouteImport } from './routes/reports'
@@ -52,6 +53,11 @@ const AuditLogRoute = AuditLogRouteImport.update({
 const ExpensesRoute = ExpensesRouteImport.update({
   id: '/expenses',
   path: '/expenses',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManagerRemittancesRoute = ManagerRemittancesRouteImport.update({
+  id: '/manager-remittances',
+  path: '/manager-remittances',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PaymentRoute = PaymentRouteImport.update({
@@ -161,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/approvals': typeof ApprovalsRoute
   '/audit-log': typeof AuditLogRoute
   '/expenses': typeof ExpensesRoute
+  '/manager-remittances': typeof ManagerRemittancesRoute
   '/payment': typeof PaymentRoute
   '/remittance': typeof RemittanceRoute
   '/reports': typeof ReportsRoute
@@ -187,6 +194,7 @@ export interface FileRoutesByTo {
   '/approvals': typeof ApprovalsRoute
   '/audit-log': typeof AuditLogRoute
   '/expenses': typeof ExpensesRoute
+  '/manager-remittances': typeof ManagerRemittancesRoute
   '/payment': typeof PaymentRoute
   '/remittance': typeof RemittanceRoute
   '/reports': typeof ReportsRoute
@@ -214,6 +222,7 @@ export interface FileRoutesById {
   '/approvals': typeof ApprovalsRoute
   '/audit-log': typeof AuditLogRoute
   '/expenses': typeof ExpensesRoute
+  '/manager-remittances': typeof ManagerRemittancesRoute
   '/payment': typeof PaymentRoute
   '/remittance': typeof RemittanceRoute
   '/reports': typeof ReportsRoute
@@ -242,6 +251,7 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/audit-log'
     | '/expenses'
+    | '/manager-remittances'
     | '/payment'
     | '/remittance'
     | '/reports'
@@ -268,6 +278,7 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/audit-log'
     | '/expenses'
+    | '/manager-remittances'
     | '/payment'
     | '/remittance'
     | '/reports'
@@ -294,6 +305,7 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/audit-log'
     | '/expenses'
+    | '/manager-remittances'
     | '/payment'
     | '/remittance'
     | '/reports'
@@ -321,6 +333,7 @@ export interface RootRouteChildren {
   ApprovalsRoute: typeof ApprovalsRoute
   AuditLogRoute: typeof AuditLogRoute
   ExpensesRoute: typeof ExpensesRoute
+  ManagerRemittancesRoute: typeof ManagerRemittancesRoute
   PaymentRoute: typeof PaymentRoute
   RemittanceRoute: typeof RemittanceRoute
   ReportsRoute: typeof ReportsRoute
@@ -371,6 +384,13 @@ declare module '@tanstack/react-router' {
       path: '/expenses'
       fullPath: '/expenses'
       preLoaderRoute: typeof ExpensesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manager-remittances': {
+      id: '/manager-remittances'
+      path: '/manager-remittances'
+      fullPath: '/manager-remittances'
+      preLoaderRoute: typeof ManagerRemittancesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/payment': {
@@ -521,6 +541,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApprovalsRoute: ApprovalsRoute,
   AuditLogRoute: AuditLogRoute,
   ExpensesRoute: ExpensesRoute,
+  ManagerRemittancesRoute: ManagerRemittancesRoute,
   PaymentRoute: PaymentRoute,
   RemittanceRoute: RemittanceRoute,
   ReportsRoute: ReportsRoute,
