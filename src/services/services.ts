@@ -200,7 +200,9 @@ export function createNotification(
   };
 }
 const ownerIds = (db: Db) =>
-  db.users.filter((u) => u.tenantId === db.tenant.id && u.role === "owner" && u.status === "active").map((u) => u.id);
+  db.users
+    .filter((u) => u.tenantId === db.tenant.id && u.role === "owner" && u.status === "active")
+    .map((u) => u.id);
 
 export function validateBranch(db: Db, input: BranchInput, editingId?: string) {
   const errors: FieldErrors = {};
@@ -355,7 +357,10 @@ export const mockSalesService = {
         (c) => c.id === order.customerId && c.tenantId === current.tenant.id,
       );
       if (!actor.canManageCustomers)
-        return { ok: false, errors: { form: "Only sales representatives can raise customer orders" } };
+        return {
+          ok: false,
+          errors: { form: "Only sales representatives can raise customer orders" },
+        };
       if (!customer || customer.status !== "active")
         return { ok: false, errors: { customerId: "Choose an active customer" } };
       if (customer.branchId && actor.user.branchId && customer.branchId !== actor.user.branchId)
@@ -2592,7 +2597,8 @@ export function validateCustomer(db: Db, input: CustomerInput, editingId?: strin
   const errors: FieldErrors = {};
   if (!input.name.trim()) errors.name = "Customer or business name is required";
   if (!input.phone.trim()) errors.phone = "Phone number is required";
-  else if (!/^[+\d][\d\s-]{6,}$/.test(input.phone.trim())) errors.phone = "Enter a valid phone number";
+  else if (!/^[+\d][\d\s-]{6,}$/.test(input.phone.trim()))
+    errors.phone = "Enter a valid phone number";
   if (input.email.trim() && !/^\S+@\S+\.\S+$/.test(input.email.trim()))
     errors.email = "Enter a valid email";
   if (
@@ -2609,7 +2615,11 @@ export function validateCustomer(db: Db, input: CustomerInput, editingId?: strin
 }
 function customerActor(db: Db, actorId: string) {
   const scope = getAccessScope(db, actorId);
-  if (scope.user.id !== actorId || scope.user.status !== "active" || scope.user.tenantId !== db.tenant.id)
+  if (
+    scope.user.id !== actorId ||
+    scope.user.status !== "active" ||
+    scope.user.tenantId !== db.tenant.id
+  )
     return null;
   return scope;
 }
@@ -2643,7 +2653,11 @@ export const mockCustomerService = {
       branchId: customer.branchId,
       metadata: { customerId: customer.id },
     });
-    setDb((d) => ({ ...d, customers: [...d.customers, customer], activities: [log, ...d.activities] }));
+    setDb((d) => ({
+      ...d,
+      customers: [...d.customers, customer],
+      activities: [log, ...d.activities],
+    }));
     return { ok: true, data: customer };
   },
   async update(id: string, input: CustomerInput, actorId: string): Promise<Result<Customer>> {
@@ -2652,7 +2666,10 @@ export const mockCustomerService = {
     const scope = customerActor(db, actorId);
     const existing = db.customers.find((c) => c.id === id && c.tenantId === db.tenant.id);
     if (!existing) return { ok: false, errors: { form: "Customer not found" } };
-    if (!scope?.canManageCustomers || (existing.branchId && !scope.branchIds?.includes(existing.branchId)))
+    if (
+      !scope?.canManageCustomers ||
+      (existing.branchId && !scope.branchIds?.includes(existing.branchId))
+    )
       return { ok: false, errors: { form: "You cannot edit this customer" } };
     const errors = validateCustomer(db, input, id);
     if (Object.keys(errors).length) return { ok: false, errors };
@@ -2684,7 +2701,10 @@ export const mockCustomerService = {
     const scope = customerActor(db, actorId);
     const existing = db.customers.find((c) => c.id === id && c.tenantId === db.tenant.id);
     if (!existing) return { ok: false, errors: { form: "Customer not found" } };
-    if (!scope?.canManageCustomers || (existing.branchId && !scope.branchIds?.includes(existing.branchId)))
+    if (
+      !scope?.canManageCustomers ||
+      (existing.branchId && !scope.branchIds?.includes(existing.branchId))
+    )
       return { ok: false, errors: { form: "You cannot change this customer" } };
     const updated: Customer = { ...existing, status, updatedAt: nowOnReferenceDay(db) };
     const log = activity(
@@ -2701,7 +2721,11 @@ export const mockCustomerService = {
     }));
     return { ok: true, data: updated };
   },
-  async setCreditLimit(id: string, limit: number | null, actorId: string): Promise<Result<Customer>> {
+  async setCreditLimit(
+    id: string,
+    limit: number | null,
+    actorId: string,
+  ): Promise<Result<Customer>> {
     await latency();
     const db = getDb();
     const scope = customerActor(db, actorId);
@@ -2740,12 +2764,24 @@ export type CustomerPaymentInput = {
   orderId?: string;
   note?: string;
 };
-function customerPaymentScopeError(db: Db, actorId: string, payment: CustomerPayment, role: "manager" | "owner") {
+function customerPaymentScopeError(
+  db: Db,
+  actorId: string,
+  payment: CustomerPayment,
+  role: "manager" | "owner",
+) {
   const scope = customerActor(db, actorId);
-  if (!scope || payment.tenantId !== db.tenant.id) return "This payment is outside your organization";
-  if (role === "manager" && (!scope.canAcknowledgePayments || payment.managerId !== actorId || !scope.branchIds?.includes(payment.branchId)))
+  if (!scope || payment.tenantId !== db.tenant.id)
+    return "This payment is outside your organization";
+  if (
+    role === "manager" &&
+    (!scope.canAcknowledgePayments ||
+      payment.managerId !== actorId ||
+      !scope.branchIds?.includes(payment.branchId))
+  )
     return "This payment is outside your branch scope";
-  if (role === "owner" && !scope.canConfirmPayments) return "Only the business owner can confirm payments";
+  if (role === "owner" && !scope.canConfirmPayments)
+    return "Only the business owner can confirm payments";
   return null;
 }
 function customerPaymentAudit(payment: CustomerPayment) {
@@ -2766,8 +2802,13 @@ export const mockCustomerPaymentService = {
     const db = getDb();
     const scope = customerActor(db, actorId);
     if (!scope?.canManageCustomers || !scope.user.branchId)
-      return { ok: false, errors: { form: "Only sales representatives can record customer payments" } };
-    const customer = db.customers.find((c) => c.id === input.customerId && c.tenantId === db.tenant.id);
+      return {
+        ok: false,
+        errors: { form: "Only sales representatives can record customer payments" },
+      };
+    const customer = db.customers.find(
+      (c) => c.id === input.customerId && c.tenantId === db.tenant.id,
+    );
     const errors: FieldErrors = {};
     if (!customer || (customer.branchId && customer.branchId !== scope.user.branchId))
       errors.customerId = "Choose a customer from your branch";
@@ -2800,12 +2841,25 @@ export const mockCustomerPaymentService = {
       createdAt: at,
       updatedAt: at,
     };
-    const log = activity(db, actorId, "Customer payment submitted", `${payment.id} · ${customer.name}`, {
-      entityId: payment.id,
-      branchId: payment.branchId,
-      metadata: customerPaymentAudit(payment),
-    });
-    const notice = createNotification(db, branch.managerId, "payment_awaiting_acknowledgement", "customer_payment", payment.id, `${payment.id} from ${customer.name} awaits your acknowledgement`);
+    const log = activity(
+      db,
+      actorId,
+      "Customer payment submitted",
+      `${payment.id} · ${customer.name}`,
+      {
+        entityId: payment.id,
+        branchId: payment.branchId,
+        metadata: customerPaymentAudit(payment),
+      },
+    );
+    const notice = createNotification(
+      db,
+      branch.managerId,
+      "payment_awaiting_acknowledgement",
+      "customer_payment",
+      payment.id,
+      `${payment.id} from ${customer.name} awaits your acknowledgement`,
+    );
     setDb((d) => ({
       ...d,
       customerPayments: [...d.customerPayments, payment],
@@ -2814,7 +2868,11 @@ export const mockCustomerPaymentService = {
     }));
     return { ok: true, data: payment };
   },
-  async acknowledge(id: string, actorId: string, details: PaymentAcknowledgement = {}): Promise<Result<CustomerPayment>> {
+  async acknowledge(
+    id: string,
+    actorId: string,
+    details: PaymentAcknowledgement = {},
+  ): Promise<Result<CustomerPayment>> {
     await latency();
     const db = getDb();
     const payment = db.customerPayments.find((p) => p.id === id);
@@ -2825,7 +2883,10 @@ export const mockCustomerPaymentService = {
       return { ok: false, errors: { form: "Only submitted payments can be acknowledged" } };
     const reference = details.transferReference?.trim() || payment.reference;
     if (payment.method === "transfer" && !reference)
-      return { ok: false, errors: { transferReference: "Enter the transfer reference before acknowledging" } };
+      return {
+        ok: false,
+        errors: { transferReference: "Enter the transfer reference before acknowledging" },
+      };
     const at = nowOnReferenceDay(db);
     const updated: CustomerPayment = {
       ...payment,
@@ -2839,9 +2900,21 @@ export const mockCustomerPaymentService = {
     const log = activity(db, actorId, "Customer payment acknowledged", id, {
       entityId: id,
       branchId: payment.branchId,
-      metadata: { ...customerPaymentAudit(updated), ...(updated.proofName ? { proofName: updated.proofName } : {}) },
+      metadata: {
+        ...customerPaymentAudit(updated),
+        ...(updated.proofName ? { proofName: updated.proofName } : {}),
+      },
     });
-    const notices = ownerIds(db).map((o) => createNotification(db, o, "payment_awaiting_confirmation", "customer_payment", id, `${id} acknowledged by manager · awaiting your confirmation`));
+    const notices = ownerIds(db).map((o) =>
+      createNotification(
+        db,
+        o,
+        "payment_awaiting_confirmation",
+        "customer_payment",
+        id,
+        `${id} acknowledged by manager · awaiting your confirmation`,
+      ),
+    );
     setDb((d) => ({
       ...d,
       customerPayments: d.customerPayments.map((p) => (p.id === id ? updated : p)),
@@ -2860,13 +2933,26 @@ export const mockCustomerPaymentService = {
     if (payment.status !== "acknowledged")
       return { ok: false, errors: { form: "Only manager-acknowledged payments can be confirmed" } };
     const at = nowOnReferenceDay(db);
-    const updated: CustomerPayment = { ...payment, status: "confirmed", confirmedAt: at, confirmedBy: actorId, updatedAt: at };
+    const updated: CustomerPayment = {
+      ...payment,
+      status: "confirmed",
+      confirmedAt: at,
+      confirmedBy: actorId,
+      updatedAt: at,
+    };
     const log = activity(db, actorId, "Customer payment confirmed", id, {
       entityId: id,
       branchId: payment.branchId,
       metadata: customerPaymentAudit(updated),
     });
-    const notice = createNotification(db, payment.receivedBy, "payment_confirmed", "customer_payment", id, `${id} was confirmed by the owner`);
+    const notice = createNotification(
+      db,
+      payment.receivedBy,
+      "payment_confirmed",
+      "customer_payment",
+      id,
+      `${id} was confirmed by the owner`,
+    );
     setDb((d) => ({
       ...d,
       customerPayments: d.customerPayments.map((p) => (p.id === id ? updated : p)),
@@ -2885,18 +2971,38 @@ export const mockCustomerPaymentService = {
     const scopeError = customerPaymentScopeError(db, actorId, payment, role);
     if (scopeError) return { ok: false, errors: { form: scopeError } };
     if (role === "manager" && payment.status !== "submitted")
-      return { ok: false, errors: { form: "Only submitted payments can be declined by a manager" } };
+      return {
+        ok: false,
+        errors: { form: "Only submitted payments can be declined by a manager" },
+      };
     if (role === "owner" && payment.status !== "acknowledged")
-      return { ok: false, errors: { form: "Only manager-acknowledged payments can be declined by the owner" } };
+      return {
+        ok: false,
+        errors: { form: "Only manager-acknowledged payments can be declined by the owner" },
+      };
     if (!reason.trim()) return { ok: false, errors: { reason: "A decline reason is required" } };
     const at = nowOnReferenceDay(db);
-    const updated: CustomerPayment = { ...payment, status: "declined", declinedAt: at, declinedBy: actorId, declineReason: reason.trim(), updatedAt: at };
+    const updated: CustomerPayment = {
+      ...payment,
+      status: "declined",
+      declinedAt: at,
+      declinedBy: actorId,
+      declineReason: reason.trim(),
+      updatedAt: at,
+    };
     const log = activity(db, actorId, "Customer payment declined", `${id} · ${reason.trim()}`, {
       entityId: id,
       branchId: payment.branchId,
       metadata: { ...customerPaymentAudit(updated), declineReason: reason.trim() },
     });
-    const notice = createNotification(db, payment.receivedBy, "payment_declined", "customer_payment", id, `${id} was declined: ${reason.trim()}`);
+    const notice = createNotification(
+      db,
+      payment.receivedBy,
+      "payment_declined",
+      "customer_payment",
+      id,
+      `${id} was declined: ${reason.trim()}`,
+    );
     setDb((d) => ({
       ...d,
       customerPayments: d.customerPayments.map((p) => (p.id === id ? updated : p)),

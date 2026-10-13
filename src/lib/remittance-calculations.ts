@@ -59,7 +59,10 @@ export function getManagerCustomerCollections(db: Db, managerId: string, period:
 
 /** Walk-in sales of reps with an eligible payment + confirmed customer payments. Credit orders never count. */
 export function getManagerTotalReceived(db: Db, managerId: string, period: string) {
-  const customer = getManagerCustomerCollections(db, managerId, period).reduce((s, p) => s + p.amount, 0);
+  const customer = getManagerCustomerCollections(db, managerId, period).reduce(
+    (s, p) => s + p.amount,
+    0,
+  );
   return customer + getManagerWalkInReceived(db, managerId, period);
 }
 function getManagerWalkInReceived(db: Db, managerId: string, period: string) {

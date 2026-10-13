@@ -38,7 +38,9 @@ export function ManagerRemittancesReview() {
   const db = useDb();
   const scope = getAccessScope(db, useCurrentUserId());
   const [period, setPeriod] = useState(currentMonth(db.tenant.referenceDate));
-  return <OwnerManagerPaymentPage db={db} scope={scope} period={period} onPeriodChange={setPeriod} />;
+  return (
+    <OwnerManagerPaymentPage db={db} scope={scope} period={period} onPeriodChange={setPeriod} />
+  );
 }
 
 function OwnerManagerPaymentPage({
@@ -203,8 +205,15 @@ function OwnerManagerPaymentPage({
             <>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-md border border-border bg-muted/20 p-4 text-xs sm:grid-cols-3">
                 {[
-                  ["Manager", db.users.find((user) => user.id === reviewRow.managerId)?.name ?? "Manager"],
-                  ["Branch", db.branches.find((branch) => branch.id === reviewRow.branchId)?.name ?? "Branch"],
+                  [
+                    "Manager",
+                    db.users.find((user) => user.id === reviewRow.managerId)?.name ?? "Manager",
+                  ],
+                  [
+                    "Branch",
+                    db.branches.find((branch) => branch.id === reviewRow.branchId)?.name ??
+                      "Branch",
+                  ],
                   ["Period", formatMonth(reviewRow.period)],
                   ["Total Received", formatNaira(reviewRow.totalReceived)],
                   ["Expenses", formatNaira(reviewRow.expenseAmount)],
@@ -223,18 +232,24 @@ function OwnerManagerPaymentPage({
               </dl>
               {reviewRow.transferReference && (
                 <p className="text-xs text-muted-foreground">
-                  Transfer reference: <span className="font-medium text-foreground">{reviewRow.transferReference}</span>
+                  Transfer reference:{" "}
+                  <span className="font-medium text-foreground">{reviewRow.transferReference}</span>
                 </p>
               )}
-              {reviewRow.note && <p className="text-xs text-muted-foreground">Note: {reviewRow.note}</p>}
+              {reviewRow.note && (
+                <p className="text-xs text-muted-foreground">Note: {reviewRow.note}</p>
+              )}
               {reviewRow.declineReason && (
                 <p className="rounded-md bg-destructive/5 p-3 text-xs">
-                  <strong className="text-destructive">Decline reason:</strong> {reviewRow.declineReason}
+                  <strong className="text-destructive">Decline reason:</strong>{" "}
+                  {reviewRow.declineReason}
                 </p>
               )}
               {reviewRow.status === "submitted" && (
                 <div>
-                  <Label htmlFor="owner-payment-decline-reason" className="text-xs">Decline reason</Label>
+                  <Label htmlFor="owner-payment-decline-reason" className="text-xs">
+                    Decline reason
+                  </Label>
                   <Textarea
                     id="owner-payment-decline-reason"
                     className="mt-1.5"
@@ -342,7 +357,12 @@ function OwnerManagerPaymentTable({
                     {row.transferReference ?? "—"}
                   </td>
                   <td className="px-4 py-2">
-                    <Button size="sm" variant="outline" className="h-8" onClick={() => onReview(row)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      onClick={() => onReview(row)}
+                    >
                       Review
                     </Button>
                   </td>

@@ -6,9 +6,15 @@ export const Route = createFileRoute("/manager-remittances")({
   head: () => ({
     meta: [
       { title: "Manager Remittances — Friscontech" },
-      { name: "description", content: "Review and confirm remittances submitted by branch managers." },
+      {
+        name: "description",
+        content: "Review and confirm remittances submitted by branch managers.",
+      },
       { property: "og:title", content: "Manager Remittances — Friscontech" },
-      { property: "og:description", content: "Review and confirm remittances submitted by branch managers." },
+      {
+        property: "og:description",
+        content: "Review and confirm remittances submitted by branch managers.",
+      },
     ],
   }),
   component: () => (

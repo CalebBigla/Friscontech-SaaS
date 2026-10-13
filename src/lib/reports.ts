@@ -44,9 +44,13 @@ export const reportMonth = (f: ReportFilters) => f.range.to.slice(0, 7);
 export function getSalesReport(db: Db, scope: AccessScope, f: ReportFilters) {
   const branchIds = branchScope(db, scope, f);
   const rows = branchIds.length
-    ? filterSales(db, { range: f.range, branchIds, repId: f.repId, productId: f.productId, saleType: f.saleType }).sort(
-        (a, b) => b.createdAt.localeCompare(a.createdAt),
-      )
+    ? filterSales(db, {
+        range: f.range,
+        branchIds,
+        repId: f.repId,
+        productId: f.productId,
+        saleType: f.saleType,
+      }).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     : [];
   const revenue = rows.reduce((s, x) => s + saleTotal(x), 0);
   return {

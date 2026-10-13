@@ -95,7 +95,14 @@ export function SalesPage() {
   const productId = search.product;
   const saleType = search.type;
 
-  const filters: SalesFilters = { range, branchId, branchIds: scope.branchIds, repId, productId, saleType };
+  const filters: SalesFilters = {
+    range,
+    branchId,
+    branchIds: scope.branchIds,
+    repId,
+    productId,
+    saleType,
+  };
   const data = useMemo(() => {
     const revenue = getSalesRevenue(db, filters);
     const count = getSalesCount(db, filters);
@@ -119,7 +126,17 @@ export function SalesPage() {
       rows,
       series: getRevenueSeries(db, range, filters),
     };
-  }, [db, range.from, range.to, branchId, repId, productId, saleType, scope.branchIds, scope.user.role]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    db,
+    range.from,
+    range.to,
+    branchId,
+    repId,
+    productId,
+    saleType,
+    scope.branchIds,
+    scope.user.role,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const repProgress = scope.repId ? getRepTargetProgress(db, scope.repId, monthOf(today)) : null;
   const ownerMySales =
@@ -411,7 +428,9 @@ export function SalesPage() {
                   <td className="px-4 py-3 font-semibold">{name(s.salesRepId)}</td>
                   <td className="px-4 py-3">{branchName(s.branchId)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{product(s.productId)?.name}</td>
-                  <td className="px-4 py-3"><SaleTypeBadge db={db} sale={s} /></td>
+                  <td className="px-4 py-3">
+                    <SaleTypeBadge db={db} sale={s} />
+                  </td>
                   <td className="px-4 py-3">{s.quantity}</td>
                   <td className="px-4 py-3 font-bold">{formatNaira(saleTotal(s))}</td>
                   <td className="px-4 py-3">
@@ -441,7 +460,9 @@ export function SalesPage() {
                 <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                   #{s.code} · {name(s.salesRepId)} · {branchName(s.branchId)}
                 </p>
-                <p className="flex items-center gap-2 text-[11px] text-muted-foreground">{formatDate(s.saleDate)} <SaleTypeBadge db={db} sale={s} /></p>
+                <p className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  {formatDate(s.saleDate)} <SaleTypeBadge db={db} sale={s} />
+                </p>
               </div>
               <div className="text-right">
                 <p className="text-xs font-bold">{formatNaira(saleTotal(s))}</p>
@@ -511,8 +532,12 @@ export function SalesPage() {
 function SaleTypeBadge({ db, sale }: { db: ReturnType<typeof useDb>; sale: Sale }) {
   const customer = sale.customerId ? db.customers.find((c) => c.id === sale.customerId) : undefined;
   return sale.customerId ? (
-    <span className="status status-violet whitespace-nowrap" title={customer?.name}>Customer</span>
+    <span className="status status-violet whitespace-nowrap" title={customer?.name}>
+      Customer
+    </span>
   ) : (
-    <span className="status status-brand whitespace-nowrap" title={sale.walkInName}>Walk-in</span>
+    <span className="status status-brand whitespace-nowrap" title={sale.walkInName}>
+      Walk-in
+    </span>
   );
 }
