@@ -496,7 +496,27 @@ type InventoryChange = {
   performedBy: string;
   at: string;
   note?: string | undefined;
+  /** For additions: the received lot. Removals always consume batches first-expiry-first-out. */
+  batch?: { batchNumber: string; expiryDate: string } | undefined;
 };
+
+/** FEFO: removals drain the earliest-expiring batches; additions with batch info open/extend a lot. */
+function applyBatches(d: Db, c: InventoryChange): StockBatch[] {
+  const all = d.stockBatches;
+  if (c.delta > 0) {
+    if (!c.batch?.expiryDate) return all;
+    const same = all.find((b) => b.branchId === c.branchId && b.productId === c.productId && b.batchNumber === c.batch!.batchNumber && b.expiryDate === c.batch!.expiryDate);
+    if (same) return all.map((b) => (b === same ? { ...b, quantityReceived: b.quantityReceived + c.delta, quantityRemaining: b.quantityRemaining + c.delta } : b));
+    return [...all, { id: `bat-${all.length + 1}-${c.at.replace(/\D/g, "")}`, tenantId: d.tenant.id, branchId: c.branchId, productId: c.productId, batchNumber: c.batch.batchNumber || "—", expiryDate: c.batch.expiryDate, quantityReceived: c.delta, quantityRemaining: c.delta, receivedAt: c.at }];
+  }
+  let left = -c.delta;
+  const order = all
+    .filter((b) => b.branchId === c.branchId && b.productId === c.productId && b.quantityRemaining > 0)
+    .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate));
+  const take = new Map<string, number>();
+  for (const b of order) { if (left <= 0) break; const t = Math.min(left, b.quantityRemaining); take.set(b.id, t); left -= t; }
+  return all.map((b) => (take.has(b.id) ? { ...b, quantityRemaining: b.quantityRemaining - take.get(b.id)! } : b));
+}
 
 /**
  * The ONLY path that changes quantityOnHand. Every change writes a matching movement,
@@ -543,6 +563,7 @@ export function applyInventoryChange(d: Db, c: InventoryChange): Db {
       ? d.inventory.map((i) => (i.id === existing.id ? record : i))
       : [...d.inventory, record],
     inventoryMovements: [...d.inventoryMovements, movement],
+    stockBatches: applyBatches(d, c),
   };
 }
 
@@ -553,6 +574,8 @@ export type AddStockInput = {
   note: string;
   emergency?: boolean;
   emergencyReason?: string;
+  batchNumber?: string;
+  expiryDate?: string;
 };
 const labels = (d: Db, branchId: string, productId: string) =>
   `${d.branches.find((b) => b.id === branchId)?.name} · ${d.products.find((p) => p.id === productId)?.name}`;
@@ -583,6 +606,8 @@ export const mockInventoryService = {
       errors.productId = "This product is inactive — reactivate it before adding stock";
     if (!Number.isInteger(input.quantity) || input.quantity <= 0)
       errors.quantity = "Enter a whole number greater than zero";
+    if (input.expiryDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.expiryDate)) errors.expiryDate = "Enter a valid date";
+    if (input.batchNumber?.trim() && !input.expiryDate) errors.expiryDate = "Add the batch's expiry date";
     if (input.emergency && (input.emergencyReason ?? "").trim().length < 5)
       errors.emergencyReason = "Explain why this addition can't wait for approval";
     if (Object.keys(errors).length) return { ok: false, errors };
@@ -597,6 +622,7 @@ export const mockInventoryService = {
       requestedAt: at,
       productId: input.productId,
       quantity: input.quantity,
+      ...(input.expiryDate ? { batchNumber: input.batchNumber?.trim() ?? "", expiryDate: input.expiryDate } : {}),
       ...(input.note.trim() ? { note: input.note.trim() } : {}),
       ...(input.emergency
         ? { emergency: true, emergencyReason: input.emergencyReason!.trim(), appliedAt: at }
@@ -613,6 +639,7 @@ export const mockInventoryService = {
             referenceId: approval.id,
             performedBy: actorId,
             at,
+            batch: approval.expiryDate ? { batchNumber: approval.batchNumber ?? "", expiryDate: approval.expiryDate } : undefined,
             note: `EMERGENCY: ${approval.emergencyReason}`,
           })
         : d;
@@ -1612,6 +1639,7 @@ export const mockApprovalService = {
             referenceId: a.id,
             performedBy: a.requestedBy,
             at,
+            batch: a.expiryDate ? { batchNumber: a.batchNumber ?? "", expiryDate: a.expiryDate } : undefined,
             note: a.note ? `${a.note} · approved` : "Approved stock addition",
           });
         log = activity(
@@ -3168,6 +3196,20 @@ export const settingsService = {
       ],
     }));
     return { ok: true, data: input };
+  },
+  async updateExpiryAlertMonths(months: number, actorId: string): Promise<SettingsResult<number>> {
+    await latency();
+    const db = getDb();
+    if (!getAccessScope(db, actorId).canManageSettings)
+      return { ok: false, errors: { form: "Only the business owner can change expiry alerts." } };
+    if (!Number.isInteger(months) || months < 1 || months > 24)
+      return { ok: false, errors: { form: "Enter a whole number of months between 1 and 24" } };
+    setDb((d) => ({
+      ...d,
+      tenant: { ...d.tenant, expiryAlertMonths: months, updatedAt: nowOnReferenceDay(d) },
+      activities: [activity(d, actorId, "Settings updated", `Expiry alerts start ${months} months before expiry`, { branchId: null, entityId: d.tenant.id }), ...d.activities],
+    }));
+    return { ok: true, data: months };
   },
   /** Any signed-in user, for their own account only. */
   async updatePreferences(
