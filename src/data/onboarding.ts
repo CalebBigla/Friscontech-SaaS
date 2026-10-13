@@ -61,7 +61,7 @@ export type Onboarding = {
   credentials: StoredFile[];
   /** Account password is never stored in app data; we only record that it was set. */
   passwordSet: boolean;
-  correctionNote?: string;
+  correctionNote?: string | undefined;
   guarantorStatus: GuarantorStatus;
   guarantorToken: string | null;
   guarantorResponse: GuarantorResponse | null;
