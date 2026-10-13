@@ -63,7 +63,7 @@ export function AuditLogPage() {
     <AppShell title="Audit Log" subtitle={personal ? "Only actions you performed" : "Organization activity"}>
       <div className="mb-5">
         <h1 className="text-xl font-bold">{personal ? "My Activity" : "Audit Log"}</h1>
-        <p className="mt-1 text-xs text-muted-foreground">{personal ? "A record of every action you performed in SalesFlow Pro." : "Track important activity across your organization."}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{personal ? "A record of every action you performed in Friscontech." : "Track important activity across your organization."}</p>
       </div>
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">

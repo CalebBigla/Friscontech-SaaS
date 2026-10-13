@@ -3,7 +3,7 @@ import { RoleGate } from "@/components/app-shell";
 import { OwnerRemittancePage } from "@/components/remittances/owner-remittance-page";
 
 export const Route = createFileRoute("/owner/remittance/$remittanceId")({
-  head: () => ({ meta: [{ title: "Remittance Details — SalesFlow Pro" }] }),
+  head: () => ({ meta: [{ title: "Remittance Details — Friscontech" }] }),
   component: OwnerRemittanceDetailRoute,
 });
 

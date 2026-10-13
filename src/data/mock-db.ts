@@ -1,7 +1,7 @@
 import { seedAuditLogs } from "./auditLogs";
 import { seedOwnerRemittances, type OwnerRemittance } from "./remittances";
 /**
- * Centralized, relational mock datasets for SalesFlow Pro.
+ * Centralized, relational mock datasets for Friscontech.
  * Records mirror future PostgreSQL tables: every relationship is expressed through IDs.
  * Derived values (revenue, staff counts, performance) are NEVER stored here —
  * they are computed in src/lib/calculations.ts.

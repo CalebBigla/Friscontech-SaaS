@@ -5,7 +5,7 @@ import { ExpensesPage } from "@/components/expenses/expenses-page";
 export const Route = createFileRoute("/expenses")({
   head: () => ({
     meta: [
-      { title: "Expenses — SalesFlow Pro" },
+      { title: "Expenses — Friscontech" },
       { name: "description", content: "Record and review branch operating expenses." },
     ],
   }),

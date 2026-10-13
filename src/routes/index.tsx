@@ -9,9 +9,9 @@ import { getAccessScope, useCurrentUserId } from "@/lib/session";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Dashboard — SalesFlow Pro" },
+      { title: "Dashboard — Friscontech" },
       { name: "description", content: "Monitor sales, inventory, branches, targets, and team performance across your business." },
-      { property: "og:title", content: "Dashboard — SalesFlow Pro" },
+      { property: "og:title", content: "Dashboard — Friscontech" },
       { property: "og:description", content: "A unified view of business performance, stock health, and team targets." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

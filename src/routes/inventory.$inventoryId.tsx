@@ -5,9 +5,9 @@ import { InventoryDetailPage } from "@/components/inventory/inventory-detail-pag
 export const Route = createFileRoute("/inventory/$inventoryId")({
   head: () => ({
     meta: [
-      { title: "Inventory item — SalesFlow Pro" },
+      { title: "Inventory item — Friscontech" },
       { name: "description", content: "Stock position, pricing and movement history for a branch inventory item." },
-      { property: "og:title", content: "Inventory item — SalesFlow Pro" },
+      { property: "og:title", content: "Inventory item — Friscontech" },
       { property: "og:description", content: "On-hand, reserved and available stock with a full movement trail." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

@@ -5,7 +5,7 @@ import { OwnerRemittancePage } from "@/components/remittances/owner-remittance-p
 export const Route = createFileRoute("/owner/remittance/")({
   head: () => ({
     meta: [
-      { title: "Remittance — SalesFlow Pro" },
+      { title: "Remittance — Friscontech" },
       { name: "description", content: "Manage outgoing Owner remittances." },
     ],
   }),

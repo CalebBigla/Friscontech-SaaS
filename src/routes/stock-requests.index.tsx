@@ -10,9 +10,9 @@ export const Route = createFileRoute("/stock-requests/")({
   validateSearch: (search) => searchSchema.parse(search),
   head: () => ({
     meta: [
-      { title: "Stock Requests — SalesFlow Pro" },
+      { title: "Stock Requests — Friscontech" },
       { name: "description", content: "Review, approve, and fulfill product requests from sales representatives." },
-      { property: "og:title", content: "Stock Requests — SalesFlow Pro" },
+      { property: "og:title", content: "Stock Requests — Friscontech" },
       { property: "og:description", content: "Approve, reject and fulfill branch stock requests with live availability." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

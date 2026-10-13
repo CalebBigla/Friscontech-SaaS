@@ -85,7 +85,7 @@ function GeneralSection() {
     setErrors({}); toast.success("Settings saved.");
   };
   return (
-    <Panel title="General" subtitle="Business details shown across SalesFlow Pro">
+    <Panel title="General" subtitle="Business details shown across Friscontech">
       {!edit && <ReadOnlyNote />}
       <form onSubmit={submit} noValidate>
         <div className="grid gap-4 p-5 sm:grid-cols-2">
@@ -119,7 +119,7 @@ function OrganizationSection() {
     setErrors({}); toast.success("Organization details saved.");
   };
   return (
-    <Panel title="Organization" subtitle="Your company's account with SalesFlow Pro">
+    <Panel title="Organization" subtitle="Your company's account with Friscontech">
       {!edit && <ReadOnlyNote />}
       <form onSubmit={submit} noValidate>
         <div className="grid gap-4 p-5 sm:grid-cols-2">

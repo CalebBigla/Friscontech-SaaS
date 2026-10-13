@@ -235,7 +235,7 @@ export function AppShell({
               <Activity className="size-4" />
             </span>
             <div className={sidebarCollapsed ? "lg:hidden" : ""}>
-              <p className="text-sm font-bold">SalesFlow Pro</p>
+              <p className="text-sm font-bold">Friscontech</p>
               <p className="text-[10px] uppercase text-muted-foreground">
                 {roleLabel[scope.user.role]} console
               </p>

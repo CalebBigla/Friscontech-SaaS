@@ -15,9 +15,9 @@ export const Route = createFileRoute("/sales")({
   validateSearch: (search) => searchSchema.parse(search),
   head: () => ({
     meta: [
-      { title: "Sales — SalesFlow Pro" },
+      { title: "Sales — Friscontech" },
       { name: "description", content: "Track sales activity, revenue and sales performance across every branch." },
-      { property: "og:title", content: "Sales — SalesFlow Pro" },
+      { property: "og:title", content: "Sales — Friscontech" },
       { property: "og:description", content: "Filter sales by period, branch, rep and product, and record new sales." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

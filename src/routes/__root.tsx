@@ -78,10 +78,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "SalesFlow Pro" },
+      { title: "Friscontech" },
       { name: "description", content: "Sales and inventory operations for growing multi-branch businesses." },
       { name: "author", content: "Friscon Tech" },
-      { property: "og:title", content: "SalesFlow Pro" },
+      { property: "og:title", content: "Friscontech" },
       { property: "og:description", content: "Sales and inventory operations for growing multi-branch businesses." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
