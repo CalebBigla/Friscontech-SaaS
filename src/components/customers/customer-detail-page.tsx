@@ -61,7 +61,10 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
   };
   const printPdf = () => {
     const w = window.open("", "_blank");
-    if (!w) return toast.error("Allow pop-ups to export the statement");
+    if (!w) {
+      toast.error("Allow pop-ups to export the statement");
+      return;
+    }
     const rows = ledger.slice().reverse().map((r) => `<tr><td>${r.date}</td><td>${r.description}</td><td>${r.debit ? formatNaira(r.debit) : ""}</td><td>${r.credit ? formatNaira(r.credit) : ""}</td><td>${formatNaira(r.balance)}</td></tr>`).join("");
     w.document.write(`<html><head><title>Statement · ${customer.name}</title><style>body{font-family:system-ui,sans-serif;padding:32px;color:#111}h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:12px}td,th{border-bottom:1px solid #ddd;padding:6px;text-align:left}</style></head><body><h1>Friscontech · Customer statement</h1><p>${customer.name}<br/>${customer.phone} · ${customer.address}<br/>As of ${formatDate(db.tenant.referenceDate)} · Balance ${formatNaira(summary.balance)}</p><table><thead><tr><th>Date</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
     w.document.close();

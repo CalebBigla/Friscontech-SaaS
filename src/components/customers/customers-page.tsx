@@ -98,7 +98,7 @@ export function CustomersPage() {
             </table>
           </div>
         ) : (
-          <EmptyState title={all.length ? "No customers match these filters." : "No customers yet."} detail={scope.canManageCustomers ? "Add a customer to start selling on account." : undefined} />
+          <EmptyState title={all.length ? "No customers match these filters." : "No customers yet."} {...(scope.canManageCustomers ? { detail: "Add a customer to start selling on account." } : {})} />
         )}
       </Panel>
       {scope.canManageCustomers && <CustomerFormDialog open={addOpen} onOpenChange={setAddOpen} actorId={userId} onSaved={(c) => navigate({ to: "/customers/$customerId", params: { customerId: c.id } })} />}
