@@ -77,10 +77,10 @@ export function OnboardingFormPage({ token }: { token: string }) {
   );
   const Contact = ({ p }: { p: "ec" | "ec2" }) => (
     <div className="grid gap-3 sm:grid-cols-3">
-      <F k={`${p}LastName` as EmployeeField} label="Last name" /><F k={`${p}FirstName` as EmployeeField} label="First name" /><F k={`${p}MiddleInitial` as EmployeeField} label="M.I." required={false} />
-      <div className="sm:col-span-3"><F k={`${p}Address` as EmployeeField} label="Address" /></div>
-      <F k={`${p}Phone` as EmployeeField} label="Primary phone" type="tel" inputMode="tel" /><F k={`${p}AltPhone` as EmployeeField} label="Alternate phone" type="tel" inputMode="tel" required={false} /><F k={`${p}Relationship` as EmployeeField} label="Relationship" />
-      <F k={`${p}Occupation` as EmployeeField} label="Occupation" />
+      {F({ k: `${p}LastName` as EmployeeField, label: "Last name" })}{F({ k: `${p}FirstName` as EmployeeField, label: "First name" })}{F({ k: `${p}MiddleInitial` as EmployeeField, label: "M.I.", required: false })}
+      <div className="sm:col-span-3">{F({ k: `${p}Address` as EmployeeField, label: "Address" })}</div>
+      {F({ k: `${p}Phone` as EmployeeField, label: "Primary phone", type: "tel", inputMode: "tel" })}{F({ k: `${p}AltPhone` as EmployeeField, label: "Alternate phone", type: "tel", inputMode: "tel", required: false })}{F({ k: `${p}Relationship` as EmployeeField, label: "Relationship" })}
+      {F({ k: `${p}Occupation` as EmployeeField, label: "Occupation" })}
     </div>
   );
 
@@ -145,19 +145,19 @@ export function OnboardingFormPage({ token }: { token: string }) {
       <p className="mb-3 text-xs font-semibold text-muted-foreground">Step {step + 1} of {ONBOARDING_STEPS.length} · {ONBOARDING_STEPS[step]}</p>
       <div className="space-y-4 rounded-lg border border-border bg-card p-5">
         {step === 0 && <>
-          <div className="grid gap-3 sm:grid-cols-3"><F k="lastName" label="Last name" /><F k="firstName" label="First name" /><F k="middleInitial" label="M.I." required={false} /></div>
-          <F k="address" label="Residential address" />
+          <div className="grid gap-3 sm:grid-cols-3">{F({ k: "lastName", label: "Last name" })}{F({ k: "firstName", label: "First name" })}{F({ k: "middleInitial", label: "M.I.", required: false })}</div>
+          {F({ k: "address", label: "Residential address" })}
           <div className="grid gap-3 sm:grid-cols-2">
-            <S k="gender" label="Gender" options={["Male", "Female"]} />
-            <F k="birthDate" label="Birth date" type="date" />
-            <F k="phone" label="Phone" type="tel" inputMode="tel" placeholder="080…" />
-            <F k="email" label="Email" type="email" inputMode="email" />
-            <S k="maritalStatus" label="Marital status" options={["Single", "Married", "Divorced", "Widowed"]} />
-            <F k="nationality" label="Nationality" placeholder="Nigerian" />
-            <F k="stateOfOrigin" label="State of origin" />
-            <F k="lga" label="LGA" />
+            {S({ k: "gender", label: "Gender", options: ["Male", "Female"] })}
+            {F({ k: "birthDate", label: "Birth date", type: "date" })}
+            {F({ k: "phone", label: "Phone", type: "tel", inputMode: "tel", placeholder: "080…" })}
+            {F({ k: "email", label: "Email", type: "email", inputMode: "email" })}
+            {S({ k: "maritalStatus", label: "Marital status", options: ["Single", "Married", "Divorced", "Widowed"] })}
+            {F({ k: "nationality", label: "Nationality", placeholder: "Nigerian" })}
+            {F({ k: "stateOfOrigin", label: "State of origin" })}
+            {F({ k: "lga", label: "LGA" })}
           </div>
-          <F k="preferredEmailId" label="Preferred company e-mail name ID" required={false} placeholder="e.g. ngozi.umeh" />
+          {F({ k: "preferredEmailId", label: "Preferred company e-mail name ID", required: false, placeholder: "e.g. ngozi.umeh" })}
         </>}
         {step === 1 && <>
           <p className="text-xs font-semibold">Job details (set by the Owner)</p>
@@ -168,28 +168,28 @@ export function OnboardingFormPage({ token }: { token: string }) {
             <div><p className="text-[11px] text-muted-foreground">Start date</p><p className="font-medium">{formatDate(o.startDate)}</p></div>
           </div>
           <p className="pt-2 text-xs font-semibold">Previous job reference</p>
-          <div className="grid gap-3 sm:grid-cols-2"><F k="refName" label="Referee name" /><F k="refJobTitle" label="Referee job title" /><F k="refCompany" label="Company name" /><F k="refEmail" label="Referee email" type="email" /></div>
+          <div className="grid gap-3 sm:grid-cols-2">{F({ k: "refName", label: "Referee name" })}{F({ k: "refJobTitle", label: "Referee job title" })}{F({ k: "refCompany", label: "Company name" })}{F({ k: "refEmail", label: "Referee email", type: "email" })}</div>
         </>}
         {step === 2 && <>
           {isMarried(d) && <>
             <p className="text-xs font-semibold">Family — spouse</p>
-            <div className="grid gap-3 sm:grid-cols-3"><F k="spouseLastName" label="Last name" /><F k="spouseFirstName" label="First name" /><F k="spouseMiddleInitial" label="M.I." required={false} /></div>
-            <div className="grid gap-3 sm:grid-cols-2"><F k="spousePhone" label="Phone" type="tel" /><F k="spouseEmail" label="Email" type="email" required={false} /></div>
-            <F k="spouseWorkAddress" label="Work address" />
-            <S k="spouseIsEmergency" label="Is your spouse your first emergency contact?" options={["Yes", "No"]} />
+            <div className="grid gap-3 sm:grid-cols-3">{F({ k: "spouseLastName", label: "Last name" })}{F({ k: "spouseFirstName", label: "First name" })}{F({ k: "spouseMiddleInitial", label: "M.I.", required: false })}</div>
+            <div className="grid gap-3 sm:grid-cols-2">{F({ k: "spousePhone", label: "Phone", type: "tel" })}{F({ k: "spouseEmail", label: "Email", type: "email", required: false })}</div>
+            {F({ k: "spouseWorkAddress", label: "Work address" })}
+            {S({ k: "spouseIsEmergency", label: "Is your spouse your first emergency contact?", options: ["Yes", "No"] })}
           </>}
-          {needsSecondContact(d) ? <><p className="pt-2 text-xs font-semibold">Second emergency contact</p><Contact p="ec2" /></>
-            : (!isMarried(d) || d.spouseIsEmergency === "No") ? <><p className="pt-2 text-xs font-semibold">Emergency contact</p><Contact p="ec" /></>
+          {needsSecondContact(d) ? <><p className="pt-2 text-xs font-semibold">Second emergency contact</p>{Contact({ p: "ec2" })}</>
+            : (!isMarried(d) || d.spouseIsEmergency === "No") ? <><p className="pt-2 text-xs font-semibold">Emergency contact</p>{Contact({ p: "ec" })}</>
             : <p className="text-xs text-muted-foreground">Answer the question above to continue.</p>}
         </>}
         {step === 3 && <>
           <p className="text-xs font-semibold">Statutory</p>
-          <F k="nin" label="National ID (NIN)" inputMode="numeric" placeholder="11 digits" />
-          <div className="grid gap-3 sm:grid-cols-2"><S k="bankName" label="Bank name" options={NIGERIAN_BANKS} /><F k="accountNumber" label="Account number" inputMode="numeric" placeholder="10 digits" /></div>
+          {F({ k: "nin", label: "National ID (NIN)", inputMode: "numeric", placeholder: "11 digits" })}
+          <div className="grid gap-3 sm:grid-cols-2">{S({ k: "bankName", label: "Bank name", options: NIGERIAN_BANKS })}{F({ k: "accountNumber", label: "Account number", inputMode: "numeric", placeholder: "10 digits" })}</div>
           <p className="pt-2 text-xs font-semibold">Guarantor</p>
-          <div className="grid gap-3 sm:grid-cols-2"><F k="guarantorFirstName" label="First name" /><F k="guarantorSurname" label="Surname" /></div>
-          <F k="guarantorAddress" label="Residential / office address" />
-          <div className="grid gap-3 sm:grid-cols-2"><F k="guarantorEmail" label="Email" type="email" /><F k="guarantorPhone" label="Phone" type="tel" /></div>
+          <div className="grid gap-3 sm:grid-cols-2">{F({ k: "guarantorFirstName", label: "First name" })}{F({ k: "guarantorSurname", label: "Surname" })}</div>
+          {F({ k: "guarantorAddress", label: "Residential / office address" })}
+          <div className="grid gap-3 sm:grid-cols-2">{F({ k: "guarantorEmail", label: "Email", type: "email" })}{F({ k: "guarantorPhone", label: "Phone", type: "tel" })}</div>
           <div className="rounded-md border border-border p-3">
             <p className="text-xs">Guarantor form: <b>{guarantorStatusLabel[o.guarantorStatus]}</b></p>
             {o.guarantorToken ? (
@@ -221,7 +221,7 @@ export function OnboardingFormPage({ token }: { token: string }) {
           <p className="rounded-md bg-muted/40 p-3 text-sm leading-relaxed">{DECLARATION_TEXT}</p>
           <label className="flex items-start gap-2 text-sm"><Checkbox checked={d.declarationAccepted === "yes"} onCheckedChange={(c) => set("declarationAccepted", c ? "yes" : "")} className="mt-0.5" />I accept this declaration *</label>
           <FieldError message={errors.declarationAccepted} />
-          <div className="grid gap-3 sm:grid-cols-2"><F k="signature" label="Signature (type your full name)" /><F k="signedDate" label="Date" type="date" /></div>
+          <div className="grid gap-3 sm:grid-cols-2">{F({ k: "signature", label: "Signature (type your full name)" })}{F({ k: "signedDate", label: "Date", type: "date" })}</div>
           <p className="pt-2 text-xs font-semibold">Set your account password</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div><Label htmlFor="pw" className="text-xs">Password *</Label><Input id="pw" type="password" autoComplete="new-password" value={pw.pw} onChange={(e) => setPw({ ...pw, pw: e.target.value })} className="mt-1.5 h-10" /></div>
