@@ -1741,6 +1741,7 @@ export const mockApprovalService = {
 };
 
 // ---------- payment reconciliation ----------
+export type PaymentAcknowledgement = { transferReference?: string; proofName?: string };
 export type PaymentSubmission = {
   period: string;
   cashAmount: number;
@@ -1759,12 +1760,12 @@ function paymentScopeError(db: Db, actorId: string, payment: Payment, role: "man
   if (scope.user.status !== "active") return "Your account is inactive";
   if (
     role === "manager" &&
-    (scope.user.role !== "manager" ||
+    (!scope.canAcknowledgePayments ||
       payment.managerId !== actorId ||
       !scope.branchIds?.includes(payment.branchId))
   )
     return "This payment is outside your branch scope";
-  if (role === "owner" && scope.user.role !== "owner")
+  if (role === "owner" && !scope.canConfirmPayments)
     return "Only the business owner can confirm payments";
   return null;
 }
@@ -1871,9 +1872,18 @@ export const mockPaymentService = {
             metadata: paymentAuditDetails(db, payment, outstandingAmount),
           },
         );
+        const notice = createNotification(
+          db,
+          manager.id,
+          "payment_awaiting_acknowledgement",
+          "payment",
+          payment.id,
+          `${rep.name} submitted ${payment.id} for acknowledgement`,
+        );
         setDb((current) => ({
           ...current,
           payments: [...current.payments, payment],
+          notifications: [notice, ...current.notifications],
           activities: [log, ...current.activities],
         }));
         return { ok: true, data: payment };
@@ -1881,7 +1891,11 @@ export const mockPaymentService = {
     }
     return { ok: false, errors };
   },
-  async acknowledge(id: string, actorId: string): Promise<Result<Payment>> {
+  async acknowledge(
+    id: string,
+    actorId: string,
+    details: PaymentAcknowledgement = {},
+  ): Promise<Result<Payment>> {
     await latency();
     const db = getDb();
     const payment = db.payments.find((item) => item.id === id);
@@ -1890,8 +1904,16 @@ export const mockPaymentService = {
     if (scopeError) return { ok: false, errors: { form: scopeError } };
     if (payment.status !== "submitted")
       return { ok: false, errors: { form: "Only submitted payments can be acknowledged" } };
+    const reference = details.transferReference?.trim() || payment.transferReference;
+    if (payment.transferAmount > 0 && !reference)
+      return {
+        ok: false,
+        errors: { transferReference: "Enter the transfer reference before acknowledging" },
+      };
     const updated: Payment = {
       ...payment,
+      ...(reference ? { transferReference: reference } : {}),
+      ...(details.proofName?.trim() ? { proofName: details.proofName.trim() } : {}),
       status: "acknowledged",
       acknowledgedAt: nowOnReferenceDay(db),
       acknowledgedBy: actorId,
@@ -1906,12 +1928,26 @@ export const mockPaymentService = {
       {
         entityId: id,
         branchId: payment.branchId,
-        metadata: paymentAuditDetails(db, payment, outstandingAmount),
+        metadata: {
+          ...paymentAuditDetails(db, updated, outstandingAmount),
+          ...(updated.proofName ? { proofName: updated.proofName } : {}),
+        },
       },
+    );
+    const notices = ownerIds(db).map((ownerId) =>
+      createNotification(
+        db,
+        ownerId,
+        "payment_awaiting_confirmation",
+        "payment",
+        id,
+        `${id} acknowledged by manager · awaiting your confirmation`,
+      ),
     );
     setDb((current) => ({
       ...current,
       payments: current.payments.map((item) => (item.id === id ? updated : item)),
+      notifications: [...notices, ...current.notifications],
       activities: [log, ...current.activities],
     }));
     return { ok: true, data: updated };
@@ -1971,9 +2007,18 @@ export const mockPaymentService = {
         declineReason: reason.trim(),
       },
     });
+    const notice = createNotification(
+      db,
+      payment.salesRepId,
+      "payment_declined",
+      "payment",
+      id,
+      `${id} was declined: ${reason.trim()}`,
+    );
     setDb((current) => ({
       ...current,
       payments: current.payments.map((item) => (item.id === id ? updated : item)),
+      notifications: [notice, ...current.notifications],
       activities: [log, ...current.activities],
     }));
     return { ok: true, data: updated };
@@ -2004,17 +2049,19 @@ export const mockPaymentService = {
       `${id} · owner confirmed payment`,
       { entityId: id, branchId: payment.branchId, metadata },
     );
-    const reconciledLog = activity(
+    const notice = createNotification(
       db,
-      actorId,
-      "PAYMENT_RECONCILED",
-      `${id} · payment reconciled`,
-      { entityId: id, branchId: payment.branchId, metadata },
+      payment.salesRepId,
+      "payment_confirmed",
+      "payment",
+      id,
+      `${id} was confirmed by the owner`,
     );
     setDb((current) => ({
       ...current,
       payments: current.payments.map((item) => (item.id === id ? updated : item)),
-      activities: [reconciledLog, confirmedLog, ...current.activities],
+      notifications: [notice, ...current.notifications],
+      activities: [confirmedLog, ...current.activities],
     }));
     return { ok: true, data: updated };
   },
