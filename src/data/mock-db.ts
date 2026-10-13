@@ -337,7 +337,8 @@ export type AuditEntity =
   | "branch"
   | "inventory"
   | "settings"
-  | "session";
+  | "session"
+  | "customer";
 /** Audit log entry (see src/data/auditLogs.ts): actorId = user_id, createdAt = timestamp, subject = description. */
 export type Activity = {
   id: string;
@@ -374,6 +375,11 @@ export type Activity = {
     expenseAmount?: number;
     netRemittanceDue?: number;
     reason?: string;
+    saleType?: "walk_in" | "customer";
+    customerId?: string;
+    orderId?: string;
+    proofName?: string;
+    creditLimit?: number;
   };
 };
 export type Escalation = {
