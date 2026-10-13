@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useDb } from "@/services/mock-store";
 import { getPreferences } from "@/services/services";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
-import { filterByRange, formatPrefDate, getAuditLogs, getAuditSummary, type AuditRow } from "@/lib/audit";
+import { filterByRange, formatPrefDate, getActivityOverview, getAuditLogs, getAuditSummary, type AuditRow } from "@/lib/audit";
 import { canAccessMember } from "@/lib/team";
 import { getPeriodRange, type PeriodKey } from "@/lib/dates";
 import { formatNumber, formatTime, initials, roleLabel } from "@/lib/format";
@@ -74,6 +74,19 @@ export function AuditLogPage() {
           <MetricCard icon={UserRound} tone="warning" label="Active Users" value={formatNumber(summary.activeUsers)} detail="Acted in the last 7 days" />
         </> : [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[132px] rounded-lg" />)}
       </div>
+
+      {scope.user.role === "owner" && ready && (() => { const ov = getActivityOverview(db, period === ALL ? all : filterByRange(all, getPeriodRange(period as PeriodKey, today))); return (
+        <Panel className="mb-5" title="Activity overview" subtitle="Who is doing what across the organization (follows the date range below)">
+          <div className="grid gap-4 p-4 sm:grid-cols-2">
+            <div><p className="mb-2 text-[11px] font-semibold uppercase text-muted-foreground">By role</p>
+              {ov.byRole.map((r) => <button key={r.role} type="button" onClick={() => { setActor(ALL); setQ(""); }} className="flex w-full justify-between rounded-md px-2 py-1.5 text-xs hover:bg-muted"><span>{roleLabel[r.role as keyof typeof roleLabel] ?? r.role}</span><strong>{formatNumber(r.count)}</strong></button>)}
+              {!ov.byRole.length && <p className="text-xs text-muted-foreground">No activity in this range.</p>}
+            </div>
+            <div><p className="mb-2 text-[11px] font-semibold uppercase text-muted-foreground">Most active people</p>
+              {ov.topUsers.map((t) => { const u = user(t.userId); return <button key={t.userId} type="button" onClick={() => { setActor(t.userId); reset(); }} className="flex w-full justify-between rounded-md px-2 py-1.5 text-xs hover:bg-muted"><span>{u?.name ?? "Unknown"} <span className="text-muted-foreground">· {u ? roleLabel[u.role] : ""}</span></span><strong>{formatNumber(t.count)}</strong></button>; })}
+            </div>
+          </div>
+        </Panel>); })()}
 
       <Panel title="Activity" subtitle={`${formatNumber(list.length)} of ${formatNumber(all.length)} entries`}>
         <div className="flex flex-col gap-2 border-b border-border p-4 sm:flex-row sm:flex-wrap">
