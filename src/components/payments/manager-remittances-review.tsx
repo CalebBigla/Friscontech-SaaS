@@ -91,12 +91,12 @@ function OwnerManagerPaymentPage({
 
   return (
     <AppShell
-      title="Payment"
+      title="Manager Remittances"
       subtitle="Review payments remitted from Managers to the Owner."
     >
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold">Payment</h1>
+          <h1 className="text-xl font-bold">Manager Remittances</h1>
           <p className="mt-1 text-xs text-muted-foreground">
             Incoming Manager → Owner remittances for {monthLabel(period)}.
           </p>
