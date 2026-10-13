@@ -14,6 +14,7 @@ export const auditEntityLabel: Record<AuditEntity, string> = {
 /** Infers the entity from the action text so every service call is classified the same way. */
 export function entityFromAction(action: string): AuditEntity {
   const a = action.toLowerCase();
+  if (a.startsWith("customer payment")) return "payment";
   if (a.startsWith("customer")) return "customer";
   if (a.startsWith("payment") || a.startsWith("payment_")) return "payment";
   if (a.startsWith("expense")) return "expense";
