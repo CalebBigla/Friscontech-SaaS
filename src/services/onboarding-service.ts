@@ -21,6 +21,7 @@ import {
 } from "@/lib/onboarding";
 import { getDb, setDb } from "@/services/mock-store";
 import { createAuditLog, createNotification } from "@/services/services";
+import { mockAuth } from "@/services/mock-auth";
 
 type R<T> = { ok: true; data: T } | { ok: false; errors: StepErrors };
 const latency = () => new Promise((r) => setTimeout(r, 250));
@@ -98,8 +99,8 @@ export const onboardingService = {
     const db = getDb();
     const o = db.onboardings.find((x) => x.id === id);
     if (!o || !isOwner(db, actorId)) return fail("Only the Owner can manage onboarding links.");
-    if (o.status === "active") return fail("This member is already active.");
-    const r = update(id, (x) => ({ ...x, token: newToken(), tokenExpiresAt: expiry(), tokenRevoked: false, tokenUsed: false, status: x.status === "submitted" ? "in_progress" : x.status }),
+    if (o.status === "submitted" || o.status === "active" || o.tokenUsed) return fail("This link was already used. Onboarding links are one-time only.");
+    const r = update(id, (x) => ({ ...x, token: newToken(), tokenExpiresAt: expiry(), tokenRevoked: false, tokenUsed: false, status: x.status }),
       (d, x) => createAuditLog(d, actorId, "Team onboarding link regenerated", `${x.employeeId} · ${memberName(d, x)}`, { entityId: x.userId }));
     return r ? { ok: true, data: r } : fail("Not found");
   },
@@ -151,6 +152,8 @@ export const onboardingService = {
       const e = validateStep(o!, data, s, s === 5 ? password : undefined);
       if (Object.keys(e).length) return { ok: false, errors: { ...e, form: `Please complete step ${s + 1}.` } };
     }
+    const acct = await mockAuth.register(o!.userId, data.email, password.pw);
+    if (!acct.ok) return { ok: false, errors: { password: acct.error, form: acct.error } };
     const at = new Date().toISOString();
     const r = update(o!.id, (x) => ({ ...x, data, step: 5, status: "submitted", tokenUsed: true, passwordSet: true, submittedAt: at, correctionNote: undefined }),
       (d, x) => createAuditLog(d, x.userId, "Team onboarding submitted", `${x.employeeId} · ${memberName(d, x)}`, { entityId: x.userId }),
@@ -173,12 +176,16 @@ export const onboardingService = {
   },
 
   // ---- owner review ----
-  async requestCorrections(id: string, note: string, actorId: string): Promise<R<Onboarding>> {
+  async reviewGuarantor(id: string, decision: "accepted" | "declined", reason: string, actorId: string): Promise<R<Onboarding>> {
     await latency();
-    if (!isOwner(getDb(), actorId)) return fail("Only the Owner can review onboarding.");
-    if (note.trim().length < 5) return { ok: false, errors: { form: "Explain what needs correcting." } };
-    const r = update(id, (x) => ({ ...x, status: "in_progress", tokenUsed: false, tokenRevoked: false, tokenExpiresAt: expiry(), correctionNote: note.trim() }),
-      (d, x) => createAuditLog(d, actorId, "Team onboarding corrections requested", `${x.employeeId} · ${note.trim()}`, { entityId: x.userId }));
+    const db = getDb();
+    const o = db.onboardings.find((x) => x.id === id);
+    if (!o || !isOwner(db, actorId)) return fail("Only the Owner can review guarantor responses.");
+    if (o.guarantorStatus !== "completed") return fail("The guarantor hasn't submitted the form yet.");
+    if (o.guarantorDecision) return fail("This guarantor response was already reviewed.");
+    if (decision === "declined" && reason.trim().length < 5) return { ok: false, errors: { form: "Give a reason for declining." } };
+    const r = update(id, (x) => ({ ...x, guarantorDecision: decision, guarantorDecisionReason: reason.trim() || undefined, guarantorDecidedAt: new Date().toISOString() }),
+      (d, x) => createAuditLog(d, actorId, decision === "accepted" ? "Team onboarding guarantor accepted" : "Team onboarding guarantor declined", `${x.employeeId} · ${memberName(d, x)}${reason.trim() ? ` · ${reason.trim()}` : ""}`, { entityId: x.userId }));
     return r ? { ok: true, data: r } : fail("Not found");
   },
   async activate(id: string, actorId: string): Promise<R<Onboarding>> {
@@ -187,6 +194,7 @@ export const onboardingService = {
     const o = db.onboardings.find((x) => x.id === id);
     if (!o || !isOwner(db, actorId)) return fail("Only the Owner can activate members.");
     if (o.status !== "submitted") return fail("The member must submit their onboarding form first.");
+    if (o.guarantorDecision !== "accepted") return fail("Accept the guarantor's response before activating.");
     const at = new Date().toISOString();
     const r = update(id, (x) => ({ ...x, status: "active", activatedAt: at }),
       (d, x) => createAuditLog(d, actorId, "Team member activated after onboarding", `${x.employeeId} · ${memberName(d, x)}`, { entityId: x.userId }),

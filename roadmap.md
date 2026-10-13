@@ -4,3 +4,6 @@
 - [x] Phase 3: Customers + customer payments, sales customerId/walk-in, customer pages, new-sale toggle, type filters, reports split, no remittance double counting
 - [x] Phase 4: team onboarding (invite link, employee form, guarantor, documents, owner review)
 - [ ] Cloudinary file storage — deferred by user; needs a real database first
+
+- [x] Phase 4b: one-time onboarding, guarantor accept/decline, email+password sign-in and reset (mock auth)
+- [ ] Move auth to Lovable Cloud — waits on going live with real data

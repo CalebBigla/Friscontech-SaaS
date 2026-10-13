@@ -6,7 +6,7 @@
  *   and single use on the server, and never ship tokens to other users' browsers.
  * - Files: upload photos/credentials to private object storage (e.g. Cloudinary signed uploads)
  *   instead of in-memory data URLs; serve them through signed, expiring URLs.
- * - Passwords: hand the password to the auth provider over HTTPS; never keep it (or a hash) in app data.
+ * - Passwords: go to the auth provider (mock: src/services/mock-auth.ts), never into app data.
  * - Email: send the onboarding and guarantor links by email instead of copy/paste.
  */
 export type OnboardingStatus = "invited" | "in_progress" | "submitted" | "active";
@@ -65,6 +65,10 @@ export type Onboarding = {
   guarantorStatus: GuarantorStatus;
   guarantorToken: string | null;
   guarantorResponse: GuarantorResponse | null;
+  /** Owner's verdict on the guarantor response; decline needs a reason. */
+  guarantorDecision?: "accepted" | "declined" | undefined;
+  guarantorDecisionReason?: string | undefined;
+  guarantorDecidedAt?: string | undefined;
   createdAt: string;
   submittedAt?: string;
   activatedAt?: string;

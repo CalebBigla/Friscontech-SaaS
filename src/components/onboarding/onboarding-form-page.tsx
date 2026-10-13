@@ -61,7 +61,7 @@ export function OnboardingFormPage({ token }: { token: string }) {
   useEffect(() => { if (o && !data) { setData(o.data); setStep(Math.min(o.step, 5)); } }, [o, data]);
 
   if (!now) return <PublicFrame title="Loading…"><Loader2 className="size-5 animate-spin" /></PublicFrame>;
-  if (done) return <PublicFrame title="Thank you!" subtitle="Your onboarding form has been submitted."><div className="rounded-lg border border-border bg-card p-6 text-sm">The Owner will review your details and activate your account. You'll sign in with the password you just set.</div></PublicFrame>;
+  if (done) return <PublicFrame title="Thank you!" subtitle="Your onboarding form has been submitted."><div className="rounded-lg border border-border bg-card p-6 text-sm">This link can no longer be used. Once the Owner reviews your details and your guarantor, your account is activated and you can sign in with your email and the password you just set.</div></PublicFrame>;
   const state = onboardingLinkState(o, now);
   if (state !== "valid" || !o) return <InvalidLink message={state === "expired" ? "This onboarding link has expired. Ask the Owner for a new one." : state === "used" ? "This form has already been submitted." : state === "revoked" ? "This link was revoked. Ask the Owner for a new one." : "This onboarding link is not valid. (Demo: links only work in the browser session where they were created.)"} />;
   if (!data) return null;

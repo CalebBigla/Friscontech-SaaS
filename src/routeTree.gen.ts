@@ -13,10 +13,13 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApprovalsRouteImport } from './routes/approvals'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as ExpensesRouteImport } from './routes/expenses'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ManagerRemittancesRouteImport } from './routes/manager-remittances'
 import { Route as PaymentRouteImport } from './routes/payment'
 import { Route as RemittanceRouteImport } from './routes/remittance'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SalesRouteImport } from './routes/sales'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StockMovementsRouteImport } from './routes/stock-movements'
@@ -59,6 +62,16 @@ const ExpensesRoute = ExpensesRouteImport.update({
   path: '/expenses',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ManagerRemittancesRoute = ManagerRemittancesRouteImport.update({
   id: '/manager-remittances',
   path: '/manager-remittances',
@@ -77,6 +90,11 @@ const RemittanceRoute = RemittanceRouteImport.update({
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SalesRoute = SalesRouteImport.update({
@@ -191,10 +209,13 @@ export interface FileRoutesByFullPath {
   '/approvals': typeof ApprovalsRoute
   '/audit-log': typeof AuditLogRoute
   '/expenses': typeof ExpensesRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
   '/manager-remittances': typeof ManagerRemittancesRoute
   '/payment': typeof PaymentRoute
   '/remittance': typeof RemittanceRoute
   '/reports': typeof ReportsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/sales': typeof SalesRoute
   '/settings': typeof SettingsRoute
   '/stock-movements': typeof StockMovementsRoute
@@ -222,10 +243,13 @@ export interface FileRoutesByTo {
   '/approvals': typeof ApprovalsRoute
   '/audit-log': typeof AuditLogRoute
   '/expenses': typeof ExpensesRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
   '/manager-remittances': typeof ManagerRemittancesRoute
   '/payment': typeof PaymentRoute
   '/remittance': typeof RemittanceRoute
   '/reports': typeof ReportsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/sales': typeof SalesRoute
   '/settings': typeof SettingsRoute
   '/stock-movements': typeof StockMovementsRoute
@@ -254,10 +278,13 @@ export interface FileRoutesById {
   '/approvals': typeof ApprovalsRoute
   '/audit-log': typeof AuditLogRoute
   '/expenses': typeof ExpensesRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
   '/manager-remittances': typeof ManagerRemittancesRoute
   '/payment': typeof PaymentRoute
   '/remittance': typeof RemittanceRoute
   '/reports': typeof ReportsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/sales': typeof SalesRoute
   '/settings': typeof SettingsRoute
   '/stock-movements': typeof StockMovementsRoute
@@ -287,10 +314,13 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/audit-log'
     | '/expenses'
+    | '/forgot-password'
+    | '/login'
     | '/manager-remittances'
     | '/payment'
     | '/remittance'
     | '/reports'
+    | '/reset-password'
     | '/sales'
     | '/settings'
     | '/stock-movements'
@@ -318,10 +348,13 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/audit-log'
     | '/expenses'
+    | '/forgot-password'
+    | '/login'
     | '/manager-remittances'
     | '/payment'
     | '/remittance'
     | '/reports'
+    | '/reset-password'
     | '/sales'
     | '/settings'
     | '/stock-movements'
@@ -349,10 +382,13 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/audit-log'
     | '/expenses'
+    | '/forgot-password'
+    | '/login'
     | '/manager-remittances'
     | '/payment'
     | '/remittance'
     | '/reports'
+    | '/reset-password'
     | '/sales'
     | '/settings'
     | '/stock-movements'
@@ -381,10 +417,13 @@ export interface RootRouteChildren {
   ApprovalsRoute: typeof ApprovalsRoute
   AuditLogRoute: typeof AuditLogRoute
   ExpensesRoute: typeof ExpensesRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
+  LoginRoute: typeof LoginRoute
   ManagerRemittancesRoute: typeof ManagerRemittancesRoute
   PaymentRoute: typeof PaymentRoute
   RemittanceRoute: typeof RemittanceRoute
   ReportsRoute: typeof ReportsRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SalesRoute: typeof SalesRoute
   SettingsRoute: typeof SettingsRoute
   StockMovementsRoute: typeof StockMovementsRoute
@@ -438,6 +477,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExpensesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/manager-remittances': {
       id: '/manager-remittances'
       path: '/manager-remittances'
@@ -464,6 +517,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sales': {
@@ -621,10 +681,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApprovalsRoute: ApprovalsRoute,
   AuditLogRoute: AuditLogRoute,
   ExpensesRoute: ExpensesRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
+  LoginRoute: LoginRoute,
   ManagerRemittancesRoute: ManagerRemittancesRoute,
   PaymentRoute: PaymentRoute,
   RemittanceRoute: RemittanceRoute,
   ReportsRoute: ReportsRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SalesRoute: SalesRoute,
   SettingsRoute: SettingsRoute,
   StockMovementsRoute: StockMovementsRoute,

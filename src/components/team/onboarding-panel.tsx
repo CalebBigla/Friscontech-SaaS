@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Copy, Download, Link2, RefreshCw, ShieldAlert, Ban, CheckCircle2, MessageSquareWarning, Loader2 } from "lucide-react";
+import { Copy, Download, Link2, RefreshCw, ShieldAlert, Ban, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -76,7 +76,7 @@ export function OnboardingPanel({ member, scope }: { member: User; scope: Access
               </>
             ) : <p className="mt-1 text-xs text-muted-foreground">{link === "used" ? "Used — the form has been submitted." : link === "revoked" ? "Revoked." : "Expired."}</p>}
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("regen", () => onboardingService.regenerate(o.id, scope.user.id), "New link generated — the old one no longer works")}><RefreshCw className="size-4" />Regenerate</Button>
+              {link !== "used" && <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("regen", () => onboardingService.regenerate(o.id, scope.user.id), "New link generated — the old one no longer works")}><RefreshCw className="size-4" />New link</Button>}
               {link === "valid" && <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("revoke", () => onboardingService.revoke(o.id, scope.user.id), "Link revoked")}><Ban className="size-4" />Revoke</Button>}
               <Button size="sm" variant="outline" onClick={() => setJobOpen(true)}>Edit job details</Button>
             </div>
@@ -85,18 +85,30 @@ export function OnboardingPanel({ member, scope }: { member: User; scope: Access
         {owner && o.guarantorToken && o.guarantorStatus !== "completed" && (
           <div className="flex gap-2"><Input readOnly value={guarantorUrl(o.guarantorToken)} className="h-9 font-mono text-xs" /><Button size="sm" variant="outline" onClick={() => copyText(guarantorUrl(o.guarantorToken!), "Guarantor link copied")}><Copy className="size-4" />Guarantor link</Button></div>
         )}
+        {owner && o.guarantorStatus === "completed" && (
+          <div className="rounded-md border border-border p-3">
+            <p className="text-xs font-semibold">Guarantor review</p>
+            {o.guarantorDecision ? (
+              <p className="mt-1 text-xs"><span className={`status ${o.guarantorDecision === "accepted" ? "status-success" : "status-danger"}`}>{o.guarantorDecision === "accepted" ? "Accepted" : "Declined"}</span>{o.guarantorDecisionReason && <span className="ml-2 text-muted-foreground">{o.guarantorDecisionReason}</span>}</p>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button size="sm" disabled={!!busy} onClick={() => run("gacc", () => onboardingService.reviewGuarantor(o.id, "accepted", "", scope.user.id), "Guarantor accepted")}><CheckCircle2 className="size-4" />Accept</Button>
+                <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setCorrecting(true)}><Ban className="size-4" />Decline</Button>
+              </div>
+            )}
+          </div>
+        )}
         {owner && o.status !== "invited" && <OnboardingDetails o={o} />}
         {owner && (o.status === "submitted" || o.status === "active") && (
           <div className="flex flex-wrap gap-2 border-t border-border pt-4">
             <Button size="sm" variant="outline" onClick={() => downloadOnboardingPdf(db, o)}><Download className="size-4" />Download PDF</Button>
             {o.status === "submitted" && <>
-              <Button size="sm" variant="outline" onClick={() => setCorrecting(true)}><MessageSquareWarning className="size-4" />Request corrections</Button>
-              <Button size="sm" disabled={!!busy} onClick={() => run("act", () => onboardingService.activate(o.id, scope.user.id), `${member.name} is now active`)}>{busy === "act" ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}Activate</Button>
+              <Button size="sm" disabled={!!busy || o.guarantorDecision !== "accepted"} title={o.guarantorDecision !== "accepted" ? "Accept the guarantor first" : undefined} onClick={() => run("act", () => onboardingService.activate(o.id, scope.user.id), `${member.name} is now active`)}>{busy === "act" ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}Activate</Button>
             </>}
           </div>
         )}
       </div>
-      <CorrectionDialog open={correcting} onOpenChange={setCorrecting} onSubmit={(note) => onboardingService.requestCorrections(o.id, note, scope.user.id)} />
+      <CorrectionDialog open={correcting} onOpenChange={setCorrecting} onSubmit={(note) => onboardingService.reviewGuarantor(o.id, "declined", note, scope.user.id)} />
       <JobDialog open={jobOpen} onOpenChange={setJobOpen} o={o} actorId={scope.user.id} />
     </Panel>
   );
@@ -149,10 +161,10 @@ function CorrectionDialog({ open, onOpenChange, onSubmit }: { open: boolean; onO
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Request corrections</DialogTitle><DialogDescription className="text-xs">The member's link reopens for 7 days so they can fix their form.</DialogDescription></DialogHeader>
-        <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What needs to change?" rows={4} />
+        <DialogHeader><DialogTitle>Decline guarantor</DialogTitle><DialogDescription className="text-xs">The reason is saved in the audit log. The member can't be activated.</DialogDescription></DialogHeader>
+        <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason for declining" rows={4} />
         {err && <p className="text-[11px] font-medium text-destructive">{err}</p>}
-        <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={async () => { const r = await onSubmit(note); if (!r.ok) { setErr(r.errors?.form ?? "Failed"); return; } toast.success("Corrections requested — share the link again"); onOpenChange(false); }}>Send back</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={async () => { const r = await onSubmit(note); if (!r.ok) { setErr(r.errors?.form ?? "Failed"); return; } toast.success("Guarantor declined"); onOpenChange(false); }}>Decline</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
