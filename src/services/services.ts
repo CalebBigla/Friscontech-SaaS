@@ -63,6 +63,7 @@ import {
 import { buildOnboarding } from "@/services/onboarding-service";
 export type FieldErrors = Partial<
   Record<
+    | "expiryDate"
     | "name"
     | "code"
     | "location"
