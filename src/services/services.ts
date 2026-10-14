@@ -2093,10 +2093,10 @@ export const mockPaymentService = {
         ok: false,
         errors: { form: "Only submitted payments can be declined by a manager" },
       };
-    if (scope.user.role === "owner" && payment.status !== "acknowledged")
+    if (scope.user.role === "owner" && payment.status !== "acknowledged" && payment.status !== "submitted")
       return {
         ok: false,
-        errors: { form: "Only manager-acknowledged payments can be declined by the owner" },
+        errors: { form: "Only pending payments can be declined by the owner" },
       };
     if (!reason.trim()) return { ok: false, errors: { reason: "A decline reason is required" } };
     const declinedAt = nowOnReferenceDay(db);
@@ -2153,8 +2153,8 @@ export const mockPaymentService = {
     if (!payment) return { ok: false, errors: { form: "Payment not found" } };
     const scopeError = paymentScopeError(db, actorId, payment, "owner");
     if (scopeError) return { ok: false, errors: { form: scopeError } };
-    if (payment.status !== "acknowledged" || !payment.acknowledgedAt || !payment.acknowledgedBy)
-      return { ok: false, errors: { form: "Only manager-acknowledged payments can be confirmed" } };
+    if (payment.status !== "acknowledged" && payment.status !== "submitted")
+      return { ok: false, errors: { form: "Only pending payments can be confirmed" } };
     const confirmedAt = nowOnReferenceDay(db);
     const updated: Payment = {
       ...payment,
@@ -3048,8 +3048,8 @@ export const mockCustomerPaymentService = {
     if (!payment) return { ok: false, errors: { form: "Payment not found" } };
     const scopeError = customerPaymentScopeError(db, actorId, payment, "owner");
     if (scopeError) return { ok: false, errors: { form: scopeError } };
-    if (payment.status !== "acknowledged")
-      return { ok: false, errors: { form: "Only manager-acknowledged payments can be confirmed" } };
+    if (payment.status !== "acknowledged" && payment.status !== "submitted")
+      return { ok: false, errors: { form: "Only pending payments can be confirmed" } };
     const at = nowOnReferenceDay(db);
     const updated: CustomerPayment = {
       ...payment,
@@ -3093,10 +3093,10 @@ export const mockCustomerPaymentService = {
         ok: false,
         errors: { form: "Only submitted payments can be declined by a manager" },
       };
-    if (role === "owner" && payment.status !== "acknowledged")
+    if (role === "owner" && payment.status !== "acknowledged" && payment.status !== "submitted")
       return {
         ok: false,
-        errors: { form: "Only manager-acknowledged payments can be declined by the owner" },
+        errors: { form: "Only pending payments can be declined by the owner" },
       };
     if (!reason.trim()) return { ok: false, errors: { reason: "A decline reason is required" } };
     const at = nowOnReferenceDay(db);
