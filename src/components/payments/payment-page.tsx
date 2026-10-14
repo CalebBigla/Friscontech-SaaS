@@ -664,9 +664,10 @@ const stepLabel = {
 function MiniProgress({ entry }: { entry: PaymentEntry }) {
   const done = (step: PaymentTrailStepName) => entry.trail.some((s) => s.step === step);
   const declined = entry.status === "declined";
+  const ownerDirect = !done("acknowledged") && (done("confirmed") || (declined && entry.trail.some((s) => s.step === "declined" && s.by !== entry.managerId)));
   const steps: { key: PaymentTrailStepName; label: string }[] = [
     { key: "submitted", label: "Submitted" },
-    { key: "acknowledged", label: "Manager" },
+    ...(ownerDirect ? [] : [{ key: "acknowledged" as const, label: "Manager" }]),
     { key: "confirmed", label: "Owner" },
   ];
   return (
