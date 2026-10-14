@@ -122,7 +122,7 @@ export function PaymentPage() {
       ? "Submit your sales payments and track customer payments you collected."
       : role === "manager"
         ? "Acknowledge payments from your branch. The owner gives final confirmation."
-        : "Confirm acknowledged payments. Only confirmed money counts as received.";
+        : "Confirm payments directly or after manager acknowledgement. Only confirmed money counts as received.";
 
   return (
     <AppShell title={title} subtitle={subtitle}>
@@ -294,7 +294,7 @@ export function PaymentPage() {
                       <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
                         {(() => {
                           const ack = scope.canAcknowledgePayments && e.status === "submitted" && e.managerId === scope.user.id;
-                          const conf = scope.canConfirmPayments && e.status === "acknowledged";
+                          const conf = scope.canConfirmPayments && (e.status === "acknowledged" || e.status === "submitted");
                           if (!ack && !conf) return <span className="text-muted-foreground">—</span>;
                           return (
                             <div className="flex gap-1.5">
@@ -379,7 +379,7 @@ function PaymentDrawer({
     scope.canAcknowledgePayments &&
     entry.status === "submitted" &&
     entry.managerId === scope.user.id;
-  const canConfirm = !!entry && scope.canConfirmPayments && entry.status === "acknowledged";
+  const canConfirm = !!entry && scope.canConfirmPayments && (entry.status === "acknowledged" || entry.status === "submitted");
   const canDecline = canAck || canConfirm;
 
   const open = (kind: typeof action) => {
