@@ -205,7 +205,7 @@ SELECT
   sb.expiry_date,
   sb.quantity_remaining,
   sb.received_at,
-  DATE_PART('day', sb.expiry_date - CURRENT_DATE) AS days_until_expiry,
+  (sb.expiry_date - CURRENT_DATE) AS days_until_expiry,
   t.expiry_alert_months
 FROM stock_batches sb
 JOIN branches b ON sb.branch_id = b.id
