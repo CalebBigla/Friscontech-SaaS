@@ -1,0 +1,80 @@
+/**
+ * User Preferences React Query Hooks
+ * 
+ * Data fetching and mutations for user-specific settings
+ */
+
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/auth-context";
+import { queryKeys } from "@/lib/query-keys";
+import { transformPreference, preferenceToDb } from "@/lib/type-adapters";
+import { handleSupabaseError } from "@/lib/supabase-helpers";
+import type { UserPreference } from "@/data/mock-db";
+
+/**
+ * Fetch preferences for current user
+ */
+export function usePreferences() {
+  const { user } = useAuth();
+  
+  return useQuery({
+    queryKey: queryKeys.preferences.byUser(user?.id || ''),
+    queryFn: async () => {
+      if (!user?.id) throw new Error('Not authenticated');
+      
+      const { data, error } = await supabase
+        .from('user_preferences')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+      
+      // If no preferences exist, return defaults
+      if (error && error.code === 'PGRST116') {
+        return {
+          userId: user.id,
+          dateFormat: 'DD/MM/YYYY' as const,
+          reportPeriod: 'current_month' as const,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      
+      if (error) handleSupabaseError(error);
+      
+      return transformPreference(data);
+    },
+    enabled: !!user?.id,
+  });
+}
+
+/**
+ * Update user preferences (upsert)
+ */
+export function useUpdatePreferences() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (updates: Partial<UserPreference>) => {
+      if (!user?.id) throw new Error('Not authenticated');
+      
+      const dbData = preferenceToDb(updates, user.id);
+      
+      const { data, error } = await supabase
+        .from('user_preferences')
+        .upsert(dbData, { onConflict: 'user_id' })
+        .select()
+        .single();
+      
+      if (error) handleSupabaseError(error);
+      
+      return transformPreference(data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.preferences.byUser(user?.id || '') 
+      });
+    },
+  });
+}
