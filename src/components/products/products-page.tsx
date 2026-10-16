@@ -10,6 +10,8 @@ import { ProductFormDialog } from "@/components/products/add-product-dialog";
 import { ImportProductsDialog } from "@/components/products/import-products-dialog";
 import { ProductStatusDialog, ProductStatusBadge } from "@/components/products/product-status";
 import type { Product } from "@/data/mock-db";
+import { useProducts } from "@/hooks/use-products";
+import { useTenantId } from "@/hooks/use-tenant";
 import { useDb } from "@/services/mock-store";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getProductCategories, getProductSummary, sortProducts, type ProductSortKey } from "@/lib/catalog-calculations";
@@ -22,6 +24,8 @@ const sortOptions: { value: ProductSortKey; label: string }[] = [
 
 export function ProductsPage() {
   const db = useDb();
+  const tenantId = useTenantId();
+  const { data: productsData, isLoading: productsLoading } = useProducts(tenantId);
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const manage = scope.canManageProducts;
@@ -34,14 +38,17 @@ export function ProductsPage() {
   const [toggling, setToggling] = useState<Product | null>(null);
   const [importing, setImporting] = useState(false);
 
-  const summary = getProductSummary(db);
-  const categories = getProductCategories(db);
+  // Use Supabase products if available, fallback to mock for now during migration
+  const products = productsData || db.products;
+
+  const summary = getProductSummary({ ...db, products });
+  const categories = getProductCategories({ ...db, products });
   const branchRows = scope.canManageProducts ? [] : getInventoryRows(db, { branchIds: scope.branchIds });
   const list = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const filtered = db.products.filter((p) => (!needle || `${p.name} ${p.sku}`.toLowerCase().includes(needle)) && (category === ALL || p.category === category) && (status === ALL || p.status === status));
+    const filtered = products.filter((p) => (!needle || `${p.name} ${p.sku}`.toLowerCase().includes(needle)) && (category === ALL || p.category === category) && (status === ALL || p.status === status));
     return sortProducts(filtered, sort, dir);
-  }, [db.products, query, category, status, sort, dir]);
+  }, [products, query, category, status, sort, dir]);
 
   const actions = (p: Product) => (
     <DropdownMenu>
@@ -67,7 +74,7 @@ export function ProductsPage() {
         <MetricCard icon={XCircle} tone="warning" label="Inactive products" value={formatNumber(summary.inactive)} detail="Kept for history only" />
         <MetricCard icon={Layers} tone="violet" label="Categories" value={formatNumber(summary.categories)} detail="Unique product categories" />
       </div>}
-      <Panel className="overflow-hidden" title="Catalogue" subtitle={`${list.length} of ${db.products.length} products`} action={
+      <Panel className="overflow-hidden" title="Catalogue" subtitle={`${list.length} of ${products.length} products`} action={
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <SearchBox value={query} onChange={setQuery} placeholder="Search name or SKU" />
           <FilterSelect label="Category filter" className="w-full sm:w-40" value={category} onChange={setCategory} options={[{ value: ALL, label: "All categories" }, ...categories.map((c) => ({ value: c, label: c }))]} />
