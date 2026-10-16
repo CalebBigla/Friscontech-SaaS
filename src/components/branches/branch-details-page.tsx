@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Boxes, CircleDollarSign, Mail, MapPin, Pencil, Phone, Power, Target, UserRound, Users } from "lucide-react";
+import { ArrowLeft, Boxes, CircleDollarSign, Loader2, Mail, MapPin, Pencil, Phone, Power, Target, UserRound, Users } from "lucide-react";
 
 import { AppShell, RestrictedNotice } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { BandBadge, BranchStatusBadge, EmptyState, MetricCard, Panel, ProgressBa
 import { BranchFormDialog } from "@/components/branches/branch-form-dialog";
 import { DeactivateBranchDialog } from "@/components/branches/deactivate-dialog";
 import { useDb } from "@/services/mock-store";
+import { useBranch } from "@/hooks/use-branches";
 import { canSeeBranch, getAccessScope, useCurrentUserId } from "@/lib/session";
 import { filterSales, getBranchInventoryHealth, getBranchManager, getBranchPerformance, getBranchStaff, saleTotal } from "@/lib/calculations";
 import { monthOf } from "@/lib/dates";
@@ -19,10 +20,42 @@ export function BranchDetailsPage({ branchId }: { branchId: string }) {
   const scope = getAccessScope(db, userId);
   const [editOpen, setEditOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
-  const branch = db.branches.find((b) => b.id === branchId);
+  
+  // Fetch branch from Supabase
+  const { data: branch, isLoading, error } = useBranch(branchId);
 
-  if (!branch) return <AppShell title="Branch not found"><EmptyState title="Branch not found" detail="It may have been removed or the link is incorrect." /><div className="text-center"><Button variant="outline" asChild><Link to="/branches">Back to branches</Link></Button></div></AppShell>;
-  if (!canSeeBranch(scope, branch.id)) return <AppShell title={branch.name}><RestrictedNotice message="You can only view your assigned branch." /></AppShell>;
+  // Loading state
+  if (isLoading) {
+    return (
+      <AppShell title="Branch Details">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  // Error or not found
+  if (error || !branch) {
+    return (
+      <AppShell title="Branch not found">
+        <EmptyState title="Branch not found" detail="It may have been removed or the link is incorrect." />
+        <div className="text-center">
+          <Button variant="outline" asChild>
+            <Link to="/branches">Back to branches</Link>
+          </Button>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (!canSeeBranch(scope, branch.id)) {
+    return (
+      <AppShell title={branch.name}>
+        <RestrictedNotice message="You can only view your assigned branch." />
+      </AppShell>
+    );
+  }
 
   const month = monthOf(db.tenant.referenceDate);
   const perf = getBranchPerformance(db, branch.id, month);

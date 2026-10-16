@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { FieldError, FilterSelect } from "@/components/shared";
 import type { Branch } from "@/data/mock-db";
 import { useDb } from "@/services/mock-store";
+import { useCreateBranch, useUpdateBranch } from "@/hooks/use-branches";
 import { branchService, type BranchInput, type FieldErrors } from "@/services/services";
 
 const empty: BranchInput = { name: "", code: "", location: "", address: "", phone: "", email: "", managerId: "", status: "active" };
@@ -17,7 +18,11 @@ export function BranchFormDialog({ open, onOpenChange, branch, actorId }: { open
   const db = useDb();
   const [form, setForm] = useState<BranchInput>(empty);
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [saving, setSaving] = useState(false);
+  
+  // Supabase mutations
+  const createBranch = useCreateBranch();
+  const updateBranch = useUpdateBranch();
+  const saving = createBranch.isPending || updateBranch.isPending;
 
   useEffect(() => {
     if (!open) return;
@@ -33,12 +38,33 @@ export function BranchFormDialog({ open, onOpenChange, branch, actorId }: { open
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
-    const result = branch ? await branchService.update(branch.id, form, actorId) : await branchService.create(form, actorId);
-    setSaving(false);
-    if (!result.ok) { setErrors(result.errors); toast.error("Please fix the highlighted fields"); return; }
-    toast.success(branch ? `${result.data.name} updated` : `${result.data.name} created`);
-    onOpenChange(false);
+    setErrors({});
+    
+    // Validate first (keep existing validation logic)
+    const validationResult = branch 
+      ? await branchService.update(branch.id, form, actorId)
+      : await branchService.create(form, actorId);
+    
+    if (!validationResult.ok) {
+      setErrors(validationResult.errors);
+      toast.error("Please fix the highlighted fields");
+      return;
+    }
+    
+    try {
+      if (branch) {
+        // Update existing branch
+        await updateBranch.mutateAsync({ id: branch.id, updates: form as Partial<Branch> });
+        toast.success(`${form.name} updated`);
+      } else {
+        // Create new branch
+        await createBranch.mutateAsync(form as Partial<Branch>);
+        toast.success(`${form.name} created`);
+      }
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Operation failed");
+    }
   }
 
   const field = (key: "name" | "code" | "location" | "address" | "phone" | "email", label: string, placeholder: string, required = false) => (
