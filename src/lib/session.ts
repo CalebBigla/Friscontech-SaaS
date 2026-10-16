@@ -1,10 +1,13 @@
 /**
- * Demo session + RBAC scope. The signed-in user can be switched from the sidebar
- * so each role's view can be reviewed; real auth replaces this later.
+ * Session + RBAC scope with Supabase Auth integration.
+ * Use useAuth() from auth-context for real authentication state.
+ * This file maintains backward compatibility for demo/development.
  */
 import { useSyncExternalStore } from "react";
 import type { Db, User } from "@/data/mock-db";
+import { useAuth } from "@/contexts/auth-context";
 
+// Legacy demo user switching (for development/testing only)
 let currentUserId = "user-001";
 const listeners = new Set<() => void>();
 export function setCurrentUserId(id: string) {
@@ -15,6 +18,11 @@ const subscribe = (l: () => void) => {
   listeners.add(l);
   return () => listeners.delete(l);
 };
+
+/**
+ * @deprecated Use useAuth().user.id instead for production
+ * This is kept for backward compatibility during migration
+ */
 export const useCurrentUserId = () =>
   useSyncExternalStore(
     subscribe,

@@ -39,7 +39,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useDb } from "@/services/mock-store";
 import { sessionService } from "@/services/services";
-import { mockAuth } from "@/services/mock-auth";
+import { useAuth } from "@/contexts/auth-context";
+import * as auth from "@/services/auth";
 import {
   getAccessScope,
   setCurrentUserId,
@@ -391,7 +392,7 @@ export function AppShell({
               })}
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link to="/login" onClick={() => mockAuth.signOut(userId)} className="text-xs font-semibold">Sign out</Link>
+                <Link to="/login" onClick={() => auth.signOut(userId)} className="text-xs font-semibold">Sign out</Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
