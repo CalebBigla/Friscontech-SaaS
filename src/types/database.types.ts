@@ -1,6 +1,8 @@
 /**
- * Supabase Database Types
- * Generated from database schema
+ * Database TypeScript types generated from Supabase schema
+ * Based on migrations in supabase/migrations/
+ * 
+ * This file maps PostgreSQL types to TypeScript for type-safe queries
  */
 
 export type Json =
@@ -19,19 +21,16 @@ export interface Database {
           id: string
           name: string
           created_at: string
-          updated_at: string
         }
         Insert: {
           id?: string
           name: string
           created_at?: string
-          updated_at?: string
         }
         Update: {
           id?: string
           name?: string
           created_at?: string
-          updated_at?: string
         }
       }
       branches: {
@@ -40,33 +39,33 @@ export interface Database {
           tenant_id: string
           name: string
           code: string
-          location: string
+          location: string | null
           status: 'active' | 'inactive'
           manager_id: string | null
           created_at: string
-          updated_at: string
+          deactivated_at: string | null
         }
         Insert: {
           id?: string
           tenant_id: string
           name: string
           code: string
-          location: string
+          location?: string | null
           status?: 'active' | 'inactive'
           manager_id?: string | null
           created_at?: string
-          updated_at?: string
+          deactivated_at?: string | null
         }
         Update: {
           id?: string
           tenant_id?: string
           name?: string
           code?: string
-          location?: string
+          location?: string | null
           status?: 'active' | 'inactive'
           manager_id?: string | null
           created_at?: string
-          updated_at?: string
+          deactivated_at?: string | null
         }
       }
       users: {
@@ -74,7 +73,6 @@ export interface Database {
           id: string
           tenant_id: string
           branch_id: string | null
-          auth_id: string | null
           first_name: string
           last_name: string
           email: string | null
@@ -83,12 +81,12 @@ export interface Database {
           status: 'active' | 'inactive' | 'pending'
           joined_at: string
           deactivated_at: string | null
+          auth_id: string | null
         }
         Insert: {
           id?: string
           tenant_id: string
           branch_id?: string | null
-          auth_id?: string | null
           first_name: string
           last_name: string
           email?: string | null
@@ -97,12 +95,12 @@ export interface Database {
           status?: 'active' | 'inactive' | 'pending'
           joined_at?: string
           deactivated_at?: string | null
+          auth_id?: string | null
         }
         Update: {
           id?: string
           tenant_id?: string
           branch_id?: string | null
-          auth_id?: string | null
           first_name?: string
           last_name?: string
           email?: string | null
@@ -111,30 +109,28 @@ export interface Database {
           status?: 'active' | 'inactive' | 'pending'
           joined_at?: string
           deactivated_at?: string | null
+          auth_id?: string | null
         }
       }
       user_preferences: {
         Row: {
-          id: string
           user_id: string
-          date_format: 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD'
-          report_period: 'month' | 'quarter' | 'year'
+          date_format: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD'
+          report_period: 'current_month' | 'last_month' | 'custom'
           created_at: string
           updated_at: string
         }
         Insert: {
-          id?: string
           user_id: string
-          date_format?: 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD'
-          report_period?: 'month' | 'quarter' | 'year'
+          date_format?: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD'
+          report_period?: 'current_month' | 'last_month' | 'custom'
           created_at?: string
           updated_at?: string
         }
         Update: {
-          id?: string
           user_id?: string
-          date_format?: 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD'
-          report_period?: 'month' | 'quarter' | 'year'
+          date_format?: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD'
+          report_period?: 'current_month' | 'last_month' | 'custom'
           created_at?: string
           updated_at?: string
         }
@@ -148,10 +144,13 @@ export interface Database {
           category: string
           unit: string
           unit_cost: number
+          unit_price: number
           status: 'active' | 'inactive'
-          low_stock_threshold: number
+          low_stock_threshold: number | null
+          description: string | null
+          image_url: string | null
           created_at: string
-          updated_at: string
+          deactivated_at: string | null
         }
         Insert: {
           id?: string
@@ -161,10 +160,13 @@ export interface Database {
           category: string
           unit: string
           unit_cost: number
+          unit_price: number
           status?: 'active' | 'inactive'
-          low_stock_threshold?: number
+          low_stock_threshold?: number | null
+          description?: string | null
+          image_url?: string | null
           created_at?: string
-          updated_at?: string
+          deactivated_at?: string | null
         }
         Update: {
           id?: string
@@ -174,10 +176,13 @@ export interface Database {
           category?: string
           unit?: string
           unit_cost?: number
+          unit_price?: number
           status?: 'active' | 'inactive'
-          low_stock_threshold?: number
+          low_stock_threshold?: number | null
+          description?: string | null
+          image_url?: string | null
           created_at?: string
-          updated_at?: string
+          deactivated_at?: string | null
         }
       }
       inventory_records: {
@@ -187,7 +192,7 @@ export interface Database {
           branch_id: string
           product_id: string
           quantity_on_hand: number
-          reserved_quantity: number
+          quantity_reserved: number
           created_at: string
           updated_at: string
         }
@@ -197,7 +202,7 @@ export interface Database {
           branch_id: string
           product_id: string
           quantity_on_hand?: number
-          reserved_quantity?: number
+          quantity_reserved?: number
           created_at?: string
           updated_at?: string
         }
@@ -207,7 +212,7 @@ export interface Database {
           branch_id?: string
           product_id?: string
           quantity_on_hand?: number
-          reserved_quantity?: number
+          quantity_reserved?: number
           created_at?: string
           updated_at?: string
         }
@@ -218,12 +223,12 @@ export interface Database {
           tenant_id: string
           branch_id: string
           product_id: string
-          movement_type: 'sale' | 'stock_issue' | 'addition' | 'adjustment'
+          movement_type: 'addition' | 'sale' | 'adjustment' | 'stock_issue' | 'return'
           quantity: number
+          reference_type: 'sale' | 'stock_request' | 'manual' | 'other'
           reference_id: string | null
-          reference_type: string | null
-          notes: string | null
-          created_by: string
+          performed_by: string
+          note: string | null
           created_at: string
         }
         Insert: {
@@ -231,12 +236,12 @@ export interface Database {
           tenant_id: string
           branch_id: string
           product_id: string
-          movement_type: 'sale' | 'stock_issue' | 'addition' | 'adjustment'
+          movement_type: 'addition' | 'sale' | 'adjustment' | 'stock_issue' | 'return'
           quantity: number
+          reference_type: 'sale' | 'stock_request' | 'manual' | 'other'
           reference_id?: string | null
-          reference_type?: string | null
-          notes?: string | null
-          created_by: string
+          performed_by: string
+          note?: string | null
           created_at?: string
         }
         Update: {
@@ -244,12 +249,12 @@ export interface Database {
           tenant_id?: string
           branch_id?: string
           product_id?: string
-          movement_type?: 'sale' | 'stock_issue' | 'addition' | 'adjustment'
+          movement_type?: 'addition' | 'sale' | 'adjustment' | 'stock_issue' | 'return'
           quantity?: number
+          reference_type?: 'sale' | 'stock_request' | 'manual' | 'other'
           reference_id?: string | null
-          reference_type?: string | null
-          notes?: string | null
-          created_by?: string
+          performed_by?: string
+          note?: string | null
           created_at?: string
         }
       }
@@ -260,10 +265,10 @@ export interface Database {
           branch_id: string
           product_id: string
           batch_number: string
-          quantity: number
+          quantity_received: number
+          quantity_remaining: number
           expiry_date: string | null
-          cost_per_unit: number
-          added_by: string
+          received_at: string
           created_at: string
         }
         Insert: {
@@ -272,10 +277,10 @@ export interface Database {
           branch_id: string
           product_id: string
           batch_number: string
-          quantity: number
+          quantity_received: number
+          quantity_remaining: number
           expiry_date?: string | null
-          cost_per_unit: number
-          added_by: string
+          received_at: string
           created_at?: string
         }
         Update: {
@@ -284,10 +289,10 @@ export interface Database {
           branch_id?: string
           product_id?: string
           batch_number?: string
-          quantity?: number
+          quantity_received?: number
+          quantity_remaining?: number
           expiry_date?: string | null
-          cost_per_unit?: number
-          added_by?: string
+          received_at?: string
           created_at?: string
         }
       }
@@ -297,39 +302,45 @@ export interface Database {
           tenant_id: string
           branch_id: string
           name: string
-          phone: string
+          email: string | null
+          phone: string | null
           address: string | null
+          business_name: string | null
           credit_limit: number
           status: 'active' | 'inactive' | 'suspended'
           created_by: string
           created_at: string
-          updated_at: string
+          deactivated_at: string | null
         }
         Insert: {
           id?: string
           tenant_id: string
           branch_id: string
           name: string
-          phone: string
+          email?: string | null
+          phone?: string | null
           address?: string | null
+          business_name?: string | null
           credit_limit?: number
           status?: 'active' | 'inactive' | 'suspended'
           created_by: string
           created_at?: string
-          updated_at?: string
+          deactivated_at?: string | null
         }
         Update: {
           id?: string
           tenant_id?: string
           branch_id?: string
           name?: string
-          phone?: string
+          email?: string | null
+          phone?: string | null
           address?: string | null
+          business_name?: string | null
           credit_limit?: number
           status?: 'active' | 'inactive' | 'suspended'
           created_by?: string
           created_at?: string
-          updated_at?: string
+          deactivated_at?: string | null
         }
       }
       sales: {
@@ -337,42 +348,39 @@ export interface Database {
           id: string
           tenant_id: string
           branch_id: string
-          sales_rep_id: string
           customer_id: string | null
+          sales_rep_id: string
           product_id: string
           quantity: number
           unit_price: number
           total_amount: number
           sale_date: string
-          notes: string | null
           created_at: string
         }
         Insert: {
           id?: string
           tenant_id: string
           branch_id: string
-          sales_rep_id: string
           customer_id?: string | null
+          sales_rep_id: string
           product_id: string
           quantity: number
           unit_price: number
           total_amount: number
           sale_date: string
-          notes?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           tenant_id?: string
           branch_id?: string
-          sales_rep_id?: string
           customer_id?: string | null
+          sales_rep_id?: string
           product_id?: string
           quantity?: number
           unit_price?: number
           total_amount?: number
           sale_date?: string
-          notes?: string | null
           created_at?: string
         }
       }
@@ -382,12 +390,12 @@ export interface Database {
           tenant_id: string
           branch_id: string
           customer_id: string
+          sales_rep_id: string
           amount: number
-          payment_method: 'cash' | 'bank_transfer' | 'mobile_money'
-          payment_date: string
+          payment_method: 'cash' | 'transfer' | 'check' | 'other'
           reference_number: string | null
-          received_by: string
-          notes: string | null
+          note: string | null
+          payment_date: string
           created_at: string
         }
         Insert: {
@@ -395,12 +403,12 @@ export interface Database {
           tenant_id: string
           branch_id: string
           customer_id: string
+          sales_rep_id: string
           amount: number
-          payment_method: 'cash' | 'bank_transfer' | 'mobile_money'
-          payment_date: string
+          payment_method: 'cash' | 'transfer' | 'check' | 'other'
           reference_number?: string | null
-          received_by: string
-          notes?: string | null
+          note?: string | null
+          payment_date: string
           created_at?: string
         }
         Update: {
@@ -408,12 +416,12 @@ export interface Database {
           tenant_id?: string
           branch_id?: string
           customer_id?: string
+          sales_rep_id?: string
           amount?: number
-          payment_method?: 'cash' | 'bank_transfer' | 'mobile_money'
-          payment_date?: string
+          payment_method?: 'cash' | 'transfer' | 'check' | 'other'
           reference_number?: string | null
-          received_by?: string
-          notes?: string | null
+          note?: string | null
+          payment_date?: string
           created_at?: string
         }
       }
@@ -424,17 +432,18 @@ export interface Database {
           branch_id: string
           sales_rep_id: string
           period: string
+          total_sales: number
           cash_amount: number
           transfer_amount: number
           transfer_reference: string | null
-          status: 'pending' | 'acknowledged' | 'confirmed' | 'rejected'
           submitted_at: string
-          acknowledged_at: string | null
           acknowledged_by: string | null
-          confirmed_at: string | null
+          acknowledged_at: string | null
           confirmed_by: string | null
-          rejection_reason: string | null
-          notes: string | null
+          confirmed_at: string | null
+          status: 'submitted' | 'acknowledged' | 'confirmed' | 'declined'
+          decline_reason: string | null
+          created_at: string
         }
         Insert: {
           id?: string
@@ -442,17 +451,18 @@ export interface Database {
           branch_id: string
           sales_rep_id: string
           period: string
+          total_sales: number
           cash_amount: number
           transfer_amount: number
           transfer_reference?: string | null
-          status?: 'pending' | 'acknowledged' | 'confirmed' | 'rejected'
-          submitted_at?: string
-          acknowledged_at?: string | null
+          submitted_at: string
           acknowledged_by?: string | null
-          confirmed_at?: string | null
+          acknowledged_at?: string | null
           confirmed_by?: string | null
-          rejection_reason?: string | null
-          notes?: string | null
+          confirmed_at?: string | null
+          status?: 'submitted' | 'acknowledged' | 'confirmed' | 'declined'
+          decline_reason?: string | null
+          created_at?: string
         }
         Update: {
           id?: string
@@ -460,17 +470,18 @@ export interface Database {
           branch_id?: string
           sales_rep_id?: string
           period?: string
+          total_sales?: number
           cash_amount?: number
           transfer_amount?: number
           transfer_reference?: string | null
-          status?: 'pending' | 'acknowledged' | 'confirmed' | 'rejected'
           submitted_at?: string
-          acknowledged_at?: string | null
           acknowledged_by?: string | null
-          confirmed_at?: string | null
+          acknowledged_at?: string | null
           confirmed_by?: string | null
-          rejection_reason?: string | null
-          notes?: string | null
+          confirmed_at?: string | null
+          status?: 'submitted' | 'acknowledged' | 'confirmed' | 'declined'
+          decline_reason?: string | null
+          created_at?: string
         }
       }
       expenses: {
@@ -478,46 +489,37 @@ export interface Database {
           id: string
           tenant_id: string
           branch_id: string
+          manager_id: string
           category: string
           amount: number
-          expense_date: string
-          description: string
+          description: string | null
           receipt_url: string | null
-          submitted_by: string
-          approved_by: string | null
-          status: 'pending' | 'approved' | 'rejected'
+          expense_date: string
           created_at: string
-          updated_at: string
         }
         Insert: {
           id?: string
           tenant_id: string
           branch_id: string
+          manager_id: string
           category: string
           amount: number
-          expense_date: string
-          description: string
+          description?: string | null
           receipt_url?: string | null
-          submitted_by: string
-          approved_by?: string | null
-          status?: 'pending' | 'approved' | 'rejected'
+          expense_date: string
           created_at?: string
-          updated_at?: string
         }
         Update: {
           id?: string
           tenant_id?: string
           branch_id?: string
+          manager_id?: string
           category?: string
           amount?: number
-          expense_date?: string
-          description?: string
+          description?: string | null
           receipt_url?: string | null
-          submitted_by?: string
-          approved_by?: string | null
-          status?: 'pending' | 'approved' | 'rejected'
+          expense_date?: string
           created_at?: string
-          updated_at?: string
         }
       }
       manager_remittances: {
@@ -527,17 +529,18 @@ export interface Database {
           branch_id: string
           manager_id: string
           period: string
-          total_sales: number
+          total_received: number
           total_expenses: number
-          payments_received: number
-          net_amount: number
-          status: 'pending' | 'submitted' | 'approved' | 'rejected'
-          submitted_at: string | null
-          approved_at: string | null
-          approved_by: string | null
-          notes: string | null
+          net_remittance: number
+          cash_amount: number
+          transfer_amount: number
+          transfer_reference: string | null
+          submitted_at: string
+          reviewed_by: string | null
+          reviewed_at: string | null
+          status: 'submitted' | 'approved' | 'rejected'
+          reject_reason: string | null
           created_at: string
-          updated_at: string
         }
         Insert: {
           id?: string
@@ -545,17 +548,18 @@ export interface Database {
           branch_id: string
           manager_id: string
           period: string
-          total_sales: number
+          total_received: number
           total_expenses: number
-          payments_received: number
-          net_amount: number
-          status?: 'pending' | 'submitted' | 'approved' | 'rejected'
-          submitted_at?: string | null
-          approved_at?: string | null
-          approved_by?: string | null
-          notes?: string | null
+          net_remittance: number
+          cash_amount: number
+          transfer_amount: number
+          transfer_reference?: string | null
+          submitted_at: string
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          status?: 'submitted' | 'approved' | 'rejected'
+          reject_reason?: string | null
           created_at?: string
-          updated_at?: string
         }
         Update: {
           id?: string
@@ -563,57 +567,58 @@ export interface Database {
           branch_id?: string
           manager_id?: string
           period?: string
-          total_sales?: number
+          total_received?: number
           total_expenses?: number
-          payments_received?: number
-          net_amount?: number
-          status?: 'pending' | 'submitted' | 'approved' | 'rejected'
-          submitted_at?: string | null
-          approved_at?: string | null
-          approved_by?: string | null
-          notes?: string | null
+          net_remittance?: number
+          cash_amount?: number
+          transfer_amount?: number
+          transfer_reference?: string | null
+          submitted_at?: string
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          status?: 'submitted' | 'approved' | 'rejected'
+          reject_reason?: string | null
           created_at?: string
-          updated_at?: string
         }
       }
       owner_remittances: {
         Row: {
           id: string
           tenant_id: string
-          payee_type: 'manager' | 'storekeeper' | 'supplier' | 'other'
-          payee_id: string | null
+          payee_type: 'supplier' | 'employee' | 'utility' | 'tax' | 'other'
+          payee_name: string
           amount: number
-          payment_method: 'cash' | 'bank_transfer' | 'cheque' | 'mobile_money'
-          payment_date: string
+          payment_method: 'cash' | 'transfer' | 'check' | 'other'
           reference_number: string | null
-          description: string
-          paid_by: string
+          description: string | null
+          payment_date: string
+          created_by: string
           created_at: string
         }
         Insert: {
           id?: string
           tenant_id: string
-          payee_type: 'manager' | 'storekeeper' | 'supplier' | 'other'
-          payee_id?: string | null
+          payee_type: 'supplier' | 'employee' | 'utility' | 'tax' | 'other'
+          payee_name: string
           amount: number
-          payment_method: 'cash' | 'bank_transfer' | 'cheque' | 'mobile_money'
-          payment_date: string
+          payment_method: 'cash' | 'transfer' | 'check' | 'other'
           reference_number?: string | null
-          description: string
-          paid_by: string
+          description?: string | null
+          payment_date: string
+          created_by: string
           created_at?: string
         }
         Update: {
           id?: string
           tenant_id?: string
-          payee_type?: 'manager' | 'storekeeper' | 'supplier' | 'other'
-          payee_id?: string | null
+          payee_type?: 'supplier' | 'employee' | 'utility' | 'tax' | 'other'
+          payee_name?: string
           amount?: number
-          payment_method?: 'cash' | 'bank_transfer' | 'cheque' | 'mobile_money'
-          payment_date?: string
+          payment_method?: 'cash' | 'transfer' | 'check' | 'other'
           reference_number?: string | null
-          description?: string
-          paid_by?: string
+          description?: string | null
+          payment_date?: string
+          created_by?: string
           created_at?: string
         }
       }
@@ -622,63 +627,63 @@ export interface Database {
           id: string
           tenant_id: string
           branch_id: string
+          requester_id: string
           product_id: string
-          requested_by: string
-          quantity: number
-          status: 'pending' | 'approved' | 'rejected' | 'fulfilled' | 'partially_fulfilled'
-          approved_quantity: number | null
-          fulfilled_quantity: number
-          requested_at: string
-          reviewed_at: string | null
+          quantity_requested: number
+          quantity_approved: number | null
+          quantity_issued: number | null
+          request_reason: string | null
+          status: 'pending' | 'approved' | 'rejected' | 'fulfilled' | 'partially_fulfilled' | 'cancelled'
           reviewed_by: string | null
-          fulfilled_at: string | null
+          reviewed_at: string | null
           fulfilled_by: string | null
+          fulfilled_at: string | null
           rejection_reason: string | null
-          notes: string | null
+          created_at: string
         }
         Insert: {
           id?: string
           tenant_id: string
           branch_id: string
+          requester_id: string
           product_id: string
-          requested_by: string
-          quantity: number
-          status?: 'pending' | 'approved' | 'rejected' | 'fulfilled' | 'partially_fulfilled'
-          approved_quantity?: number | null
-          fulfilled_quantity?: number
-          requested_at?: string
-          reviewed_at?: string | null
+          quantity_requested: number
+          quantity_approved?: number | null
+          quantity_issued?: number | null
+          request_reason?: string | null
+          status?: 'pending' | 'approved' | 'rejected' | 'fulfilled' | 'partially_fulfilled' | 'cancelled'
           reviewed_by?: string | null
-          fulfilled_at?: string | null
+          reviewed_at?: string | null
           fulfilled_by?: string | null
+          fulfilled_at?: string | null
           rejection_reason?: string | null
-          notes?: string | null
+          created_at?: string
         }
         Update: {
           id?: string
           tenant_id?: string
           branch_id?: string
+          requester_id?: string
           product_id?: string
-          requested_by?: string
-          quantity?: number
-          status?: 'pending' | 'approved' | 'rejected' | 'fulfilled' | 'partially_fulfilled'
-          approved_quantity?: number | null
-          fulfilled_quantity?: number
-          requested_at?: string
-          reviewed_at?: string | null
+          quantity_requested?: number
+          quantity_approved?: number | null
+          quantity_issued?: number | null
+          request_reason?: string | null
+          status?: 'pending' | 'approved' | 'rejected' | 'fulfilled' | 'partially_fulfilled' | 'cancelled'
           reviewed_by?: string | null
-          fulfilled_at?: string | null
+          reviewed_at?: string | null
           fulfilled_by?: string | null
+          fulfilled_at?: string | null
           rejection_reason?: string | null
-          notes?: string | null
+          created_at?: string
         }
       }
       targets: {
         Row: {
           id: string
           tenant_id: string
-          branch_id: string
-          user_id: string
+          branch_id: string | null
+          user_id: string | null
           product_id: string | null
           month: string
           target_amount: number
@@ -689,8 +694,8 @@ export interface Database {
         Insert: {
           id?: string
           tenant_id: string
-          branch_id: string
-          user_id: string
+          branch_id?: string | null
+          user_id?: string | null
           product_id?: string | null
           month: string
           target_amount: number
@@ -701,8 +706,8 @@ export interface Database {
         Update: {
           id?: string
           tenant_id?: string
-          branch_id?: string
-          user_id?: string
+          branch_id?: string | null
+          user_id?: string | null
           product_id?: string | null
           month?: string
           target_amount?: number
@@ -716,54 +721,57 @@ export interface Database {
           id: string
           tenant_id: string
           branch_id: string
-          request_type: string
-          requested_by: string
-          reviewed_by: string | null
+          requester_id: string
+          request_type: 'product_deactivation' | 'stock_addition' | 'team_member'
+          reference_id: string
+          reason: string | null
           status: 'pending' | 'approved' | 'rejected'
-          request_data: Json
+          reviewed_by: string | null
+          reviewed_at: string | null
           rejection_reason: string | null
           created_at: string
-          reviewed_at: string | null
         }
         Insert: {
           id?: string
           tenant_id: string
           branch_id: string
-          request_type: string
-          requested_by: string
-          reviewed_by?: string | null
+          requester_id: string
+          request_type: 'product_deactivation' | 'stock_addition' | 'team_member'
+          reference_id: string
+          reason?: string | null
           status?: 'pending' | 'approved' | 'rejected'
-          request_data: Json
+          reviewed_by?: string | null
+          reviewed_at?: string | null
           rejection_reason?: string | null
           created_at?: string
-          reviewed_at?: string | null
         }
         Update: {
           id?: string
           tenant_id?: string
           branch_id?: string
-          request_type?: string
-          requested_by?: string
-          reviewed_by?: string | null
+          requester_id?: string
+          request_type?: 'product_deactivation' | 'stock_addition' | 'team_member'
+          reference_id?: string
+          reason?: string | null
           status?: 'pending' | 'approved' | 'rejected'
-          request_data?: Json
+          reviewed_by?: string | null
+          reviewed_at?: string | null
           rejection_reason?: string | null
           created_at?: string
-          reviewed_at?: string | null
         }
       }
       onboardings: {
         Row: {
           id: string
           tenant_id: string
-          branch_id: string
           token: string
           first_name: string
           last_name: string
           phone: string
+          branch_id: string
           role: 'manager' | 'storekeeper' | 'sales_rep'
-          status: 'pending' | 'completed' | 'expired'
           created_by: string
+          completed: boolean
           completed_at: string | null
           expires_at: string
           created_at: string
@@ -771,14 +779,14 @@ export interface Database {
         Insert: {
           id?: string
           tenant_id: string
-          branch_id: string
           token: string
           first_name: string
           last_name: string
           phone: string
+          branch_id: string
           role: 'manager' | 'storekeeper' | 'sales_rep'
-          status?: 'pending' | 'completed' | 'expired'
           created_by: string
+          completed?: boolean
           completed_at?: string | null
           expires_at: string
           created_at?: string
@@ -786,14 +794,14 @@ export interface Database {
         Update: {
           id?: string
           tenant_id?: string
-          branch_id?: string
           token?: string
           first_name?: string
           last_name?: string
           phone?: string
+          branch_id?: string
           role?: 'manager' | 'storekeeper' | 'sales_rep'
-          status?: 'pending' | 'completed' | 'expired'
           created_by?: string
+          completed?: boolean
           completed_at?: string | null
           expires_at?: string
           created_at?: string
@@ -803,21 +811,21 @@ export interface Database {
         Row: {
           id: string
           onboarding_id: string
-          file_type: string
+          file_type: 'id_card' | 'photo' | 'guarantor_id' | 'address_proof' | 'other'
           file_url: string
           uploaded_at: string
         }
         Insert: {
           id?: string
           onboarding_id: string
-          file_type: string
+          file_type: 'id_card' | 'photo' | 'guarantor_id' | 'address_proof' | 'other'
           file_url: string
           uploaded_at?: string
         }
         Update: {
           id?: string
           onboarding_id?: string
-          file_type?: string
+          file_type?: 'id_card' | 'photo' | 'guarantor_id' | 'address_proof' | 'other'
           file_url?: string
           uploaded_at?: string
         }
@@ -862,10 +870,10 @@ export interface Database {
           id: string
           tenant_id: string
           user_id: string
-          type: string
+          type: 'payment_pending' | 'payment_confirmed' | 'stock_low' | 'approval_needed' | 'general'
           title: string
           message: string
-          link: string | null
+          action_url: string | null
           read: boolean
           created_at: string
         }
@@ -873,10 +881,10 @@ export interface Database {
           id?: string
           tenant_id: string
           user_id: string
-          type: string
+          type: 'payment_pending' | 'payment_confirmed' | 'stock_low' | 'approval_needed' | 'general'
           title: string
           message: string
-          link?: string | null
+          action_url?: string | null
           read?: boolean
           created_at?: string
         }
@@ -884,10 +892,10 @@ export interface Database {
           id?: string
           tenant_id?: string
           user_id?: string
-          type?: string
+          type?: 'payment_pending' | 'payment_confirmed' | 'stock_low' | 'approval_needed' | 'general'
           title?: string
           message?: string
-          link?: string | null
+          action_url?: string | null
           read?: boolean
           created_at?: string
         }
@@ -907,7 +915,23 @@ export interface Database {
       }
       get_user_branch_id: {
         Args: Record<PropertyKey, never>
-        Returns: string | null
+        Returns: string
+      }
+      get_customer_balance: {
+        Args: { p_customer_id: string }
+        Returns: number
+      }
+      can_customer_order: {
+        Args: { p_customer_id: string; p_order_amount: number }
+        Returns: boolean
+      }
+      get_rep_total_sales: {
+        Args: { p_rep_id: string; p_start_date: string; p_end_date: string }
+        Returns: number
+      }
+      get_target_achievement: {
+        Args: { p_target_id: string }
+        Returns: number
       }
       create_audit_log: {
         Args: {
@@ -926,7 +950,7 @@ export interface Database {
           p_type: string
           p_title: string
           p_message: string
-          p_link?: string
+          p_action_url?: string
         }
         Returns: void
       }
