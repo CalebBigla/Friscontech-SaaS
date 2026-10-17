@@ -38,7 +38,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useDb } from "@/services/mock-store";
-import { sessionService } from "@/services/services";
 import { useAuth } from "@/contexts/auth-context";
 import * as auth from "@/services/auth";
 import {
@@ -205,7 +204,7 @@ const sectionsFor = (role: string) =>
         ? ownerSections
         : managementSections;
 
-const demoUserIds = ["user-001", "user-002", "user-022", "user-010"];
+
 
 export function AppShell({
   title,
@@ -362,13 +361,13 @@ export function AppShell({
             <DropdownMenuTrigger asChild>
               <button
                 className={`flex w-full items-center gap-3 rounded-md bg-muted p-3 text-left ${sidebarCollapsed ? "lg:justify-center lg:p-2" : ""}`}
-                aria-label="Switch demo user"
+                aria-label="Account menu"
               >
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-avatar text-xs font-bold text-primary">
-                  {initials(scope.user.name)}
+                  {initials(scope.user.name ?? "")}
                 </span>
                 <div className={sidebarCollapsed ? "min-w-0 lg:hidden" : "min-w-0"}>
-                  <p className="truncate text-xs font-bold">{scope.user.name}</p>
+                  <p className="truncate text-xs font-bold">{scope.user.name ?? "—"}</p>
                   <p className="truncate text-[11px] text-muted-foreground">
                     {roleLabel[scope.user.role]} · {branch?.name ?? db.tenant.name}
                   </p>
@@ -376,27 +375,19 @@ export function AppShell({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel className="text-xs">View as (demo)</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {demoUserIds.map((id) => {
-                const x = db.users.find((usr) => usr.id === id)!;
-                return (
-                  <DropdownMenuItem
-                    key={id}
-                    onClick={() => {
-                      sessionService.switchUser(userId, id);
-                      setCurrentUserId(id);
-                    }}
-                    className="flex-col items-start gap-0"
-                  >
-                    <span className="text-xs font-bold">{x.name}</span>
-                    <span className="text-[11px] text-muted-foreground">{roleLabel[x.role]}</span>
-                  </DropdownMenuItem>
-                );
-              })}
+              <DropdownMenuLabel className="text-xs">
+                <p className="font-bold">{scope.user.name ?? "—"}</p>
+                <p className="font-normal text-muted-foreground">{scope.user.email ?? ""}</p>
+              </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link to="/login" onClick={() => auth.signOut(userId)} className="text-xs font-semibold">Sign out</Link>
+                <Link to="/settings" className="text-xs">Settings</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/login" onClick={() => auth.signOut(userId)} className="text-xs font-semibold text-destructive">
+                  Sign out
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
