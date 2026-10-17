@@ -15,6 +15,7 @@ import { useNavigate } from "@tanstack/react-router";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { onAuthStateChange } from "@/services/auth";
+import { setAuthUserRef } from "@/lib/session";
 import type { User } from "@/data/mock-db";
 
 type AuthContextType = {
@@ -58,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await loadUserProfile(session.user.id);
       } else {
         setUser(null);
+        setAuthUserRef(null); // Clear auth user ref on sign out
         setLoading(false);
         
         // Redirect to login on signout
@@ -119,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           deactivatedAt: userProfile.deactivated_at,
         };
         setUser(appUser);
+        setAuthUserRef(appUser); // Make available to getAccessScope without db.users
       }
     } catch (err) {
       console.error("Failed to load user profile:", err);

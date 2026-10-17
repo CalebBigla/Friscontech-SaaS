@@ -240,8 +240,12 @@ export function AppShell({
     }
   }, [sidebarCollapsed, sidebarPreferenceReady]);
   const db = useDb();
-  const userId = useCurrentUserId();
-  const scope = getAccessScope(db, userId);
+  const { user: authUser } = useAuth();
+  const legacyUserId = useCurrentUserId();
+  const userId = authUser?.id ?? legacyUserId;
+  // Build a minimal db with the authenticated user so getAccessScope works with empty mock-store
+  const dbWithUser = authUser ? { ...db, users: [authUser] } : db;
+  const scope = getAccessScope(dbWithUser, userId);
   const branch = db.branches.find((b) => b.id === scope.user.branchId);
   const tabs = mobileTabs[scope.user.role];
 
@@ -470,7 +474,11 @@ export function RoleGate({
   children: ReactNode;
 }) {
   const db = useDb();
-  const scope = getAccessScope(db, useCurrentUserId());
+  const { user: authUser } = useAuth();
+  const legacyUserId = useCurrentUserId();
+  const userId = authUser?.id ?? legacyUserId;
+  const dbWithUser = authUser ? { ...db, users: [authUser] } : db;
+  const scope = getAccessScope(dbWithUser, userId);
   if (!allow(scope))
     return (
       <AppShell title={title}>

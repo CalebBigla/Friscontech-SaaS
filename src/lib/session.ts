@@ -95,6 +95,15 @@ const none = {
   canManageTeam: false,
   canViewReports: false,
 };
+/** 
+ * Singleton auth user reference - set by AuthProvider on login.
+ * Allows getAccessScope() to work even when db.users is empty (post-migration).
+ */
+let _authUser: User | null = null;
+export function setAuthUserRef(user: User | null) {
+  _authUser = user;
+}
+
 export function getAccessScope(db: Db, userId: string): AccessScope {
   const s = baseScope(db, userId);
   const r = s.user.role;
@@ -126,7 +135,11 @@ type Extra =
   | "canManageCustomers"
   | "canSetCreditLimit";
 function baseScope(db: Db, userId: string): Omit<AccessScope, Extra> {
-  const user = (db.users.find((x) => x.id === userId) ?? db.users[0])!;
+  // Use auth user as fallback when db.users is empty (Supabase migration)
+  const user = db.users.find((x) => x.id === userId)
+    ?? db.users[0]
+    ?? _authUser
+    ?? ({ id: userId, role: "sales_rep", tenantId: "", branchId: null, firstName: "User", lastName: "", status: "active", joinedAt: "" } as User);
   const own = user.branchId ? [user.branchId] : [];
   switch (user.role) {
     case "owner":

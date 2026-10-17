@@ -1,46 +1,61 @@
 /**
- * MIGRATION IN PROGRESS: Mock store being phased out
+ * MIGRATION IN PROGRESS
  * 
- * This file is kept temporarily for backward compatibility during Phase E migration.
- * Seed data generation is DISABLED - database returns empty arrays.
- * Components should use Supabase hooks instead of useDb().
+ * This file now returns a minimal empty database structure.
+ * ALL seed data generation is bypassed completely.
+ * Components must use Supabase hooks (src/hooks/) for real data.
  * 
- * TODO: Remove this file entirely after all components migrated to Supabase hooks.
+ * The empty tenant record exists only so that session.ts / getAccessScope()
+ * doesn't crash while components are being migrated.
+ * 
+ * TODO: Remove this file entirely once all components use Supabase hooks.
  */
 import { useSyncExternalStore } from "react";
-import { createSeedDb, type Db } from "@/data/mock-db";
+import type { Db } from "@/data/mock-db";
 
-// MIGRATION: Override seed function to return empty database
-function createEmptyDb(): Db {
-  const seedDb = createSeedDb();
-  return {
-    ...seedDb,
-    // Clear all data arrays - keep only structure
-    branches: [],
-    users: [],
-    products: [],
-    sales: [],
-    inventory: [],
-    inventoryMovements: [],
-    stockBatches: [],
-    customers: [],
-    customerPayments: [],
-    payments: [],
-    expenses: [],
-    remittances: [],
-    ownerRemittances: [],
-    stockRequests: [],
-    targets: [],
-    activities: [],
-    notifications: [],
-    onboardings: [],
-    approvals: [],
-    escalations: [],
-    preferences: [],
-  };
-}
+/** Minimal tenant shell - no real data, just keeps getAccessScope() from crashing */
+const emptyTenant: Db["tenant"] = {
+  id: "",
+  name: "",
+  currency: "NGN",
+  referenceDate: new Date().toISOString().slice(0, 10),
+  lastSyncTime: "",
+  legalName: "",
+  businessEmail: "",
+  phone: "",
+  timezone: "Africa/Lagos",
+  plan: "",
+  expiryAlertMonths: 3,
+  createdAt: "",
+  updatedAt: "",
+};
 
-let db: Db = createEmptyDb(); // MIGRATION: Returns empty DB
+const emptyDb: Db = {
+  tenant: emptyTenant,
+  branches: [],
+  users: [],
+  products: [],
+  sales: [],
+  inventory: [],
+  inventoryMovements: [],
+  stockBatches: [],
+  customers: [],
+  customerPayments: [],
+  payments: [],
+  expenses: [],
+  remittances: [],
+  ownerRemittances: [],
+  stockRequests: [],
+  targets: [],
+  activities: [],
+  notifications: [],
+  onboardings: [],
+  approvals: [],
+  escalations: [],
+  preferences: [],
+};
+
+let db: Db = { ...emptyDb };
 const listeners = new Set<() => void>();
 
 export function getDb() { return db; }
