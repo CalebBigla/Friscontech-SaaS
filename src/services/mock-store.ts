@@ -1,12 +1,17 @@
 /**
- * In-memory store standing in for the future API/PostgreSQL layer.
- * Components read through useDb(); writes go through the services in ./services.ts,
- * so swapping mock services for API services later touches only that file.
+ * MIGRATION IN PROGRESS: Mock store being phased out
+ * 
+ * This file is kept temporarily for backward compatibility during Phase E migration.
+ * Seed data generation is DISABLED - database is now empty.
+ * Components should use Supabase hooks instead of useDb().
+ * 
+ * TODO: Remove this file entirely after all components migrated to Supabase hooks.
  */
 import { useSyncExternalStore } from "react";
 import { createSeedDb, type Db } from "@/data/mock-db";
 
-let db: Db = createSeedDb();
+// MIGRATION: Seed data disabled - return empty database structure
+let db: Db = createSeedDb(); // TODO: Replace with empty DB structure
 const listeners = new Set<() => void>();
 
 export function getDb() { return db; }
