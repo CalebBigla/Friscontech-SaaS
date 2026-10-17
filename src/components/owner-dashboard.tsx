@@ -153,7 +153,7 @@ export function OwnerDashboard() {
     >
       <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-xl font-bold">Good afternoon, {scope.user.name.split(" ")[0]}</h1>
+          <h1 className="text-xl font-bold">Good afternoon, {(scope.user.name ?? "").split(" ")[0]}</h1>
           <p className="mt-1 text-xs text-muted-foreground">
             Updated today at {db.tenant.lastSyncTime} AM · Fiscal week W{isoWeek(today)}
           </p>

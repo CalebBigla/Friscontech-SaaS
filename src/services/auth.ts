@@ -119,7 +119,7 @@ export async function signUpOwner(
     }
 
     // Create audit log for signup
-    await supabase.rpc("create_audit_log", {
+    await (supabase as any).rpc("create_audit_log", {
       p_user_id: ownerUser.id,
       p_action_type: "Signup",
       p_description: "Owner account created",
@@ -293,7 +293,7 @@ export async function signIn(
     }
 
     // Create audit log for login
-    await supabase.rpc("create_audit_log", {
+    await (supabase as any).rpc("create_audit_log", {
       p_user_id: userProfile.id,
       p_action_type: "Login",
       p_description: "Signed in with email and password",
@@ -318,7 +318,7 @@ export async function signOut(userId?: string): Promise<void> {
   try {
     // Create audit log before signing out
     if (userId) {
-      await supabase.rpc("create_audit_log", {
+      await (supabase as any).rpc("create_audit_log", {
         p_user_id: userId,
         p_action_type: "Logout",
         p_description: "Signed out",
@@ -392,7 +392,7 @@ export async function resetPassword(newPassword: string): Promise<AuthResult> {
       .single();
 
     if (user) {
-      await supabase.rpc("create_audit_log", {
+      await (supabase as any).rpc("create_audit_log", {
         p_user_id: user.id,
         p_action_type: "Password reset",
         p_description: "Reset password with a recovery link",

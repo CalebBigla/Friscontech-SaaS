@@ -50,7 +50,7 @@ export function ManagerDashboard() {
       subtitle="Branch revenue, collections and items needing your attention"
     >
       <div className="mb-5">
-        <h1 className="text-xl font-bold">Good morning, {scope.user.name.split(" ")[0]}</h1>
+        <h1 className="text-xl font-bold">Good morning, {(scope.user.name ?? "").split(" ")[0]}</h1>
         <p className="mt-1 text-xs text-muted-foreground">
           {branch.name} · {branch.location}
         </p>

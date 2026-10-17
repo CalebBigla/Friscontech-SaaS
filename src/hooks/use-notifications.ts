@@ -60,8 +60,7 @@ export function useUnreadNotificationsCount(userId: string) {
   return useQuery({
     queryKey: queryKeys.notifications.unreadCount(userId),
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from('notifications')
+      const { count, error } = await (supabase as any).from('notifications')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
         .eq('read', false);
@@ -81,8 +80,7 @@ export function useUnreadNotifications(userId: string) {
   return useQuery({
     queryKey: queryKeys.notifications.unread(userId),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('notifications')
+      const { data, error } = await (supabase as any).from('notifications')
         .select('*')
         .eq('user_id', userId)
         .eq('read', false)
@@ -102,8 +100,7 @@ export function useNotification(id: string) {
   return useQuery({
     queryKey: queryKeys.notifications.detail(id),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('notifications')
+      const { data, error } = await (supabase as any).from('notifications')
         .select('*')
         .eq('id', id)
         .single();
@@ -123,8 +120,7 @@ export function useCreateNotification() {
 
   return useMutation({
     mutationFn: async (input: NotificationInsert) => {
-      const { data, error } = await supabase
-        .from('notifications')
+      const { data, error } = await (supabase as any).from('notifications')
         .insert(input)
         .select()
         .single();
@@ -154,8 +150,7 @@ export function useBulkCreateNotifications() {
 
   return useMutation({
     mutationFn: async (inputs: NotificationInsert[]) => {
-      const { data, error } = await supabase
-        .from('notifications')
+      const { data, error } = await (supabase as any).from('notifications')
         .insert(inputs)
         .select();
 
@@ -188,8 +183,7 @@ export function useMarkNotificationRead() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await supabase
-        .from('notifications')
+      const { data, error } = await (supabase as any).from('notifications')
         .update({ read: true })
         .eq('id', id)
         .select()
@@ -223,8 +217,7 @@ export function useMarkAllNotificationsRead() {
 
   return useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from('notifications')
+      const { error } = await (supabase as any).from('notifications')
         .update({ read: true })
         .eq('user_id', userId)
         .eq('read', false);
@@ -254,8 +247,7 @@ export function useDeleteNotification() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('notifications')
+      const { error } = await (supabase as any).from('notifications')
         .delete()
         .eq('id', id);
 
@@ -265,7 +257,7 @@ export function useDeleteNotification() {
     onSuccess: () => {
       // Invalidate all notification queries since we don't have userId here
       queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.all,
+        queryKey: ["notifications"],
       });
     },
   });
@@ -279,8 +271,7 @@ export function useDeleteReadNotifications() {
 
   return useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from('notifications')
+      const { error } = await (supabase as any).from('notifications')
         .delete()
         .eq('user_id', userId)
         .eq('read', true);

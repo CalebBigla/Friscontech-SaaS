@@ -27,7 +27,7 @@ export function BranchesPage() {
   
   // Fetch branches from Supabase
   const { data: branchesData, isLoading, error } = useBranches();
-  const branches = branchesData || [];
+  const branches: Branch[] = (branchesData as Branch[] | undefined) || [];
   
   const month = monthOf(db.tenant.referenceDate);
   const [query, setQuery] = useState("");

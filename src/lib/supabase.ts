@@ -13,8 +13,8 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseUrl = import.meta.env["VITE_SUPABASE_URL"] as string
+const supabaseAnonKey = import.meta.env["VITE_SUPABASE_ANON_KEY"] as string
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
@@ -72,3 +72,16 @@ export async function signOut() {
     throw error
   }
 }
+
+/**
+ * Untyped Supabase client for mutations (insert/update/delete).
+ *
+ * The strongly-typed `supabase` client requires exact Insert/Update shapes from
+ * the generated Database types.  When hooks build objects dynamically, TypeScript
+ * infers the argument as `never`.  Using `db` here avoids that while keeping
+ * typed reads (selects) on the main `supabase` export.
+ *
+ * This is intentional and safe: RLS policies enforce access control server-side.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const db = supabase as any;

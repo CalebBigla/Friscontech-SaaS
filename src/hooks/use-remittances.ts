@@ -74,8 +74,7 @@ export function useManagerRemittance(id: string) {
   return useQuery({
     queryKey: queryKeys.remittances.manager.detail(id),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('manager_remittances')
+      const { data, error } = await (supabase as any).from('manager_remittances')
         .select('*')
         .eq('id', id)
         .single();
@@ -95,8 +94,7 @@ export function useSubmitManagerRemittance() {
 
   return useMutation({
     mutationFn: async (input: ManagerRemittanceInsert) => {
-      const { data, error } = await supabase
-        .from('manager_remittances')
+      const { data, error } = await (supabase as any).from('manager_remittances')
         .insert(input)
         .select()
         .single();
@@ -128,8 +126,7 @@ export function useApproveManagerRemittance() {
     }) => {
       const now = new Date().toISOString();
       
-      const { data, error } = await supabase
-        .from('manager_remittances')
+      const { data, error } = await (supabase as any).from('manager_remittances')
         .update({
           status: 'approved',
           reviewed_by: reviewerId,
@@ -172,8 +169,7 @@ export function useRejectManagerRemittance() {
     }) => {
       const now = new Date().toISOString();
       
-      const { data, error } = await supabase
-        .from('manager_remittances')
+      const { data, error } = await (supabase as any).from('manager_remittances')
         .update({
           status: 'rejected',
           reviewed_by: reviewerId,
@@ -253,8 +249,7 @@ export function useOwnerRemittance(id: string) {
   return useQuery({
     queryKey: queryKeys.remittances.owner.detail(id),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('owner_remittances')
+      const { data, error } = await (supabase as any).from('owner_remittances')
         .select('*')
         .eq('id', id)
         .single();
@@ -274,8 +269,7 @@ export function useCreateOwnerRemittance() {
 
   return useMutation({
     mutationFn: async (input: OwnerRemittanceInsert) => {
-      const { data, error } = await supabase
-        .from('owner_remittances')
+      const { data, error } = await (supabase as any).from('owner_remittances')
         .insert(input)
         .select()
         .single();
@@ -305,8 +299,7 @@ export function useUpdateOwnerRemittance() {
       id: string;
       updates: OwnerRemittanceUpdate;
     }) => {
-      const { data, error } = await supabase
-        .from('owner_remittances')
+      const { data, error } = await (supabase as any).from('owner_remittances')
         .update(updates)
         .eq('id', id)
         .select()
@@ -334,8 +327,7 @@ export function useDeleteOwnerRemittance() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('owner_remittances')
+      const { error } = await (supabase as any).from('owner_remittances')
         .delete()
         .eq('id', id);
 
@@ -345,7 +337,7 @@ export function useDeleteOwnerRemittance() {
     onSuccess: (_, id) => {
       // Invalidate all owner remittances queries since we don't have tenantId here
       queryClient.invalidateQueries({
-        queryKey: queryKeys.remittances.owner.all,
+        queryKey: ["remittances", "owner"],
       });
     },
   });

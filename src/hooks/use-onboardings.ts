@@ -74,8 +74,7 @@ export function useOnboarding(id: string) {
   return useQuery({
     queryKey: queryKeys.onboardings.detail(id),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('onboardings')
+      const { data, error } = await (supabase as any).from('onboardings')
         .select('*')
         .eq('id', id)
         .single();
@@ -94,8 +93,7 @@ export function useOnboardingByToken(token: string) {
   return useQuery({
     queryKey: queryKeys.onboardings.byToken(token),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('onboardings')
+      const { data, error } = await (supabase as any).from('onboardings')
         .select('*')
         .eq('token', token)
         .single();
@@ -116,8 +114,7 @@ export function usePendingOnboardings(tenantId: string) {
     queryFn: async () => {
       const now = new Date().toISOString();
       
-      const { data, error } = await supabase
-        .from('onboardings')
+      const { data, error } = await (supabase as any).from('onboardings')
         .select('*')
         .eq('tenant_id', tenantId)
         .eq('completed', false)
@@ -139,8 +136,7 @@ export function useCreateOnboarding() {
 
   return useMutation({
     mutationFn: async (input: OnboardingInsert) => {
-      const { data, error } = await supabase
-        .from('onboardings')
+      const { data, error } = await (supabase as any).from('onboardings')
         .insert(input)
         .select()
         .single();
@@ -169,8 +165,7 @@ export function useCompleteOnboarding() {
     mutationFn: async (id: string) => {
       const now = new Date().toISOString();
       
-      const { data, error } = await supabase
-        .from('onboardings')
+      const { data, error } = await (supabase as any).from('onboardings')
         .update({
           completed: true,
           completed_at: now,
@@ -213,8 +208,7 @@ export function useUpdateOnboarding() {
       id: string;
       updates: OnboardingUpdate;
     }) => {
-      const { data, error } = await supabase
-        .from('onboardings')
+      const { data, error } = await (supabase as any).from('onboardings')
         .update(updates)
         .eq('id', id)
         .select()
@@ -245,8 +239,7 @@ export function useDeleteOnboarding() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('onboardings')
+      const { error } = await (supabase as any).from('onboardings')
         .delete()
         .eq('id', id);
 
@@ -256,7 +249,7 @@ export function useDeleteOnboarding() {
     onSuccess: () => {
       // Invalidate all onboarding queries since we don't have tenantId here
       queryClient.invalidateQueries({
-        queryKey: queryKeys.onboardings.all,
+        queryKey: ["onboardings"],
       });
     },
   });
@@ -273,8 +266,7 @@ export function useOnboardingFiles(onboardingId: string) {
   return useQuery({
     queryKey: queryKeys.onboardings.files(onboardingId),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('onboarding_files')
+      const { data, error } = await (supabase as any).from('onboarding_files')
         .select('*')
         .eq('onboarding_id', onboardingId)
         .order('uploaded_at', { ascending: true });
@@ -294,8 +286,7 @@ export function useAddOnboardingFile() {
 
   return useMutation({
     mutationFn: async (input: OnboardingFileInsert) => {
-      const { data, error } = await supabase
-        .from('onboarding_files')
+      const { data, error } = await (supabase as any).from('onboarding_files')
         .insert(input)
         .select()
         .single();
@@ -319,8 +310,7 @@ export function useBulkAddOnboardingFiles() {
 
   return useMutation({
     mutationFn: async (inputs: OnboardingFileInsert[]) => {
-      const { data, error } = await supabase
-        .from('onboarding_files')
+      const { data, error } = await (supabase as any).from('onboarding_files')
         .insert(inputs)
         .select();
 
@@ -328,8 +318,8 @@ export function useBulkAddOnboardingFiles() {
       return data as OnboardingFileRow[];
     },
     onSuccess: (data) => {
-      if (data.length > 0) {
-        const onboardingId = data[0].onboarding_id;
+      if (data && data.length > 0) {
+        const onboardingId = (data[0] as OnboardingFileRow).onboarding_id;
         queryClient.invalidateQueries({
           queryKey: queryKeys.onboardings.files(onboardingId),
         });
@@ -346,8 +336,7 @@ export function useDeleteOnboardingFile() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('onboarding_files')
+      const { error } = await (supabase as any).from('onboarding_files')
         .delete()
         .eq('id', id);
 

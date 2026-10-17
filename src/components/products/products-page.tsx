@@ -25,7 +25,7 @@ const sortOptions: { value: ProductSortKey; label: string }[] = [
 export function ProductsPage() {
   const db = useDb();
   const tenantId = useTenantId();
-  const { data: productsData, isLoading: productsLoading } = useProducts(tenantId);
+  const { data: productsData, isLoading: productsLoading } = useProducts();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const manage = scope.canManageProducts;
@@ -39,7 +39,7 @@ export function ProductsPage() {
   const [importing, setImporting] = useState(false);
 
   // Use Supabase products if available, fallback to mock for now during migration
-  const products = productsData || db.products;
+  const products: Product[] = (productsData as Product[] | undefined) || db.products;
 
   const summary = getProductSummary({ ...db, products });
   const categories = getProductCategories({ ...db, products });

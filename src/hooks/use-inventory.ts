@@ -23,8 +23,7 @@ export function useInventory() {
     queryFn: async () => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('inventory_records')
+      const { data, error } = await (supabase as any).from('inventory_records')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('created_at', { ascending: false });
@@ -46,8 +45,7 @@ export function useInventoryByBranch(branchId: string | undefined) {
     queryFn: async () => {
       if (!branchId) throw new Error('Branch ID required');
       
-      const { data, error } = await supabase
-        .from('inventory_records')
+      const { data, error } = await (supabase as any).from('inventory_records')
         .select('*')
         .eq('branch_id', branchId)
         .order('updated_at', { ascending: false });
@@ -69,8 +67,7 @@ export function useInventoryRecord(recordId: string | undefined) {
     queryFn: async () => {
       if (!recordId) throw new Error('Record ID required');
       
-      const { data, error } = await supabase
-        .from('inventory_records')
+      const { data, error } = await (supabase as any).from('inventory_records')
         .select('*')
         .eq('id', recordId)
         .single();
@@ -92,8 +89,7 @@ export function useInventoryMovements(recordId: string | undefined) {
     queryFn: async () => {
       if (!recordId) throw new Error('Record ID required');
       
-      const { data, error } = await supabase
-        .from('inventory_movements')
+      const { data, error } = await (supabase as any).from('inventory_movements')
         .select('*')
         .eq('reference_id', recordId)
         .order('created_at', { ascending: false });
@@ -115,8 +111,7 @@ export function useStockBatches(productId: string | undefined, branchId: string 
     queryFn: async () => {
       if (!productId || !branchId) throw new Error('Product and branch required');
       
-      const { data, error } = await supabase
-        .from('stock_batches')
+      const { data, error } = await (supabase as any).from('stock_batches')
         .select('*')
         .eq('product_id', productId)
         .eq('branch_id', branchId)
@@ -144,8 +139,7 @@ export function useUpdateInventory() {
       
       const dbData = inventoryRecordToDb(updates, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('inventory_records')
+      const { data, error } = await (supabase as any).from('inventory_records')
         .update(dbData)
         .eq('id', id)
         .select()
@@ -182,8 +176,7 @@ export function useCreateInventoryMovement() {
       
       const dbData = inventoryMovementToDb(input, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('inventory_movements')
+      const { data, error } = await (supabase as any).from('inventory_movements')
         .insert(dbData)
         .select()
         .single();
@@ -213,8 +206,7 @@ export function useCreateStockBatch() {
       
       const dbData = stockBatchToDb(input, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('stock_batches')
+      const { data, error } = await (supabase as any).from('stock_batches')
         .insert(dbData)
         .select()
         .single();

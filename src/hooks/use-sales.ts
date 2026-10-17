@@ -23,8 +23,7 @@ export function useSales() {
     queryFn: async () => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('sales')
+      const { data, error } = await (supabase as any).from('sales')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('sale_date', { ascending: false })
@@ -47,8 +46,7 @@ export function useSalesByBranch(branchId: string | undefined) {
     queryFn: async () => {
       if (!branchId) throw new Error('Branch ID required');
       
-      const { data, error } = await supabase
-        .from('sales')
+      const { data, error } = await (supabase as any).from('sales')
         .select('*')
         .eq('branch_id', branchId)
         .order('sale_date', { ascending: false })
@@ -71,8 +69,7 @@ export function useSalesByRep(repId: string | undefined) {
     queryFn: async () => {
       if (!repId) throw new Error('Rep ID required');
       
-      const { data, error } = await supabase
-        .from('sales')
+      const { data, error } = await (supabase as any).from('sales')
         .select('*')
         .eq('sales_rep_id', repId)
         .order('sale_date', { ascending: false })
@@ -93,8 +90,7 @@ export function useSalesByPeriod(startDate: string, endDate: string) {
   return useQuery({
     queryKey: queryKeys.sales.byPeriod(startDate, endDate),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('sales')
+      const { data, error } = await (supabase as any).from('sales')
         .select('*')
         .gte('sale_date', startDate)
         .lte('sale_date', endDate)
@@ -121,8 +117,7 @@ export function useCreateSale() {
       
       const dbData = saleToDb(input, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('sales')
+      const { data, error } = await (supabase as any).from('sales')
         .insert(dbData)
         .select()
         .single();
@@ -162,8 +157,7 @@ export function useBulkCreateSales() {
       
       const dbData = sales.map(s => saleToDb(s, user.tenantId));
       
-      const { data, error } = await supabase
-        .from('sales')
+      const { data, error } = await (supabase as any).from('sales')
         .insert(dbData)
         .select();
       

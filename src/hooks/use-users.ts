@@ -23,8 +23,7 @@ export function useUsers() {
     queryFn: async () => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('users')
+      const { data, error } = await (supabase as any).from('users')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('first_name');
@@ -46,8 +45,7 @@ export function useUsersByBranch(branchId: string | undefined) {
     queryFn: async () => {
       if (!branchId) throw new Error('Branch ID required');
       
-      const { data, error } = await supabase
-        .from('users')
+      const { data, error } = await (supabase as any).from('users')
         .select('*')
         .eq('branch_id', branchId)
         .order('first_name');
@@ -71,8 +69,7 @@ export function useUsersByRole(role: Role) {
     queryFn: async () => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('users')
+      const { data, error } = await (supabase as any).from('users')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .eq('role', role)
@@ -95,8 +92,7 @@ export function useUser(userId: string | undefined) {
     queryFn: async () => {
       if (!userId) throw new Error('User ID required');
       
-      const { data, error } = await supabase
-        .from('users')
+      const { data, error } = await (supabase as any).from('users')
         .select('*')
         .eq('id', userId)
         .single();
@@ -122,8 +118,7 @@ export function useCreateUser() {
       
       const dbData = userToDb(input, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('users')
+      const { data, error } = await (supabase as any).from('users')
         .insert(dbData)
         .select()
         .single();
@@ -153,8 +148,7 @@ export function useUpdateUser() {
       
       const dbData = userToDb(updates, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('users')
+      const { data, error } = await (supabase as any).from('users')
         .update(dbData)
         .eq('id', id)
         .select()
@@ -191,8 +185,7 @@ export function useDeactivateUser() {
     mutationFn: async (userId: string) => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('users')
+      const { data, error } = await (supabase as any).from('users')
         .update({ 
           status: 'inactive',
           deactivated_at: new Date().toISOString(),
@@ -227,8 +220,7 @@ export function useReactivateUser() {
     mutationFn: async (userId: string) => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('users')
+      const { data, error } = await (supabase as any).from('users')
         .update({ 
           status: 'active',
           deactivated_at: null,

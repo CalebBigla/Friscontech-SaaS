@@ -1,702 +1,651 @@
 /**
  * Type Adapters
- * 
- * Transform between database types (snake_case) and app types (camelCase)
- * Maintains separation between database schema and application domain
+ *
+ * Transform between database rows (snake_case) and app objects (camelCase).
+ * Every transformer references only columns that actually exist in database.types.ts.
  */
 
 import type { Row } from "@/lib/supabase-helpers";
 import type { Branch, BranchStatus, User, Product, ProductStatus } from "@/data/mock-db";
 
-/**
- * Transform database branch row to app Branch type
- */
-export function transformBranch(dbRow: Row<'branches'>): Branch {
+// ─────────────────────────── BRANCHES ────────────────────────────
+
+export function transformBranch(dbRow: Row<"branches">): Branch {
   return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    name: dbRow.name,
-    code: dbRow.code,
-    location: dbRow.location || undefined,
-    status: dbRow.status as BranchStatus,
-    managerId: dbRow.manager_id || undefined,
-    createdAt: dbRow.created_at,
-    deactivatedAt: dbRow.deactivated_at || undefined,
+    id:           dbRow.id,
+    tenantId:     dbRow.tenant_id,
+    name:         dbRow.name,
+    code:         dbRow.code,
+    location:     dbRow.location ?? "",
+    address:      "",   // not in DB schema - default to empty
+    phone:        "",   // not in DB schema - default to empty
+    email:        "",   // not in DB schema - default to empty
+    status:       dbRow.status as BranchStatus,
+    managerId:    dbRow.manager_id ?? null,
+    createdAt:    dbRow.created_at,
   };
 }
 
-/**
- * Transform app Branch input to database insert
- */
 export function branchToDb(branch: Partial<Branch>, tenantId: string): any {
-  const result: any = {
-    tenant_id: tenantId,
-  };
-  
-  if (branch.id) result.id = branch.id;
-  if (branch.name) result.name = branch.name;
-  if (branch.code) result.code = branch.code;
-  if (branch.location !== undefined) result.location = branch.location || null;
-  if (branch.status) result.status = branch.status;
-  if (branch.managerId !== undefined) result.manager_id = branch.managerId || null;
-  if (branch.deactivatedAt !== undefined) result.deactivated_at = branch.deactivatedAt || null;
-  
-  return result;
+  const r: any = { tenant_id: tenantId };
+  if (branch.id)                          r.id              = branch.id;
+  if (branch.name)                        r.name            = branch.name;
+  if (branch.code)                        r.code            = branch.code;
+  if (branch.location  !== undefined)     r.location        = branch.location  ?? null;
+  if (branch.status)                      r.status          = branch.status;
+  if (branch.managerId !== undefined)     r.manager_id      = branch.managerId ?? null;
+  return r;
 }
 
-/**
- * Transform database user row to app User type
- */
-export function transformUser(dbRow: Row<'users'>): User {
+// ─────────────────────────── USERS ───────────────────────────────
+
+export function transformUser(dbRow: Row<"users">): User {
+  const firstName = dbRow.first_name ?? "";
+  const lastName  = dbRow.last_name  ?? "";
   return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    branchId: dbRow.branch_id || undefined,
-    firstName: dbRow.first_name,
-    lastName: dbRow.last_name,
-    email: dbRow.email || undefined,
-    phone: dbRow.phone || undefined,
-    role: dbRow.role as any,
-    status: dbRow.status as any,
-    joinedAt: dbRow.joined_at,
-    deactivatedAt: dbRow.deactivated_at || undefined,
+    id:            dbRow.id,
+    tenantId:      dbRow.tenant_id,
+    name:          [firstName, lastName].filter(Boolean).join(" ") || dbRow.email || "User",
+    firstName,
+    lastName,
+    email:         dbRow.email   ?? "",
+    phone:         dbRow.phone   ?? null,
+    role:          dbRow.role    as any,
+    status:        dbRow.status  as any,
+    branchId:      dbRow.branch_id ?? null,
+    managerId:     null,
+    joinedAt:      dbRow.joined_at,
+    deactivatedAt: dbRow.deactivated_at ?? null,
+    authId:        dbRow.auth_id ?? null,
+    createdAt:     dbRow.joined_at ?? "",
   };
 }
 
-/**
- * Transform database product row to app Product type
- */
-export function transformProduct(dbRow: Row<'products'>): Product {
+export function userToDb(user: Partial<User>, tenantId: string): any {
+  const r: any = { tenant_id: tenantId };
+  if (user.id)                          r.id               = user.id;
+  if (user.branchId  !== undefined)     r.branch_id        = user.branchId  ?? null;
+  if (user.firstName)                   r.first_name       = user.firstName;
+  if (user.lastName)                    r.last_name        = user.lastName;
+  if (user.email    !== undefined)      r.email            = user.email     ?? null;
+  if (user.phone    !== undefined)      r.phone            = user.phone     ?? null;
+  if (user.role)                        r.role             = user.role;
+  if (user.status)                      r.status           = user.status;
+  if (user.joinedAt)                    r.joined_at        = user.joinedAt;
+  if (user.deactivatedAt !== undefined) r.deactivated_at   = user.deactivatedAt ?? null;
+  if (user.authId    !== undefined)     r.auth_id          = user.authId    ?? null;
+  return r;
+}
+
+// ─────────────────────────── USER PREFERENCES ────────────────────
+
+export function transformPreference(dbRow: Row<"user_preferences">): any {
   return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    name: dbRow.name,
-    sku: dbRow.sku,
-    category: dbRow.category,
-    unit: dbRow.unit,
-    unitCost: dbRow.unit_cost,
-    unitPrice: dbRow.unit_price,
-    status: dbRow.status as ProductStatus,
-    lowStockThreshold: dbRow.low_stock_threshold || undefined,
-    description: dbRow.description || undefined,
-    imageUrl: dbRow.image_url || undefined,
-    createdAt: dbRow.created_at,
-    deactivatedAt: dbRow.deactivated_at || undefined,
+    userId:              dbRow.user_id,
+    dateFormat:          dbRow.date_format,
+    defaultReportPeriod: dbRow.report_period,
+    updatedAt:           dbRow.updated_at,
   };
 }
 
-/**
- * Transform app Product input to database insert/update
- */
+export function preferenceToDb(pref: Partial<any>, userId: string): any {
+  const r: any = { user_id: userId };
+  if (pref.dateFormat)          r.date_format   = pref.dateFormat;
+  if (pref.reportPeriod)        r.report_period = pref.reportPeriod;
+  if (pref.defaultReportPeriod) r.report_period = pref.defaultReportPeriod;
+  return r;
+}
+
+// ─────────────────────────── PRODUCTS ────────────────────────────
+
+export function transformProduct(dbRow: Row<"products">): Product {
+  return {
+    id:                dbRow.id,
+    tenantId:          dbRow.tenant_id,
+    name:              dbRow.name,
+    sku:               dbRow.sku,
+    category:          dbRow.category,
+    unit:              dbRow.unit,
+    unitCost:          dbRow.unit_cost,
+    unitPrice:         dbRow.unit_price,
+    status:            dbRow.status as ProductStatus,
+    lowStockThreshold: dbRow.low_stock_threshold ?? 0,
+    description:       dbRow.description ?? "",
+    createdAt:         dbRow.created_at,
+    updatedAt:         dbRow.created_at, // DB schema has no updated_at; use created_at as fallback
+  };
+}
+
 export function productToDb(product: Partial<Product>, tenantId: string): any {
-  const result: any = {
-    tenant_id: tenantId,
-  };
-  
-  if (product.id) result.id = product.id;
-  if (product.name) result.name = product.name;
-  if (product.sku) result.sku = product.sku;
-  if (product.category) result.category = product.category;
-  if (product.unit) result.unit = product.unit;
-  if (product.unitCost !== undefined) result.unit_cost = product.unitCost;
-  if (product.unitPrice !== undefined) result.unit_price = product.unitPrice;
-  if (product.status) result.status = product.status;
-  if (product.lowStockThreshold !== undefined) result.low_stock_threshold = product.lowStockThreshold || null;
-  if (product.description !== undefined) result.description = product.description || null;
-  if (product.imageUrl !== undefined) result.image_url = product.imageUrl || null;
-  if (product.deactivatedAt !== undefined) result.deactivated_at = product.deactivatedAt || null;
-  
-  return result;
+  const r: any = { tenant_id: tenantId };
+  if (product.id)                           r.id                  = product.id;
+  if (product.name)                         r.name                = product.name;
+  if (product.sku)                          r.sku                 = product.sku;
+  if (product.category)                     r.category            = product.category;
+  if (product.unit)                         r.unit                = product.unit;
+  if (product.unitCost     !== undefined)   r.unit_cost           = product.unitCost;
+  if (product.unitPrice    !== undefined)   r.unit_price          = product.unitPrice;
+  if (product.status)                       r.status              = product.status;
+  if ((product as any).lowStockThreshold !== undefined) r.low_stock_threshold = (product as any).lowStockThreshold ?? null;
+  if ((product as any).description !== undefined)       r.description         = (product as any).description ?? null;
+  if ((product as any).imageUrl    !== undefined)       r.image_url           = (product as any).imageUrl    ?? null;
+  if ((product as any).deactivatedAt !== undefined)     r.deactivated_at      = (product as any).deactivatedAt ?? null;
+  return r;
 }
 
-/**
- * Transform database inventory_records row to app InventoryRecord type
- */
-export function transformInventoryRecord(dbRow: Row<'inventory_records'>): any {
+// ─────────────────────────── INVENTORY ───────────────────────────
+
+export function transformInventoryRecord(dbRow: Row<"inventory_records">): any {
   return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    branchId: dbRow.branch_id,
-    productId: dbRow.product_id,
-    quantityOnHand: dbRow.quantity_on_hand,
+    id:               dbRow.id,
+    tenantId:         dbRow.tenant_id,
+    branchId:         dbRow.branch_id,
+    productId:        dbRow.product_id,
+    quantityOnHand:   dbRow.quantity_on_hand,
     quantityReserved: dbRow.quantity_reserved,
-    updatedAt: dbRow.updated_at,
+    updatedAt:        dbRow.updated_at,
   };
 }
 
-/**
- * Transform database inventory_movements row to app InventoryMovement type
- */
-export function transformInventoryMovement(dbRow: Row<'inventory_movements'>): any {
+export function inventoryRecordToDb(r: Partial<any>, tenantId: string): any {
+  const out: any = { tenant_id: tenantId };
+  if (r.id)                          out.id                = r.id;
+  if (r.branchId)                    out.branch_id         = r.branchId;
+  if (r.productId)                   out.product_id        = r.productId;
+  if (r.quantityOnHand   !== undefined) out.quantity_on_hand   = r.quantityOnHand;
+  if (r.quantityReserved !== undefined) out.quantity_reserved  = r.quantityReserved;
+  return out;
+}
+
+export function transformInventoryMovement(dbRow: Row<"inventory_movements">): any {
   return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    branchId: dbRow.branch_id,
-    productId: dbRow.product_id,
+    id:           dbRow.id,
+    tenantId:     dbRow.tenant_id,
+    branchId:     dbRow.branch_id,
+    productId:    dbRow.product_id,
     movementType: dbRow.movement_type,
-    quantity: dbRow.quantity,
-    reference: dbRow.reference || undefined,
-    note: dbRow.note || undefined,
-    performedBy: dbRow.performed_by,
-    createdAt: dbRow.created_at,
+    quantity:     dbRow.quantity,
+    // DB uses reference_type + reference_id, not a single "reference" string
+    referenceType: dbRow.reference_type ?? undefined,
+    referenceId:   dbRow.reference_id   ?? undefined,
+    note:          dbRow.note           ?? undefined,
+    performedBy:  dbRow.performed_by,
+    createdAt:    dbRow.created_at,
   };
 }
 
-/**
- * Transform database stock_batches row to app StockBatch type
- */
-export function transformStockBatch(dbRow: Row<'stock_batches'>): any {
+export function inventoryMovementToDb(m: Partial<any>, tenantId: string): any {
+  const out: any = { tenant_id: tenantId };
+  if (m.id)            out.id             = m.id;
+  if (m.branchId)      out.branch_id      = m.branchId;
+  if (m.productId)     out.product_id     = m.productId;
+  if (m.movementType)  out.movement_type  = m.movementType;
+  if (m.quantity !== undefined) out.quantity = m.quantity;
+  if (m.referenceType) out.reference_type = m.referenceType;
+  if (m.referenceId !== undefined) out.reference_id = m.referenceId ?? null;
+  if (m.note    !== undefined) out.note    = m.note ?? null;
+  if (m.performedBy)   out.performed_by   = m.performedBy;
+  return out;
+}
+
+export function transformStockBatch(dbRow: Row<"stock_batches">): any {
   return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    branchId: dbRow.branch_id,
-    productId: dbRow.product_id,
-    batchNumber: dbRow.batch_number || undefined,
-    expiryDate: dbRow.expiry_date || undefined,
-    quantityReceived: dbRow.quantity_received,
+    id:                dbRow.id,
+    tenantId:          dbRow.tenant_id,
+    branchId:          dbRow.branch_id,
+    productId:         dbRow.product_id,
+    batchNumber:       dbRow.batch_number ?? undefined,
+    expiryDate:        dbRow.expiry_date  ?? undefined,
+    quantityReceived:  dbRow.quantity_received,
     quantityRemaining: dbRow.quantity_remaining,
-    receivedAt: dbRow.received_at,
+    receivedAt:        dbRow.received_at,
   };
 }
 
-/**
- * Transform database sales row to app Sale type
- */
-export function transformSale(dbRow: Row<'sales'>): any {
+export function stockBatchToDb(b: Partial<any>, tenantId: string): any {
+  const out: any = { tenant_id: tenantId };
+  if (b.id)                           out.id                = b.id;
+  if (b.branchId)                     out.branch_id         = b.branchId;
+  if (b.productId)                    out.product_id        = b.productId;
+  if (b.batchNumber    !== undefined) out.batch_number      = b.batchNumber  ?? null;
+  if (b.expiryDate     !== undefined) out.expiry_date       = b.expiryDate   ?? null;
+  if (b.quantityReceived  !== undefined) out.quantity_received  = b.quantityReceived;
+  if (b.quantityRemaining !== undefined) out.quantity_remaining = b.quantityRemaining;
+  if (b.receivedAt)                   out.received_at       = b.receivedAt;
+  return out;
+}
+
+// ─────────────────────────── SALES ───────────────────────────────
+// DB schema: id, tenant_id, branch_id, customer_id, sales_rep_id,
+//            product_id, quantity, unit_price, total_amount, sale_date, created_at
+// No order_id, status, walk_in_name, walk_in_phone in this schema version.
+
+export function transformSale(dbRow: Row<"sales">): any {
   return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    branchId: dbRow.branch_id,
-    salesRepId: dbRow.sales_rep_id,
-    customerId: dbRow.customer_id || undefined,
-    orderId: dbRow.order_id || undefined,
-    productId: dbRow.product_id,
-    quantity: dbRow.quantity,
-    unitPrice: dbRow.unit_price,
+    id:          dbRow.id,
+    tenantId:    dbRow.tenant_id,
+    branchId:    dbRow.branch_id,
+    salesRepId:  dbRow.sales_rep_id,
+    customerId:  dbRow.customer_id ?? undefined,
+    productId:   dbRow.product_id,
+    quantity:    dbRow.quantity,
+    unitPrice:   dbRow.unit_price,
     totalAmount: dbRow.total_amount,
-    saleDate: dbRow.sale_date,
-    status: dbRow.status,
-    walkInName: dbRow.walk_in_name || undefined,
-    walkInPhone: dbRow.walk_in_phone || undefined,
-    createdAt: dbRow.created_at,
+    saleDate:    dbRow.sale_date,
+    createdAt:   dbRow.created_at,
   };
 }
 
-/**
- * Transform database customers row to app Customer type
- */
-export function transformCustomer(dbRow: Row<'customers'>): any {
-  return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    name: dbRow.name,
-    contactPerson: dbRow.contact_person,
-    phone: dbRow.phone || undefined,
-    email: dbRow.email || undefined,
-    address: dbRow.address || undefined,
-    creditLimit: dbRow.credit_limit,
-    status: dbRow.status,
-    createdAt: dbRow.created_at,
-    deactivatedAt: dbRow.deactivated_at || undefined,
-  };
-}
-
-/**
- * Transform database rep_payments row to app Payment type
- */
-export function transformPayment(dbRow: Row<'rep_payments'>): any {
-  return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    branchId: dbRow.branch_id,
-    salesRepId: dbRow.sales_rep_id,
-    period: dbRow.period,
-    cashAmount: dbRow.cash_amount,
-    transferAmount: dbRow.transfer_amount,
-    transferReference: dbRow.transfer_reference || undefined,
-    proofName: dbRow.proof_name || undefined,
-    status: dbRow.status,
-    submittedAt: dbRow.submitted_at,
-    acknowledgedBy: dbRow.acknowledged_by || undefined,
-    acknowledgedAt: dbRow.acknowledged_at || undefined,
-    confirmedBy: dbRow.confirmed_by || undefined,
-    confirmedAt: dbRow.confirmed_at || undefined,
-    declinedBy: dbRow.declined_by || undefined,
-    declinedAt: dbRow.declined_at || undefined,
-    declineReason: dbRow.decline_reason || undefined,
-    createdAt: dbRow.created_at,
-  };
-}
-
-/**
- * Transform database customer_payments row to app CustomerPayment type
- */
-export function transformCustomerPayment(dbRow: Row<'customer_payments'>): any {
-  return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    customerId: dbRow.customer_id,
-    amount: dbRow.amount,
-    paymentMethod: dbRow.payment_method,
-    reference: dbRow.reference || undefined,
-    note: dbRow.note || undefined,
-    paymentDate: dbRow.payment_date,
-    status: dbRow.status,
-    submittedBy: dbRow.submitted_by,
-    submittedAt: dbRow.submitted_at,
-    acknowledgedBy: dbRow.acknowledged_by || undefined,
-    acknowledgedAt: dbRow.acknowledged_at || undefined,
-    confirmedBy: dbRow.confirmed_by || undefined,
-    confirmedAt: dbRow.confirmed_at || undefined,
-    declinedBy: dbRow.declined_by || undefined,
-    declinedAt: dbRow.declined_at || undefined,
-    declineReason: dbRow.decline_reason || undefined,
-    createdAt: dbRow.created_at,
-  };
-}
-
-/**
- * Transform database expenses row to app Expense type
- */
-export function transformExpense(dbRow: Row<'expenses'>): any {
-  return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    branchId: dbRow.branch_id || undefined,
-    category: dbRow.category,
-    amount: dbRow.amount,
-    purpose: dbRow.purpose,
-    expenseDate: dbRow.expense_date,
-    managerId: dbRow.manager_id,
-    status: dbRow.status,
-    voidReason: dbRow.void_reason || undefined,
-    voidedBy: dbRow.voided_by || undefined,
-    voidedAt: dbRow.voided_at || undefined,
-    createdAt: dbRow.created_at,
-  };
-}
-
-/**
- * Transform database manager_remittances row to app ManagerRemittance type
- */
-export function transformManagerRemittance(dbRow: Row<'manager_remittances'>): any {
-  return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    branchId: dbRow.branch_id,
-    managerId: dbRow.manager_id,
-    period: dbRow.period,
-    totalReceived: dbRow.total_received,
-    totalExpenses: dbRow.total_expenses,
-    netRemittance: dbRow.net_remittance,
-    cashAmount: dbRow.cash_amount,
-    transferAmount: dbRow.transfer_amount,
-    transferReference: dbRow.transfer_reference || undefined,
-    submittedAt: dbRow.submitted_at,
-    reviewedBy: dbRow.reviewed_by || undefined,
-    reviewedAt: dbRow.reviewed_at || undefined,
-    status: dbRow.status,
-    rejectReason: dbRow.reject_reason || undefined,
-    createdAt: dbRow.created_at,
-  };
-}
-
-/**
- * Transform database owner_remittances row to app OwnerRemittance type
- */
-export function transformOwnerRemittance(dbRow: Row<'owner_remittances'>): any {
-  return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    payeeType: dbRow.payee_type,
-    payeeName: dbRow.payee_name,
-    amount: dbRow.amount,
-    paymentMethod: dbRow.payment_method,
-    referenceNumber: dbRow.reference_number || undefined,
-    description: dbRow.description || undefined,
-    paymentDate: dbRow.payment_date,
-    createdBy: dbRow.created_by,
-    createdAt: dbRow.created_at,
-  };
-}
-
-/**
- * Transform database stock_requests row to app StockRequest type
- */
-export function transformStockRequest(dbRow: Row<'stock_requests'>): any {
-  return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    branchId: dbRow.branch_id,
-    requesterId: dbRow.requester_id,
-    productId: dbRow.product_id,
-    quantityRequested: dbRow.quantity_requested,
-    quantityApproved: dbRow.quantity_approved || undefined,
-    quantityIssued: dbRow.quantity_issued || undefined,
-    requestReason: dbRow.request_reason || undefined,
-    status: dbRow.status,
-    reviewedBy: dbRow.reviewed_by || undefined,
-    reviewedAt: dbRow.reviewed_at || undefined,
-    fulfilledBy: dbRow.fulfilled_by || undefined,
-    fulfilledAt: dbRow.fulfilled_at || undefined,
-    rejectionReason: dbRow.rejection_reason || undefined,
-    createdAt: dbRow.created_at,
-  };
-}
-
-/**
- * Transform database targets row to app Target type
- */
-export function transformTarget(dbRow: Row<'targets'>): any {
-  return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    branchId: dbRow.branch_id || undefined,
-    userId: dbRow.user_id || undefined,
-    productId: dbRow.product_id || undefined,
-    month: dbRow.month,
-    targetAmount: dbRow.target_amount,
-    createdBy: dbRow.created_by,
-    createdAt: dbRow.created_at,
-    updatedAt: dbRow.updated_at,
-  };
-}
-
-/**
- * Transform database approval_requests row to app ApprovalRequest type
- */
-export function transformApprovalRequest(dbRow: Row<'approval_requests'>): any {
-  return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    branchId: dbRow.branch_id,
-    requesterId: dbRow.requester_id,
-    requestType: dbRow.request_type,
-    referenceId: dbRow.reference_id,
-    reason: dbRow.reason || undefined,
-    status: dbRow.status,
-    reviewedBy: dbRow.reviewed_by || undefined,
-    reviewedAt: dbRow.reviewed_at || undefined,
-    rejectionReason: dbRow.rejection_reason || undefined,
-    createdAt: dbRow.created_at,
-  };
-}
-
-/**
- * Transform database notifications row to app AppNotification type
- */
-export function transformNotification(dbRow: Row<'notifications'>): any {
-  return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    userId: dbRow.user_id,
-    type: dbRow.type,
-    title: dbRow.title,
-    message: dbRow.message,
-    actionUrl: dbRow.action_url || undefined,
-    read: dbRow.read,
-    readAt: dbRow.read ? dbRow.created_at : undefined, // Approximate since we don't have read_at in DB
-    createdAt: dbRow.created_at,
-  };
-}
-
-/**
- * Transform database activities row to app Activity type
- */
-export function transformActivity(dbRow: Row<'activities'>): any {
-  return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    actorId: dbRow.user_id,
-    actionType: dbRow.action_type,
-    subject: dbRow.description,
-    entityType: dbRow.entity_type || undefined,
-    entityId: dbRow.entity_id || undefined,
-    metadata: dbRow.metadata as any,
-    createdAt: dbRow.created_at,
-  };
-}
-
-/**
- * Transform database onboardings row to app Onboarding type
- */
-export function transformOnboarding(dbRow: Row<'onboardings'>): any {
-  return {
-    id: dbRow.id,
-    tenantId: dbRow.tenant_id,
-    token: dbRow.token,
-    firstName: dbRow.first_name,
-    lastName: dbRow.last_name,
-    phone: dbRow.phone,
-    branchId: dbRow.branch_id,
-    role: dbRow.role,
-    createdBy: dbRow.created_by,
-    completed: dbRow.completed,
-    completedAt: dbRow.completed_at || undefined,
-    expiresAt: dbRow.expires_at,
-    createdAt: dbRow.created_at,
-  };
-}
-
-/**
- * Transform database onboarding_files row
- */
-export function transformOnboardingFile(dbRow: Row<'onboarding_files'>): any {
-  return {
-    id: dbRow.id,
-    onboardingId: dbRow.onboarding_id,
-    fileType: dbRow.file_type,
-    fileUrl: dbRow.file_url,
-    uploadedAt: dbRow.uploaded_at,
-  };
-}
-
-/**
- * Transform database preferences row to app UserPreference type
- */
-export function transformPreference(dbRow: Row<'preferences'>): any {
-  return {
-    userId: dbRow.user_id,
-    dateFormat: dbRow.date_format as any,
-    defaultReportPeriod: dbRow.default_report_period as any,
-    updatedAt: dbRow.updated_at,
-  };
-}
-
-// ======================
-// REVERSE TRANSFORMERS (App → DB)
-// ======================
-
-/**
- * Transform app User input to database insert/update
- */
-export function userToDb(user: Partial<any>, tenantId: string): any {
-  const result: any = {
-    tenant_id: tenantId,
-  };
-  
-  if (user.id) result.id = user.id;
-  if (user.branchId !== undefined) result.branch_id = user.branchId || null;
-  if (user.firstName) result.first_name = user.firstName;
-  if (user.lastName) result.last_name = user.lastName;
-  if (user.email !== undefined) result.email = user.email || null;
-  if (user.phone !== undefined) result.phone = user.phone || null;
-  if (user.role) result.role = user.role;
-  if (user.status) result.status = user.status;
-  if (user.joinedAt) result.joined_at = user.joinedAt;
-  if (user.deactivatedAt !== undefined) result.deactivated_at = user.deactivatedAt || null;
-  if (user.authId !== undefined) result.auth_id = user.authId || null;
-  
-  return result;
-}
-
-/**
- * Transform app Customer input to database insert/update
- */
-export function customerToDb(customer: Partial<any>, tenantId: string): any {
-  const result: any = {
-    tenant_id: tenantId,
-  };
-  
-  if (customer.id) result.id = customer.id;
-  if (customer.name) result.name = customer.name;
-  if (customer.contactPerson) result.contact_person = customer.contactPerson;
-  if (customer.phone !== undefined) result.phone = customer.phone || null;
-  if (customer.email !== undefined) result.email = customer.email || null;
-  if (customer.address !== undefined) result.address = customer.address || null;
-  if (customer.creditLimit !== undefined) result.credit_limit = customer.creditLimit;
-  if (customer.status) result.status = customer.status;
-  if (customer.deactivatedAt !== undefined) result.deactivated_at = customer.deactivatedAt || null;
-  
-  return result;
-}
-
-/**
- * Transform app Sale input to database insert
- */
 export function saleToDb(sale: Partial<any>, tenantId: string): any {
-  const result: any = {
-    tenant_id: tenantId,
-  };
-  
-  if (sale.id) result.id = sale.id;
-  if (sale.branchId) result.branch_id = sale.branchId;
-  if (sale.salesRepId) result.sales_rep_id = sale.salesRepId;
-  if (sale.customerId !== undefined) result.customer_id = sale.customerId || null;
-  if (sale.orderId !== undefined) result.order_id = sale.orderId || null;
-  if (sale.productId) result.product_id = sale.productId;
-  if (sale.quantity !== undefined) result.quantity = sale.quantity;
-  if (sale.unitPrice !== undefined) result.unit_price = sale.unitPrice;
-  if (sale.totalAmount !== undefined) result.total_amount = sale.totalAmount;
-  if (sale.saleDate) result.sale_date = sale.saleDate;
-  if (sale.status) result.status = sale.status;
-  if (sale.walkInName !== undefined) result.walk_in_name = sale.walkInName || null;
-  if (sale.walkInPhone !== undefined) result.walk_in_phone = sale.walkInPhone || null;
-  
-  return result;
+  const out: any = { tenant_id: tenantId };
+  if (sale.id)                       out.id           = sale.id;
+  if (sale.branchId)                 out.branch_id    = sale.branchId;
+  if (sale.salesRepId)               out.sales_rep_id = sale.salesRepId;
+  if (sale.customerId !== undefined) out.customer_id  = sale.customerId ?? null;
+  if (sale.productId)                out.product_id   = sale.productId;
+  if (sale.quantity   !== undefined) out.quantity     = sale.quantity;
+  if (sale.unitPrice  !== undefined) out.unit_price   = sale.unitPrice;
+  if (sale.totalAmount !== undefined) out.total_amount = sale.totalAmount;
+  if (sale.saleDate)                 out.sale_date    = sale.saleDate;
+  return out;
 }
 
-/**
- * Transform app Target input to database insert/update
- */
-export function targetToDb(target: Partial<any>, tenantId: string): any {
-  const result: any = {
-    tenant_id: tenantId,
+// ─────────────────────────── CUSTOMERS ───────────────────────────
+// DB schema: no contact_person column; has business_name instead.
+
+export function transformCustomer(dbRow: Row<"customers">): any {
+  return {
+    id:           dbRow.id,
+    tenantId:     dbRow.tenant_id,
+    branchId:     dbRow.branch_id,
+    name:         dbRow.name,
+    businessName: dbRow.business_name ?? undefined,
+    phone:        dbRow.phone   ?? undefined,
+    email:        dbRow.email   ?? undefined,
+    address:      dbRow.address ?? undefined,
+    creditLimit:  dbRow.credit_limit,
+    status:       dbRow.status,
+    createdBy:    dbRow.created_by,
+    createdAt:    dbRow.created_at,
+    deactivatedAt: dbRow.deactivated_at ?? undefined,
   };
-  
-  if (target.id) result.id = target.id;
-  if (target.branchId !== undefined) result.branch_id = target.branchId || null;
-  if (target.userId !== undefined) result.user_id = target.userId || null;
-  if (target.productId !== undefined) result.product_id = target.productId || null;
-  if (target.month) result.month = target.month;
-  if (target.targetAmount !== undefined) result.target_amount = target.targetAmount;
-  if (target.createdBy) result.created_by = target.createdBy;
-  
-  return result;
 }
 
-/**
- * Transform app Expense input to database insert/update
- */
-export function expenseToDb(expense: Partial<any>, tenantId: string): any {
-  const result: any = {
-    tenant_id: tenantId,
-  };
-  
-  if (expense.id) result.id = expense.id;
-  if (expense.branchId !== undefined) result.branch_id = expense.branchId || null;
-  if (expense.category) result.category = expense.category;
-  if (expense.amount !== undefined) result.amount = expense.amount;
-  if (expense.purpose) result.purpose = expense.purpose;
-  if (expense.expenseDate) result.expense_date = expense.expenseDate;
-  if (expense.managerId) result.manager_id = expense.managerId;
-  if (expense.status) result.status = expense.status;
-  if (expense.voidReason !== undefined) result.void_reason = expense.voidReason || null;
-  if (expense.voidedBy !== undefined) result.voided_by = expense.voidedBy || null;
-  if (expense.voidedAt !== undefined) result.voided_at = expense.voidedAt || null;
-  
-  return result;
+export function customerToDb(c: Partial<any>, tenantId: string): any {
+  const out: any = { tenant_id: tenantId };
+  if (c.id)                          out.id             = c.id;
+  if (c.branchId)                    out.branch_id      = c.branchId;
+  if (c.name)                        out.name           = c.name;
+  if (c.businessName !== undefined)  out.business_name  = c.businessName ?? null;
+  if (c.phone        !== undefined)  out.phone          = c.phone  ?? null;
+  if (c.email        !== undefined)  out.email          = c.email  ?? null;
+  if (c.address      !== undefined)  out.address        = c.address ?? null;
+  if (c.creditLimit  !== undefined)  out.credit_limit   = c.creditLimit;
+  if (c.status)                      out.status         = c.status;
+  if (c.createdBy)                   out.created_by     = c.createdBy;
+  if (c.deactivatedAt !== undefined) out.deactivated_at = c.deactivatedAt ?? null;
+  return out;
 }
 
-/**
- * Transform app StockRequest input to database insert
- */
-export function stockRequestToDb(request: Partial<any>, tenantId: string): any {
-  const result: any = {
-    tenant_id: tenantId,
+// ─────────────────────────── CUSTOMER PAYMENTS ───────────────────
+// DB schema: id, tenant_id, branch_id, customer_id, sales_rep_id,
+//            amount, payment_method, reference_number, note, payment_date, created_at
+
+export function transformCustomerPayment(dbRow: Row<"customer_payments">): any {
+  return {
+    id:            dbRow.id,
+    tenantId:      dbRow.tenant_id,
+    branchId:      dbRow.branch_id,
+    customerId:    dbRow.customer_id,
+    salesRepId:    dbRow.sales_rep_id,
+    amount:        dbRow.amount,
+    paymentMethod: dbRow.payment_method,
+    reference:     dbRow.reference_number ?? undefined,
+    note:          dbRow.note             ?? undefined,
+    paymentDate:   dbRow.payment_date,
+    createdAt:     dbRow.created_at,
   };
-  
-  if (request.id) result.id = request.id;
-  if (request.branchId) result.branch_id = request.branchId;
-  if (request.requesterId) result.requester_id = request.requesterId;
-  if (request.productId) result.product_id = request.productId;
-  if (request.quantityRequested !== undefined) result.quantity_requested = request.quantityRequested;
-  if (request.quantityApproved !== undefined) result.quantity_approved = request.quantityApproved;
-  if (request.quantityIssued !== undefined) result.quantity_issued = request.quantityIssued;
-  if (request.requestReason !== undefined) result.request_reason = request.requestReason || null;
-  if (request.status) result.status = request.status;
-  if (request.reviewedBy !== undefined) result.reviewed_by = request.reviewedBy || null;
-  if (request.reviewedAt !== undefined) result.reviewed_at = request.reviewedAt || null;
-  if (request.fulfilledBy !== undefined) result.fulfilled_by = request.fulfilledBy || null;
-  if (request.fulfilledAt !== undefined) result.fulfilled_at = request.fulfilledAt || null;
-  if (request.rejectionReason !== undefined) result.rejection_reason = request.rejectionReason || null;
-  
-  return result;
 }
 
-/**
- * Transform app ApprovalRequest input to database insert
- */
-export function approvalRequestToDb(approval: Partial<any>, tenantId: string): any {
-  const result: any = {
-    tenant_id: tenantId,
-  };
-  
-  if (approval.id) result.id = approval.id;
-  if (approval.branchId) result.branch_id = approval.branchId;
-  if (approval.requesterId) result.requester_id = approval.requesterId;
-  if (approval.requestType) result.request_type = approval.requestType;
-  if (approval.referenceId) result.reference_id = approval.referenceId;
-  if (approval.reason !== undefined) result.reason = approval.reason || null;
-  if (approval.status) result.status = approval.status;
-  if (approval.reviewedBy !== undefined) result.reviewed_by = approval.reviewedBy || null;
-  if (approval.reviewedAt !== undefined) result.reviewed_at = approval.reviewedAt || null;
-  if (approval.rejectionReason !== undefined) result.rejection_reason = approval.rejectionReason || null;
-  
-  return result;
+export function customerPaymentToDb(p: Partial<any>, tenantId: string): any {
+  const out: any = { tenant_id: tenantId };
+  if (p.id)                          out.id               = p.id;
+  if (p.branchId)                    out.branch_id        = p.branchId;
+  if (p.customerId)                  out.customer_id      = p.customerId;
+  if (p.salesRepId)                  out.sales_rep_id     = p.salesRepId;
+  if (p.amount     !== undefined)    out.amount           = p.amount;
+  if (p.paymentMethod)               out.payment_method   = p.paymentMethod;
+  if (p.reference  !== undefined)    out.reference_number = p.reference  ?? null;
+  if (p.note       !== undefined)    out.note             = p.note       ?? null;
+  if (p.paymentDate)                 out.payment_date     = p.paymentDate;
+  return out;
 }
 
-/**
- * Transform app Notification input to database insert
- */
-export function notificationToDb(notification: Partial<any>, tenantId: string): any {
-  const result: any = {
-    tenant_id: tenantId,
+// ─────────────────────────── PAYMENTS (rep) ──────────────────────
+// DB schema: id, tenant_id, branch_id, sales_rep_id, period,
+//            total_sales, cash_amount, transfer_amount, transfer_reference,
+//            submitted_at, acknowledged_by/at, confirmed_by/at,
+//            status, decline_reason, created_at
+
+export function transformPayment(dbRow: Row<"payments">): any {
+  return {
+    id:               dbRow.id,
+    tenantId:         dbRow.tenant_id,
+    branchId:         dbRow.branch_id,
+    salesRepId:       dbRow.sales_rep_id,
+    period:           dbRow.period,
+    totalSales:       dbRow.total_sales,
+    cashAmount:       dbRow.cash_amount,
+    transferAmount:   dbRow.transfer_amount,
+    transferReference: dbRow.transfer_reference ?? undefined,
+    submittedAt:      dbRow.submitted_at,
+    acknowledgedBy:   dbRow.acknowledged_by ?? undefined,
+    acknowledgedAt:   dbRow.acknowledged_at ?? undefined,
+    confirmedBy:      dbRow.confirmed_by    ?? undefined,
+    confirmedAt:      dbRow.confirmed_at    ?? undefined,
+    status:           dbRow.status,
+    declineReason:    dbRow.decline_reason  ?? undefined,
+    createdAt:        dbRow.created_at,
   };
-  
-  if (notification.id) result.id = notification.id;
-  if (notification.userId) result.user_id = notification.userId;
-  if (notification.type) result.type = notification.type;
-  if (notification.title) result.title = notification.title;
-  if (notification.message) result.message = notification.message;
-  if (notification.actionUrl !== undefined) result.action_url = notification.actionUrl || null;
-  if (notification.read !== undefined) result.read = notification.read;
-  
-  return result;
 }
 
-/**
- * Transform app Activity/AuditLog input to database insert
- */
-export function activityToDb(activity: Partial<any>, tenantId: string): any {
-  const result: any = {
-    tenant_id: tenantId,
-  };
-  
-  if (activity.id) result.id = activity.id;
-  if (activity.actorId || activity.user_id) result.user_id = activity.actorId || activity.user_id;
-  if (activity.actionType || activity.action_type) result.action_type = activity.actionType || activity.action_type;
-  if (activity.subject || activity.description) result.description = activity.subject || activity.description;
-  if (activity.entityType !== undefined) result.entity_type = activity.entityType || null;
-  if (activity.entityId !== undefined) result.entity_id = activity.entityId || null;
-  if (activity.metadata !== undefined) result.metadata = activity.metadata || null;
-  
-  return result;
+export function paymentToDb(p: Partial<any>, tenantId: string): any {
+  const out: any = { tenant_id: tenantId };
+  if (p.id)                            out.id                 = p.id;
+  if (p.branchId)                      out.branch_id          = p.branchId;
+  if (p.salesRepId)                    out.sales_rep_id       = p.salesRepId;
+  if (p.period)                        out.period             = p.period;
+  if (p.totalSales      !== undefined) out.total_sales        = p.totalSales;
+  if (p.cashAmount      !== undefined) out.cash_amount        = p.cashAmount;
+  if (p.transferAmount  !== undefined) out.transfer_amount    = p.transferAmount;
+  if (p.transferReference !== undefined) out.transfer_reference = p.transferReference ?? null;
+  if (p.submittedAt)                   out.submitted_at       = p.submittedAt;
+  if (p.acknowledgedBy !== undefined)  out.acknowledged_by    = p.acknowledgedBy ?? null;
+  if (p.acknowledgedAt !== undefined)  out.acknowledged_at    = p.acknowledgedAt ?? null;
+  if (p.confirmedBy    !== undefined)  out.confirmed_by       = p.confirmedBy    ?? null;
+  if (p.confirmedAt    !== undefined)  out.confirmed_at       = p.confirmedAt    ?? null;
+  if (p.status)                        out.status             = p.status;
+  if (p.declineReason !== undefined)   out.decline_reason     = p.declineReason  ?? null;
+  return out;
 }
 
-/**
- * Transform app Onboarding input to database insert
- */
-export function onboardingToDb(onboarding: Partial<any>, tenantId: string): any {
-  const result: any = {
-    tenant_id: tenantId,
+// ─────────────────────────── EXPENSES ────────────────────────────
+// DB schema: id, tenant_id, branch_id, manager_id, category,
+//            amount, description, receipt_url, expense_date, created_at
+
+export function transformExpense(dbRow: Row<"expenses">): any {
+  return {
+    id:          dbRow.id,
+    tenantId:    dbRow.tenant_id,
+    branchId:    dbRow.branch_id,
+    managerId:   dbRow.manager_id,
+    category:    dbRow.category,
+    amount:      dbRow.amount,
+    description: dbRow.description ?? undefined,
+    receiptUrl:  dbRow.receipt_url  ?? undefined,
+    expenseDate: dbRow.expense_date,
+    createdAt:   dbRow.created_at,
   };
-  
-  if (onboarding.id) result.id = onboarding.id;
-  if (onboarding.token) result.token = onboarding.token;
-  if (onboarding.firstName) result.first_name = onboarding.firstName;
-  if (onboarding.lastName) result.last_name = onboarding.lastName;
-  if (onboarding.phone) result.phone = onboarding.phone;
-  if (onboarding.branchId) result.branch_id = onboarding.branchId;
-  if (onboarding.role) result.role = onboarding.role;
-  if (onboarding.createdBy) result.created_by = onboarding.createdBy;
-  if (onboarding.completed !== undefined) result.completed = onboarding.completed;
-  if (onboarding.completedAt !== undefined) result.completed_at = onboarding.completedAt || null;
-  if (onboarding.expiresAt) result.expires_at = onboarding.expiresAt;
-  
-  return result;
 }
 
-/**
- * Transform app UserPreference input to database upsert
- */
-export function preferenceToDb(preference: Partial<any>, userId: string): any {
-  const result: any = {
-    user_id: userId,
+export function expenseToDb(e: Partial<any>, tenantId: string): any {
+  const out: any = { tenant_id: tenantId };
+  if (e.id)                         out.id           = e.id;
+  if (e.branchId)                   out.branch_id    = e.branchId;
+  if (e.managerId)                  out.manager_id   = e.managerId;
+  if (e.category)                   out.category     = e.category;
+  if (e.amount     !== undefined)   out.amount       = e.amount;
+  if (e.description !== undefined)  out.description  = e.description ?? null;
+  if (e.receiptUrl  !== undefined)  out.receipt_url  = e.receiptUrl  ?? null;
+  if (e.expenseDate)                out.expense_date = e.expenseDate;
+  return out;
+}
+
+// ─────────────────────────── MANAGER REMITTANCES ─────────────────
+
+export function transformManagerRemittance(dbRow: Row<"manager_remittances">): any {
+  return {
+    id:                dbRow.id,
+    tenantId:          dbRow.tenant_id,
+    branchId:          dbRow.branch_id,
+    managerId:         dbRow.manager_id,
+    period:            dbRow.period,
+    totalReceived:     dbRow.total_received,
+    totalExpenses:     dbRow.total_expenses,
+    netRemittance:     dbRow.net_remittance,
+    cashAmount:        dbRow.cash_amount,
+    transferAmount:    dbRow.transfer_amount,
+    transferReference: dbRow.transfer_reference ?? undefined,
+    submittedAt:       dbRow.submitted_at,
+    reviewedBy:        dbRow.reviewed_by  ?? undefined,
+    reviewedAt:        dbRow.reviewed_at  ?? undefined,
+    status:            dbRow.status,
+    rejectReason:      dbRow.reject_reason ?? undefined,
+    createdAt:         dbRow.created_at,
   };
-  
-  if (preference.dateFormat) result.date_format = preference.dateFormat;
-  if (preference.defaultReportPeriod) result.default_report_period = preference.defaultReportPeriod;
-  
-  return result;
+}
+
+// ─────────────────────────── OWNER REMITTANCES ───────────────────
+
+export function transformOwnerRemittance(dbRow: Row<"owner_remittances">): any {
+  return {
+    id:              dbRow.id,
+    tenantId:        dbRow.tenant_id,
+    payeeType:       dbRow.payee_type,
+    payeeName:       dbRow.payee_name,
+    amount:          dbRow.amount,
+    paymentMethod:   dbRow.payment_method,
+    referenceNumber: dbRow.reference_number ?? undefined,
+    description:     dbRow.description      ?? undefined,
+    paymentDate:     dbRow.payment_date,
+    createdBy:       dbRow.created_by,
+    createdAt:       dbRow.created_at,
+  };
+}
+
+// ─────────────────────────── STOCK REQUESTS ──────────────────────
+
+export function transformStockRequest(dbRow: Row<"stock_requests">): any {
+  return {
+    id:                dbRow.id,
+    tenantId:          dbRow.tenant_id,
+    branchId:          dbRow.branch_id,
+    requesterId:       dbRow.requester_id,
+    productId:         dbRow.product_id,
+    quantityRequested: dbRow.quantity_requested,
+    quantityApproved:  dbRow.quantity_approved  ?? undefined,
+    quantityIssued:    dbRow.quantity_issued     ?? undefined,
+    requestReason:     dbRow.request_reason      ?? undefined,
+    status:            dbRow.status,
+    reviewedBy:        dbRow.reviewed_by         ?? undefined,
+    reviewedAt:        dbRow.reviewed_at         ?? undefined,
+    fulfilledBy:       dbRow.fulfilled_by        ?? undefined,
+    fulfilledAt:       dbRow.fulfilled_at        ?? undefined,
+    rejectionReason:   dbRow.rejection_reason    ?? undefined,
+    createdAt:         dbRow.created_at,
+  };
+}
+
+export function stockRequestToDb(r: Partial<any>, tenantId: string): any {
+  const out: any = { tenant_id: tenantId };
+  if (r.id)                              out.id                 = r.id;
+  if (r.branchId)                        out.branch_id          = r.branchId;
+  if (r.requesterId)                     out.requester_id       = r.requesterId;
+  if (r.productId)                       out.product_id         = r.productId;
+  if (r.quantityRequested !== undefined) out.quantity_requested = r.quantityRequested;
+  if (r.quantityApproved  !== undefined) out.quantity_approved  = r.quantityApproved  ?? null;
+  if (r.quantityIssued    !== undefined) out.quantity_issued    = r.quantityIssued    ?? null;
+  if (r.requestReason    !== undefined)  out.request_reason     = r.requestReason     ?? null;
+  if (r.status)                          out.status             = r.status;
+  if (r.reviewedBy   !== undefined)      out.reviewed_by        = r.reviewedBy   ?? null;
+  if (r.reviewedAt   !== undefined)      out.reviewed_at        = r.reviewedAt   ?? null;
+  if (r.fulfilledBy  !== undefined)      out.fulfilled_by       = r.fulfilledBy  ?? null;
+  if (r.fulfilledAt  !== undefined)      out.fulfilled_at       = r.fulfilledAt  ?? null;
+  if (r.rejectionReason !== undefined)   out.rejection_reason   = r.rejectionReason ?? null;
+  return out;
+}
+
+// ─────────────────────────── TARGETS ─────────────────────────────
+
+export function transformTarget(dbRow: Row<"targets">): any {
+  return {
+    id:           dbRow.id,
+    tenantId:     dbRow.tenant_id,
+    branchId:     dbRow.branch_id   ?? undefined,
+    userId:       dbRow.user_id     ?? undefined,
+    productId:    dbRow.product_id  ?? undefined,
+    month:        dbRow.month,
+    targetAmount: dbRow.target_amount,
+    createdBy:    dbRow.created_by,
+    createdAt:    dbRow.created_at,
+    updatedAt:    dbRow.updated_at,
+  };
+}
+
+export function targetToDb(t: Partial<any>, tenantId: string): any {
+  const out: any = { tenant_id: tenantId };
+  if (t.id)                        out.id            = t.id;
+  if (t.branchId  !== undefined)   out.branch_id     = t.branchId  ?? null;
+  if (t.userId    !== undefined)   out.user_id       = t.userId    ?? null;
+  if (t.productId !== undefined)   out.product_id    = t.productId ?? null;
+  if (t.month)                     out.month         = t.month;
+  if (t.targetAmount !== undefined) out.target_amount = t.targetAmount;
+  if (t.createdBy)                 out.created_by    = t.createdBy;
+  return out;
+}
+
+// ─────────────────────────── APPROVALS ───────────────────────────
+
+export function transformApprovalRequest(dbRow: Row<"approval_requests">): any {
+  return {
+    id:              dbRow.id,
+    tenantId:        dbRow.tenant_id,
+    branchId:        dbRow.branch_id,
+    requesterId:     dbRow.requester_id,
+    requestType:     dbRow.request_type,
+    referenceId:     dbRow.reference_id,
+    reason:          dbRow.reason           ?? undefined,
+    status:          dbRow.status,
+    reviewedBy:      dbRow.reviewed_by      ?? undefined,
+    reviewedAt:      dbRow.reviewed_at      ?? undefined,
+    rejectionReason: dbRow.rejection_reason ?? undefined,
+    createdAt:       dbRow.created_at,
+  };
+}
+
+export function approvalRequestToDb(a: Partial<any>, tenantId: string): any {
+  const out: any = { tenant_id: tenantId };
+  if (a.id)                              out.id               = a.id;
+  if (a.branchId)                        out.branch_id        = a.branchId;
+  if (a.requesterId)                     out.requester_id     = a.requesterId;
+  if (a.requestType)                     out.request_type     = a.requestType;
+  if (a.referenceId)                     out.reference_id     = a.referenceId;
+  if (a.reason          !== undefined)   out.reason           = a.reason           ?? null;
+  if (a.status)                          out.status           = a.status;
+  if (a.reviewedBy      !== undefined)   out.reviewed_by      = a.reviewedBy       ?? null;
+  if (a.reviewedAt      !== undefined)   out.reviewed_at      = a.reviewedAt       ?? null;
+  if (a.rejectionReason !== undefined)   out.rejection_reason = a.rejectionReason  ?? null;
+  return out;
+}
+
+// ─────────────────────────── NOTIFICATIONS ───────────────────────
+
+export function transformNotification(dbRow: Row<"notifications">): any {
+  return {
+    id:        dbRow.id,
+    tenantId:  dbRow.tenant_id,
+    userId:    dbRow.user_id,
+    type:      dbRow.type,
+    title:     dbRow.title,
+    message:   dbRow.message,
+    actionUrl: dbRow.action_url ?? undefined,
+    read:      dbRow.read,
+    createdAt: dbRow.created_at,
+  };
+}
+
+export function notificationToDb(n: Partial<any>, tenantId: string): any {
+  const out: any = { tenant_id: tenantId };
+  if (n.id)                       out.id         = n.id;
+  if (n.userId)                   out.user_id    = n.userId;
+  if (n.type)                     out.type       = n.type;
+  if (n.title)                    out.title      = n.title;
+  if (n.message)                  out.message    = n.message;
+  if (n.actionUrl !== undefined)  out.action_url = n.actionUrl ?? null;
+  if (n.read      !== undefined)  out.read       = n.read;
+  return out;
+}
+
+// ─────────────────────────── ACTIVITIES (audit) ──────────────────
+
+export function transformActivity(dbRow: Row<"activities">): any {
+  return {
+    id:         dbRow.id,
+    tenantId:   dbRow.tenant_id,
+    actorId:    dbRow.user_id,
+    actionType: dbRow.action_type,
+    subject:    dbRow.description,
+    entityType: dbRow.entity_type ?? undefined,
+    entityId:   dbRow.entity_id   ?? undefined,
+    metadata:   dbRow.metadata    as any,
+    createdAt:  dbRow.created_at,
+  };
+}
+
+export function activityToDb(a: Partial<any>, tenantId: string): any {
+  const out: any = { tenant_id: tenantId };
+  if (a.id)                          out.id           = a.id;
+  if (a.actorId  || a.user_id)       out.user_id      = a.actorId || a.user_id;
+  if (a.actionType || a.action_type) out.action_type  = a.actionType || a.action_type;
+  if (a.subject  || a.description)   out.description  = a.subject  || a.description;
+  if (a.entityType !== undefined)    out.entity_type  = a.entityType  ?? null;
+  if (a.entityId   !== undefined)    out.entity_id    = a.entityId    ?? null;
+  if (a.metadata   !== undefined)    out.metadata     = a.metadata    ?? null;
+  return out;
+}
+
+// ─────────────────────────── ONBOARDINGS ─────────────────────────
+
+export function transformOnboarding(dbRow: Row<"onboardings">): any {
+  return {
+    id:          dbRow.id,
+    tenantId:    dbRow.tenant_id,
+    token:       dbRow.token,
+    firstName:   dbRow.first_name,
+    lastName:    dbRow.last_name,
+    phone:       dbRow.phone,
+    branchId:    dbRow.branch_id,
+    role:        dbRow.role,
+    createdBy:   dbRow.created_by,
+    completed:   dbRow.completed,
+    completedAt: dbRow.completed_at ?? undefined,
+    expiresAt:   dbRow.expires_at,
+    createdAt:   dbRow.created_at,
+  };
+}
+
+export function onboardingToDb(o: Partial<any>, tenantId: string): any {
+  const out: any = { tenant_id: tenantId };
+  if (o.id)                         out.id           = o.id;
+  if (o.token)                      out.token        = o.token;
+  if (o.firstName)                  out.first_name   = o.firstName;
+  if (o.lastName)                   out.last_name    = o.lastName;
+  if (o.phone)                      out.phone        = o.phone;
+  if (o.branchId)                   out.branch_id    = o.branchId;
+  if (o.role)                       out.role         = o.role;
+  if (o.createdBy)                  out.created_by   = o.createdBy;
+  if (o.completed !== undefined)    out.completed    = o.completed;
+  if (o.completedAt !== undefined)  out.completed_at = o.completedAt ?? null;
+  if (o.expiresAt)                  out.expires_at   = o.expiresAt;
+  return out;
+}
+
+export function transformOnboardingFile(dbRow: Row<"onboarding_files">): any {
+  return {
+    id:           dbRow.id,
+    onboardingId: dbRow.onboarding_id,
+    fileType:     dbRow.file_type,
+    fileUrl:      dbRow.file_url,
+    uploadedAt:   dbRow.uploaded_at,
+  };
 }

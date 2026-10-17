@@ -23,8 +23,7 @@ export function useProducts() {
     queryFn: async () => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('products')
+      const { data, error } = await (supabase as any).from('products')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('name');
@@ -48,8 +47,7 @@ export function useActiveProducts() {
     queryFn: async () => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('products')
+      const { data, error } = await (supabase as any).from('products')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .eq('status', 'active')
@@ -72,8 +70,7 @@ export function useProduct(productId: string | undefined) {
     queryFn: async () => {
       if (!productId) throw new Error('Product ID required');
       
-      const { data, error } = await supabase
-        .from('products')
+      const { data, error } = await (supabase as any).from('products')
         .select('*')
         .eq('id', productId)
         .single();
@@ -99,8 +96,7 @@ export function useCreateProduct() {
       
       const dbData = productToDb(input, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('products')
+      const { data, error } = await (supabase as any).from('products')
         .insert(dbData)
         .select()
         .single();
@@ -133,8 +129,7 @@ export function useUpdateProduct() {
       
       const dbData = productToDb(updates, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('products')
+      const { data, error } = await (supabase as any).from('products')
         .update(dbData)
         .eq('id', id)
         .select()
@@ -169,8 +164,7 @@ export function useDeactivateProduct() {
     mutationFn: async (productId: string) => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('products')
+      const { data, error } = await (supabase as any).from('products')
         .update({ 
           status: 'inactive',
           deactivated_at: new Date().toISOString(),
@@ -208,8 +202,7 @@ export function useReactivateProduct() {
     mutationFn: async (productId: string) => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('products')
+      const { data, error } = await (supabase as any).from('products')
         .update({ 
           status: 'active',
           deactivated_at: null,
@@ -249,8 +242,7 @@ export function useImportProducts() {
       
       const dbData = products.map(p => productToDb(p, user.tenantId));
       
-      const { data, error } = await supabase
-        .from('products')
+      const { data, error } = await (supabase as any).from('products')
         .insert(dbData)
         .select();
       

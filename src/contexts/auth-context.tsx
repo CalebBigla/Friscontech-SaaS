@@ -76,31 +76,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function loadUserProfile(authUserId: string) {
     try {
+      type UserRow = {
+        id: string; tenant_id: string; branch_id: string | null;
+        first_name: string; last_name: string; email: string | null;
+        phone: string | null; role: string; status: string;
+        joined_at: string; deactivated_at: string | null;
+      };
+
       // First try to find by auth_id
-      let { data: userProfile, error } = await supabase
+      const { data: byAuthId, error: e1 } = await supabase
         .from("users")
         .select("*")
         .eq("auth_id", authUserId)
-        .single();
+        .maybeSingle();
+
+      let userProfile: UserRow | null = byAuthId as UserRow | null;
 
       // Fallback: try to find by email if auth_id not set
-      if (error || !userProfile) {
+      if (e1 || !userProfile) {
         const { data: authData } = await supabase.auth.getUser();
         if (authData.user?.email) {
-          const { data: userByEmail } = await supabase
+          const { data: byEmail } = await supabase
             .from("users")
             .select("*")
             .eq("email", authData.user.email)
-            .single();
+            .maybeSingle();
 
-          if (userByEmail) {
-            userProfile = userByEmail;
-            
+          if (byEmail) {
+            userProfile = byEmail as UserRow;
+
             // Update auth_id for future lookups
-            await supabase
+            await (supabase as any)
               .from("users")
               .update({ auth_id: authUserId })
-              .eq("id", userByEmail.id);
+              .eq("id", (byEmail as UserRow).id);
           }
         }
       }
@@ -110,15 +119,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const appUser: User = {
           id: userProfile.id,
           tenantId: userProfile.tenant_id,
-          branchId: userProfile.branch_id,
+          branchId: userProfile.branch_id ?? null,
           firstName: userProfile.first_name,
           lastName: userProfile.last_name,
-          email: userProfile.email,
-          phone: userProfile.phone,
+          // Derive `name` so all components using scope.user.name never get undefined
+          name: [userProfile.first_name, userProfile.last_name].filter(Boolean).join(" ") || userProfile.email || "User",
+          email: userProfile.email ?? "",
+          phone: userProfile.phone ?? null,
           role: userProfile.role as "owner" | "manager" | "storekeeper" | "sales_rep",
           status: userProfile.status as "active" | "inactive" | "pending",
           joinedAt: userProfile.joined_at,
-          deactivatedAt: userProfile.deactivated_at,
+          deactivatedAt: userProfile.deactivated_at ?? null,
+          authId: authUserId,
+          managerId: null,
+          createdAt: userProfile.joined_at ?? new Date().toISOString(),
         };
         setUser(appUser);
         setAuthUserRef(appUser); // Make available to getAccessScope without db.users

@@ -95,8 +95,7 @@ export function useApprovalRequest(id: string) {
   return useQuery({
     queryKey: queryKeys.approvals.detail(id),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('approval_requests')
+      const { data, error } = await (supabase as any).from('approval_requests')
         .select('*')
         .eq('id', id)
         .single();
@@ -116,8 +115,7 @@ export function useApprovalsByReference(referenceId: string) {
   return useQuery({
     queryKey: queryKeys.approvals.byReference(referenceId),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('approval_requests')
+      const { data, error } = await (supabase as any).from('approval_requests')
         .select('*')
         .eq('reference_id', referenceId)
         .order('created_at', { ascending: false });
@@ -137,8 +135,7 @@ export function useCreateApprovalRequest() {
 
   return useMutation({
     mutationFn: async (input: ApprovalRequestInsert) => {
-      const { data, error } = await supabase
-        .from('approval_requests')
+      const { data, error } = await (supabase as any).from('approval_requests')
         .insert(input)
         .select()
         .single();
@@ -173,8 +170,7 @@ export function useApproveRequest() {
     }) => {
       const now = new Date().toISOString();
       
-      const { data, error } = await supabase
-        .from('approval_requests')
+      const { data, error } = await (supabase as any).from('approval_requests')
         .update({
           status: 'approved',
           reviewed_by: reviewerId,
@@ -223,8 +219,7 @@ export function useRejectRequest() {
     }) => {
       const now = new Date().toISOString();
       
-      const { data, error } = await supabase
-        .from('approval_requests')
+      const { data, error } = await (supabase as any).from('approval_requests')
         .update({
           status: 'rejected',
           reviewed_by: reviewerId,
@@ -263,8 +258,7 @@ export function useDeleteApprovalRequest() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('approval_requests')
+      const { error } = await (supabase as any).from('approval_requests')
         .delete()
         .eq('id', id);
 
@@ -274,7 +268,7 @@ export function useDeleteApprovalRequest() {
     onSuccess: () => {
       // Invalidate all approval queries since we don't have tenantId here
       queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals.all,
+        queryKey: ["approvals"],
       });
     },
   });

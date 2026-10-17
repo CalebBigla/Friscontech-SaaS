@@ -23,8 +23,7 @@ export function useCustomers() {
     queryFn: async () => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('customers')
+      const { data, error } = await (supabase as any).from('customers')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('name');
@@ -46,8 +45,7 @@ export function useCustomersByBranch(branchId: string | undefined) {
     queryFn: async () => {
       if (!branchId) throw new Error('Branch ID required');
       
-      const { data, error } = await supabase
-        .from('customers')
+      const { data, error } = await (supabase as any).from('customers')
         .select('*')
         .eq('branch_id', branchId)
         .order('name');
@@ -69,8 +67,7 @@ export function useCustomer(customerId: string | undefined) {
     queryFn: async () => {
       if (!customerId) throw new Error('Customer ID required');
       
-      const { data, error } = await supabase
-        .from('customers')
+      const { data, error } = await (supabase as any).from('customers')
         .select('*')
         .eq('id', customerId)
         .single();
@@ -96,8 +93,7 @@ export function useCreateCustomer() {
       
       const dbData = customerToDb(input, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('customers')
+      const { data, error } = await (supabase as any).from('customers')
         .insert(dbData)
         .select()
         .single();
@@ -127,8 +123,7 @@ export function useUpdateCustomer() {
       
       const dbData = customerToDb(updates, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('customers')
+      const { data, error } = await (supabase as any).from('customers')
         .update(dbData)
         .eq('id', id)
         .select()
@@ -163,8 +158,7 @@ export function useDeactivateCustomer() {
     mutationFn: async (customerId: string) => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('customers')
+      const { data, error } = await (supabase as any).from('customers')
         .update({ 
           status: 'inactive',
           deactivated_at: new Date().toISOString(),

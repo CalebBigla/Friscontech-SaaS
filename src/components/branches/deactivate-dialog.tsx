@@ -25,7 +25,7 @@ export function DeactivateBranchDialog({ branch, onClose, actorId }: { branch: B
               // Validate first (keep existing validation logic)
               const validationResult = await branchService.deactivate(branch.id, actorId);
               if (!validationResult.ok) {
-                toast.error(validationResult.error || "Could not deactivate branch");
+                toast.error(validationResult.errors?.form || "Could not deactivate branch");
                 return;
               }
               

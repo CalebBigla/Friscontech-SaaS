@@ -64,8 +64,7 @@ export function useTarget(id: string) {
   return useQuery({
     queryKey: queryKeys.targets.detail(id),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('targets')
+      const { data, error } = await (supabase as any).from('targets')
         .select('*')
         .eq('id', id)
         .single();
@@ -84,8 +83,7 @@ export function useRepTargets(userId: string, month: string) {
   return useQuery({
     queryKey: queryKeys.targets.byUser(userId, month),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('targets')
+      const { data, error } = await (supabase as any).from('targets')
         .select('*')
         .eq('user_id', userId)
         .eq('month', month)
@@ -105,8 +103,7 @@ export function useBranchTargets(branchId: string, month: string) {
   return useQuery({
     queryKey: queryKeys.targets.byBranch(branchId, month),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('targets')
+      const { data, error } = await (supabase as any).from('targets')
         .select('*')
         .eq('branch_id', branchId)
         .eq('month', month)
@@ -127,8 +124,7 @@ export function useCreateTarget() {
 
   return useMutation({
     mutationFn: async (input: TargetInsert) => {
-      const { data, error } = await supabase
-        .from('targets')
+      const { data, error } = await (supabase as any).from('targets')
         .insert(input)
         .select()
         .single();
@@ -162,8 +158,7 @@ export function useBulkCreateTargets() {
 
   return useMutation({
     mutationFn: async (inputs: TargetInsert[]) => {
-      const { data, error } = await supabase
-        .from('targets')
+      const { data, error } = await (supabase as any).from('targets')
         .insert(inputs)
         .select();
 
@@ -171,8 +166,9 @@ export function useBulkCreateTargets() {
       return data as TargetRow[];
     },
     onSuccess: (data) => {
-      if (data.length > 0) {
-        const tenantId = data[0].tenant_id;
+      if (data && data.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const tenantId = (data[0] as TargetRow).tenant_id;
         queryClient.invalidateQueries({
           queryKey: queryKeys.targets.all(tenantId),
         });
@@ -217,8 +213,7 @@ export function useUpdateTarget() {
     }) => {
       const now = new Date().toISOString();
       
-      const { data, error } = await supabase
-        .from('targets')
+      const { data, error } = await (supabase as any).from('targets')
         .update({
           ...updates,
           updated_at: now,
@@ -259,8 +254,7 @@ export function useDeleteTarget() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('targets')
+      const { error } = await (supabase as any).from('targets')
         .delete()
         .eq('id', id);
 
@@ -270,7 +264,7 @@ export function useDeleteTarget() {
     onSuccess: () => {
       // Invalidate all targets queries since we don't have tenantId here
       queryClient.invalidateQueries({
-        queryKey: queryKeys.targets.all,
+        queryKey: ["targets"],
       });
     },
   });

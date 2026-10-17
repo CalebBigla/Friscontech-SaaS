@@ -106,3 +106,56 @@ export async function wrapServiceCall<T>(
     return { ok: false, error: message };
   }
 }
+
+/**
+ * Type-safe wrappers for Supabase mutations.
+ *
+ * Supabase's generated types require exact Insert/Update shapes.  When hooks
+ * build objects dynamically the compiler infers `never` for the argument.
+ * These helpers cast to `any` in one place so individual hooks stay clean.
+ */
+import { supabase } from "@/lib/supabase";
+
+export async function dbInsert<T = any>(
+  table: string,
+  data: object | object[]
+): Promise<{ data: T | T[] | null; error: any }> {
+  const result = await (supabase as any).from(table).insert(data as any).select();
+  return result;
+}
+
+export async function dbInsertOne<T = any>(
+  table: string,
+  data: object
+): Promise<{ data: T | null; error: any }> {
+  const result = await (supabase as any)
+    .from(table)
+    .insert(data as any)
+    .select()
+    .single();
+  return result;
+}
+
+export async function dbUpdate<T = any>(
+  table: string,
+  data: object,
+  match: object
+): Promise<{ data: T | null; error: any }> {
+  let q = (supabase as any).from(table).update(data as any);
+  for (const [col, val] of Object.entries(match)) {
+    q = q.eq(col, val);
+  }
+  const result = await q.select().single();
+  return result;
+}
+
+export async function dbDelete(
+  table: string,
+  match: object
+): Promise<{ error: any }> {
+  let q = (supabase as any).from(table).delete();
+  for (const [col, val] of Object.entries(match)) {
+    q = q.eq(col, val);
+  }
+  return q;
+}

@@ -139,7 +139,7 @@ function baseScope(db: Db, userId: string): Omit<AccessScope, Extra> {
   const user = db.users.find((x) => x.id === userId)
     ?? db.users[0]
     ?? _authUser
-    ?? ({ id: userId, role: "sales_rep", tenantId: "", branchId: null, firstName: "User", lastName: "", status: "active", joinedAt: "" } as User);
+    ?? ({ id: userId, role: "sales_rep", tenantId: "", branchId: null, name: "User", firstName: "User", lastName: "", email: "", status: "active", joinedAt: "", managerId: null, createdAt: "" } as User);
   const own = user.branchId ? [user.branchId] : [];
   switch (user.role) {
     case "owner":

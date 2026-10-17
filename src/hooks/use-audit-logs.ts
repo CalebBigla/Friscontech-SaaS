@@ -76,8 +76,7 @@ export function useUserAuditLogs(userId: string, limit: number = 50) {
   return useQuery({
     queryKey: queryKeys.activities.byUser(userId, limit),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('activities')
+      const { data, error } = await (supabase as any).from('activities')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
@@ -97,8 +96,7 @@ export function useEntityAuditLogs(entityType: string, entityId: string) {
   return useQuery({
     queryKey: queryKeys.activities.byEntity(entityType, entityId),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('activities')
+      const { data, error } = await (supabase as any).from('activities')
         .select('*')
         .eq('entity_type', entityType)
         .eq('entity_id', entityId)
@@ -118,8 +116,7 @@ export function useAuditLog(id: string) {
   return useQuery({
     queryKey: queryKeys.activities.detail(id),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('activities')
+      const { data, error } = await (supabase as any).from('activities')
         .select('*')
         .eq('id', id)
         .single();
@@ -138,8 +135,7 @@ export function useRecentAuditLogs(tenantId: string, limit: number = 20) {
   return useQuery({
     queryKey: queryKeys.activities.recent(tenantId, limit),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('activities')
+      const { data, error } = await (supabase as any).from('activities')
         .select('*')
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
@@ -163,8 +159,7 @@ export function useAuditLogsByAction(
   return useQuery({
     queryKey: queryKeys.activities.byAction(tenantId, actionType, limit),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('activities')
+      const { data, error } = await (supabase as any).from('activities')
         .select('*')
         .eq('tenant_id', tenantId)
         .eq('action_type', actionType)
@@ -187,8 +182,7 @@ export function useCreateAuditLog() {
 
   return useMutation({
     mutationFn: async (input: ActivityInsert) => {
-      const { data, error } = await supabase
-        .from('activities')
+      const { data, error } = await (supabase as any).from('activities')
         .insert(input)
         .select()
         .single();
@@ -226,8 +220,7 @@ export function useBulkCreateAuditLogs() {
 
   return useMutation({
     mutationFn: async (inputs: ActivityInsert[]) => {
-      const { data, error } = await supabase
-        .from('activities')
+      const { data, error } = await (supabase as any).from('activities')
         .insert(inputs)
         .select();
 
@@ -235,8 +228,9 @@ export function useBulkCreateAuditLogs() {
       return data as ActivityRow[];
     },
     onSuccess: (data) => {
-      if (data.length > 0) {
-        const tenantId = data[0].tenant_id;
+      if (data && data.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const tenantId = (data[0] as ActivityRow).tenant_id;
         
         queryClient.invalidateQueries({
           queryKey: queryKeys.activities.all(tenantId),
@@ -246,8 +240,9 @@ export function useBulkCreateAuditLogs() {
         });
         
         // Invalidate user-specific queries
-        const uniqueUsers = [...new Set(data.map(a => a.user_id))];
-        uniqueUsers.forEach(userId => {
+        const uniqueUsers = [...new Set(data.map((a) => a.user_id))];
+        uniqueUsers.forEach((userId) => {
+          if (!userId) return;
           queryClient.invalidateQueries({
             queryKey: queryKeys.activities.byUser(userId),
           });

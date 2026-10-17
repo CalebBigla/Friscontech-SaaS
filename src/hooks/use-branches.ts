@@ -24,8 +24,7 @@ export function useBranches() {
     queryFn: async () => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('branches')
+      const { data, error } = await (supabase as any).from('branches')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('name');
@@ -47,8 +46,7 @@ export function useBranch(branchId: string | undefined) {
     queryFn: async () => {
       if (!branchId) throw new Error('Branch ID required');
       
-      const { data, error } = await supabase
-        .from('branches')
+      const { data, error } = await (supabase as any).from('branches')
         .select('*')
         .eq('id', branchId)
         .single();
@@ -74,8 +72,7 @@ export function useCreateBranch() {
       
       const dbData = branchToDb(input, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('branches')
+      const { data, error } = await (supabase as any).from('branches')
         .insert(dbData)
         .select()
         .single();
@@ -106,8 +103,7 @@ export function useUpdateBranch() {
       
       const dbData = branchToDb(updates, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('branches')
+      const { data, error } = await (supabase as any).from('branches')
         .update(dbData)
         .eq('id', id)
         .select()
@@ -140,8 +136,7 @@ export function useDeactivateBranch() {
     mutationFn: async (branchId: string) => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('branches')
+      const { data, error } = await (supabase as any).from('branches')
         .update({ 
           status: 'inactive',
           deactivated_at: new Date().toISOString(),
@@ -176,8 +171,7 @@ export function useReactivateBranch() {
     mutationFn: async (branchId: string) => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('branches')
+      const { data, error } = await (supabase as any).from('branches')
         .update({ 
           status: 'active',
           deactivated_at: null,

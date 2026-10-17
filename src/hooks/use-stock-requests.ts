@@ -23,8 +23,7 @@ export function useStockRequests() {
     queryFn: async () => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('stock_requests')
+      const { data, error } = await (supabase as any).from('stock_requests')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('created_at', { ascending: false });
@@ -46,8 +45,7 @@ export function useStockRequestsByBranch(branchId: string | undefined) {
     queryFn: async () => {
       if (!branchId) throw new Error('Branch ID required');
       
-      const { data, error } = await supabase
-        .from('stock_requests')
+      const { data, error } = await (supabase as any).from('stock_requests')
         .select('*')
         .eq('branch_id', branchId)
         .order('created_at', { ascending: false });
@@ -69,8 +67,7 @@ export function useStockRequestsByRequester(requesterId: string | undefined) {
     queryFn: async () => {
       if (!requesterId) throw new Error('Requester ID required');
       
-      const { data, error } = await supabase
-        .from('stock_requests')
+      const { data, error } = await (supabase as any).from('stock_requests')
         .select('*')
         .eq('requester_id', requesterId)
         .order('created_at', { ascending: false });
@@ -92,8 +89,7 @@ export function useStockRequest(requestId: string | undefined) {
     queryFn: async () => {
       if (!requestId) throw new Error('Request ID required');
       
-      const { data, error } = await supabase
-        .from('stock_requests')
+      const { data, error } = await (supabase as any).from('stock_requests')
         .select('*')
         .eq('id', requestId)
         .single();
@@ -119,8 +115,7 @@ export function useCreateStockRequest() {
       
       const dbData = stockRequestToDb(input, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('stock_requests')
+      const { data, error } = await (supabase as any).from('stock_requests')
         .insert(dbData)
         .select()
         .single();
@@ -150,8 +145,7 @@ export function useUpdateStockRequest() {
       
       const dbData = stockRequestToDb(updates, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('stock_requests')
+      const { data, error } = await (supabase as any).from('stock_requests')
         .update(dbData)
         .eq('id', id)
         .select()

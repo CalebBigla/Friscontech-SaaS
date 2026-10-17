@@ -56,12 +56,26 @@ export type UserStatus = "active" | "inactive" | "pending";
 export type User = {
   id: string;
   tenantId: string;
+  /** Full display name. For mock users this is a single field.
+   *  For Supabase-sourced users auth-context derives it from firstName + lastName. */
   name: string;
+  /** Supabase DB: first_name */
+  firstName?: string;
+  /** Supabase DB: last_name */
+  lastName?: string;
   email: string;
+  /** Supabase DB: phone — not present in mock users */
+  phone?: string | null;
   role: Role;
   branchId: string | null;
   managerId: string | null;
   status: UserStatus;
+  /** Supabase DB: joined_at */
+  joinedAt?: string;
+  /** Supabase DB: deactivated_at */
+  deactivatedAt?: string | null;
+  /** auth.users foreign key */
+  authId?: string | null;
   createdAt: string;
 };
 export type ProductStatus = "active" | "inactive";

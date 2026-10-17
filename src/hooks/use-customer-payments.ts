@@ -21,8 +21,7 @@ export function useCustomerPayments(customerId: string | undefined) {
     queryFn: async () => {
       if (!customerId) throw new Error('Customer ID required');
       
-      const { data, error } = await supabase
-        .from('customer_payments')
+      const { data, error } = await (supabase as any).from('customer_payments')
         .select('*')
         .eq('customer_id', customerId)
         .order('payment_date', { ascending: false });
@@ -48,8 +47,7 @@ export function useCreateCustomerPayment() {
       
       const dbData = customerPaymentToDb(input, user.tenantId);
       
-      const { data, error } = await supabase
-        .from('customer_payments')
+      const { data, error } = await (supabase as any).from('customer_payments')
         .insert(dbData)
         .select()
         .single();
