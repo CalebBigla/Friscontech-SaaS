@@ -9,13 +9,16 @@ import { Label } from "@/components/ui/label";
 import { FieldError, FilterSelect } from "@/components/shared";
 import type { Branch } from "@/data/mock-db";
 import { useDb } from "@/services/mock-store";
-import { useCreateBranch, useUpdateBranch } from "@/hooks/use-branches";
-import { branchService, type BranchInput, type FieldErrors } from "@/services/services";
+import { useBranches, useCreateBranch, useUpdateBranch } from "@/hooks/use-branches";
+import { useUsers } from "@/hooks/use-users";
+import { validateBranch, type BranchInput, type FieldErrors } from "@/services/services";
 
 const empty: BranchInput = { name: "", code: "", location: "", address: "", phone: "", email: "", managerId: "", status: "active" };
 
-export function BranchFormDialog({ open, onOpenChange, branch, actorId }: { open: boolean; onOpenChange: (o: boolean) => void; branch?: Branch | null; actorId: string }) {
+export function BranchFormDialog({ open, onOpenChange, branch }: { open: boolean; onOpenChange: (o: boolean) => void; branch?: Branch | null; actorId: string }) {
   const db = useDb();
+  const { data: branches = [], isLoading: branchesLoading } = useBranches();
+  const { data: users = [], isLoading: usersLoading } = useUsers();
   const [form, setForm] = useState<BranchInput>(empty);
   const [errors, setErrors] = useState<FieldErrors>({});
   
@@ -30,23 +33,16 @@ export function BranchFormDialog({ open, onOpenChange, branch, actorId }: { open
     setForm(branch ? { name: branch.name, code: branch.code, location: branch.location, address: branch.address, phone: branch.phone, email: branch.email, managerId: branch.managerId ?? "", status: branch.status } : empty);
   }, [open, branch]);
 
-  // Managers who are free, or who only run an inactive branch, or already run this one.
-  const managers = db.users.filter((x) => x.role === "manager" && x.status === "active" &&
-    !db.branches.some((b) => b.managerId === x.id && b.status === "active" && b.id !== branch?.id));
-
   const set = <K extends keyof BranchInput>(key: K, value: BranchInput[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setErrors({});
     
-    // Validate first (keep existing validation logic)
-    const validationResult = branch 
-      ? await branchService.update(branch.id, form, actorId)
-      : await branchService.create(form, actorId);
-    
-    if (!validationResult.ok) {
-      setErrors(validationResult.errors);
+    // Branches and users are loaded from Supabase; the demo store is intentionally empty.
+    const validationErrors = validateBranch({ ...db, users, branches }, form, branch?.id);
+    if (Object.keys(validationErrors).length) {
+      setErrors(validationErrors);
       toast.error("Please fix the highlighted fields");
       return;
     }
@@ -80,7 +76,7 @@ export function BranchFormDialog({ open, onOpenChange, branch, actorId }: { open
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{branch ? `Edit ${branch.name}` : "New branch"}</DialogTitle>
-          <DialogDescription className="text-xs">Revenue, sales and performance come from operational data and can't be edited here.</DialogDescription>
+          <DialogDescription className="text-xs">Create the branch first. The Owner assigns its manager when approving that manager's onboarding.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-5">
           <fieldset className="space-y-3">
@@ -94,14 +90,8 @@ export function BranchFormDialog({ open, onOpenChange, branch, actorId }: { open
             {field("address", "Address", "Street address")}
             {field("email", "Email", "branch@westfield.ng")}
           </fieldset>
-          <fieldset className="grid gap-3 sm:grid-cols-2">
+          <fieldset className="grid gap-3">
             <legend className="panel-title mb-2 text-muted-foreground">Management & status</legend>
-            <div>
-              <Label className="text-xs">Branch manager<span className="text-destructive"> *</span></Label>
-              <div className="mt-1.5"><FilterSelect label="Branch manager" className="w-full" value={form.managerId || "none"} onChange={(v) => set("managerId", v === "none" ? "" : v)}
-                options={[{ value: "none", label: "Select a manager" }, ...managers.map((m) => ({ value: m.id, label: m.name }))]} /></div>
-              <FieldError message={errors.managerId} />
-            </div>
             <div>
               <Label className="text-xs">Status</Label>
               <div className="mt-1.5 grid grid-cols-2 rounded-md border border-border p-1">
@@ -112,7 +102,7 @@ export function BranchFormDialog({ open, onOpenChange, branch, actorId }: { open
           <FieldError message={errors.form} />
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving && <Loader2 className="size-4 animate-spin" />}{branch ? "Save changes" : "Create branch"}</Button>
+            <Button type="submit" disabled={saving || branchesLoading || usersLoading}>{(saving || branchesLoading || usersLoading) && <Loader2 className="size-4 animate-spin" />}{branch ? "Save changes" : "Create branch"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

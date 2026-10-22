@@ -139,7 +139,6 @@ export function useDeactivateBranch() {
       const { data, error } = await (supabase as any).from('branches')
         .update({ 
           status: 'inactive',
-          deactivated_at: new Date().toISOString(),
         })
         .eq('id', branchId)
         .select()
@@ -174,7 +173,6 @@ export function useReactivateBranch() {
       const { data, error } = await (supabase as any).from('branches')
         .update({ 
           status: 'active',
-          deactivated_at: null,
         })
         .eq('id', branchId)
         .select()

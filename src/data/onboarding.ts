@@ -9,10 +9,10 @@
  * - Passwords: go to the auth provider (mock: src/services/mock-auth.ts), never into app data.
  * - Email: send the onboarding and guarantor links by email instead of copy/paste.
  */
-export type OnboardingStatus = "invited" | "in_progress" | "submitted" | "active";
+export type OnboardingStatus = "invited" | "in_progress" | "submitted" | "approved" | "rejected";
 export type GuarantorStatus = "not_sent" | "sent" | "completed";
 
-export type StoredFile = { name: string; type: string; size: number; dataUrl: string };
+export type StoredFile = { name: string; type: string; size: number; dataUrl: string; id?: string; path?: string };
 
 export const employeeFieldKeys = [
   "lastName", "firstName", "middleInitial", "address", "gender", "phone", "email", "birthDate",
@@ -75,7 +75,7 @@ export type Onboarding = {
 };
 
 export const onboardingStatusLabel: Record<OnboardingStatus, string> = {
-  invited: "Invited", in_progress: "In progress", submitted: "Submitted", active: "Active",
+  invited: "Invited", in_progress: "In progress", submitted: "Submitted", approved: "Approved", rejected: "Rejected",
 };
 export const guarantorStatusLabel: Record<GuarantorStatus, string> = {
   not_sent: "Not sent", sent: "Sent", completed: "Completed",

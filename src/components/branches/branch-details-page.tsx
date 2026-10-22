@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { BandBadge, BranchStatusBadge, EmptyState, MetricCard, Panel, ProgressBar } from "@/components/shared";
 import { BranchFormDialog } from "@/components/branches/branch-form-dialog";
 import { DeactivateBranchDialog } from "@/components/branches/deactivate-dialog";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { useBranch } from "@/hooks/use-branches";
 import { canSeeBranch, getAccessScope, useCurrentUserId } from "@/lib/session";
 import { filterSales, getBranchInventoryHealth, getBranchManager, getBranchPerformance, getBranchStaff, saleTotal } from "@/lib/calculations";
@@ -15,7 +15,7 @@ import { monthOf } from "@/lib/dates";
 import { formatDate, formatMonth, formatNaira, formatPercent, initials, roleLabel } from "@/lib/format";
 
 export function BranchDetailsPage({ branchId }: { branchId: string }) {
-  const db = useDb();
+  const { db, isLoading: workspaceLoading, error: workspaceError } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const [editOpen, setEditOpen] = useState(false);
@@ -49,6 +49,8 @@ export function BranchDetailsPage({ branchId }: { branchId: string }) {
     );
   }
 
+  if (workspaceLoading) return <AppShell title={branch.name}><p className="py-12 text-center text-sm text-muted-foreground">Loading branch data…</p></AppShell>;
+  if (workspaceError) return <AppShell title={branch.name}><RestrictedNotice message={workspaceError instanceof Error ? workspaceError.message : "Could not load branch data."} /></AppShell>;
   if (!canSeeBranch(scope, branch.id)) {
     return (
       <AppShell title={branch.name}>

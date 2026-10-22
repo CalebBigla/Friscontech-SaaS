@@ -27,7 +27,7 @@ import {
 } from "@/lib/customer-calculations";
 import { formatDate, formatNaira } from "@/lib/format";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { customerService } from "@/services/services";
 
 const orderTone = {
@@ -37,7 +37,7 @@ const orderTone = {
 } as const;
 
 export function CustomerDetailPage({ customerId }: { customerId: string }) {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const customer = db.customers.find((c) => c.id === customerId);
@@ -310,6 +310,7 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
           onOpenChange={(o) => setDialog(o ? "order" : null)}
           scope={scope}
           presetCustomerId={customer.id}
+          db={db}
         />
       )}
       {scope.canSetCreditLimit && (

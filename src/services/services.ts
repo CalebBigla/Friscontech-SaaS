@@ -2,6 +2,7 @@
  * Mock services with async, API-shaped signatures. Replace mockBranchService / mockSalesService
  * with fetch-based implementations of the same interfaces to go live.
  */
+import { supabase } from "@/lib/supabase";
 import type {
   ApprovalRequest,
   StockBatch,
@@ -60,7 +61,6 @@ import {
   validateRemittanceReconciliation,
 } from "@/lib/remittance-calculations";
 
-import { buildOnboarding } from "@/services/onboarding-service";
 export type FieldErrors = Partial<
   Record<
     | "expiryDate"
@@ -105,6 +105,7 @@ export type FieldErrors = Partial<
     | "reference"
     | "payeeType"
     | "customerId"
+    | "walkInName"
     | "contactPerson"
     | "creditLimit"
     | "method"
@@ -224,14 +225,17 @@ export function validateBranch(db: Db, input: BranchInput, editingId?: string) {
     errors.code = "This branch code is already in use";
   if (!input.location.trim()) errors.location = "Location is required";
   if (input.email && !/^\S+@\S+\.\S+$/.test(input.email)) errors.email = "Enter a valid email";
-  const manager = db.users.find((x) => x.id === input.managerId);
-  if (!manager || manager.role !== "manager") errors.managerId = "Select a branch manager";
-  else if (
-    db.branches.some(
-      (b) => b.id !== editingId && b.managerId === manager.id && b.status === "active",
+  if (input.managerId) {
+    const manager = db.users.find((x) => x.id === input.managerId);
+    if (!manager || manager.role !== "manager" || manager.status !== "active")
+      errors.managerId = "Select an active manager";
+    else if (
+      db.branches.some(
+        (b) => b.id !== editingId && b.managerId === manager.id && b.status === "active",
+      )
     )
-  )
-    errors.managerId = "This manager already runs another active branch";
+      errors.managerId = "This manager already runs another active branch";
+  }
   return errors;
 }
 
@@ -240,10 +244,10 @@ function reassignManager(
   db: Db,
   branchId: string,
   previousManagerId: string | null,
-  managerId: string,
+  managerId: string | null,
 ) {
   return db.users.map((x) => {
-    if (x.id === managerId) return { ...x, branchId };
+    if (managerId && x.id === managerId) return { ...x, branchId };
     if (x.id === previousManagerId && previousManagerId !== managerId)
       return { ...x, branchId: null };
     return x;
@@ -260,6 +264,7 @@ export const mockBranchService = {
       id: `branch-${String(current.branches.length + 1).padStart(3, "0")}`,
       tenantId: current.tenant.id,
       ...input,
+      managerId: input.managerId || null,
       name: input.name.trim(),
       code: input.code.trim().toUpperCase(),
       createdAt: current.tenant.referenceDate,
@@ -267,7 +272,7 @@ export const mockBranchService = {
     setDb((d) => ({
       ...d,
       branches: [...d.branches, branch],
-      users: reassignManager(d, branch.id, null, input.managerId),
+      users: reassignManager(d, branch.id, null, input.managerId || null),
       activities: [
         activity(d, actorId, "Branch created", `${branch.name} · ${branch.code}`),
         ...d.activities,
@@ -285,13 +290,14 @@ export const mockBranchService = {
     const branch: Branch = {
       ...existing,
       ...input,
+      managerId: input.managerId || null,
       name: input.name.trim(),
       code: input.code.trim().toUpperCase(),
     };
     setDb((d) => ({
       ...d,
       branches: d.branches.map((b) => (b.id === id ? branch : b)),
-      users: reassignManager(d, id, existing.managerId, input.managerId),
+      users: reassignManager(d, id, existing.managerId, input.managerId || null),
       activities: [activity(d, actorId, "Branch updated", branch.name), ...d.activities],
     }));
     return { ok: true, data: branch };
@@ -1480,7 +1486,7 @@ export function validateTeamMember(
   return e;
 }
 const branchManager = (d: Db, role: Role, branchId: string | null) =>
-  roleNeedsBranch(role) && branchId
+  (role === "storekeeper" || role === "sales_rep") && branchId
     ? (d.branches.find((b) => b.id === branchId)?.managerId ?? null)
     : null;
 /** Keep branch.managerId in sync when a manager is (re)assigned. */
@@ -1524,10 +1530,8 @@ export const mockTeamService = {
       ...d,
       users: [...d.users, user],
       branches: syncBranches(d, user),
-      onboardings:
-        user.status === "pending"
-          ? [buildOnboarding({ ...d, users: [...d.users, user] }, user.id, user.createdAt), ...d.onboardings]
-          : d.onboardings,
+      // Onboarding invites are now created via onboardingService.createInvite (Supabase);
+      // the mock team-create path no longer generates onboarding records.
       activities: [
         activity(
           d,
@@ -1767,7 +1771,7 @@ export const mockApprovalService = {
           createdAt: at,
         };
         next = { ...next, users: [...next.users, user], branches: syncBranches(next, user) };
-        next = { ...next, onboardings: [buildOnboarding(next, user.id, at), ...next.onboardings] };
+        // Onboarding invites now created via Supabase; no mock onboarding record needed here.
         log = activity(
           d,
           actorId,
@@ -3130,23 +3134,23 @@ export const mockCustomerPaymentService = {
     return { ok: true, data: updated };
   },
 };
-/** Read state of the signed-in user's own notifications. */
+/** Read state of the signed-in user's own notifications. Supabase-backed. */
 export const notificationService = {
-  markRead(id: string, actorId: string) {
-    setDb((d) => ({
-      ...d,
-      notifications: d.notifications.map((n) =>
-        n.id === id && n.recipientId === actorId && !n.readAt ? { ...n, readAt: nowOnReferenceDay(d) } : n,
-      ),
-    }));
+  async markRead(id: string, _actorId: string) {
+    const { error } = await (supabase as any)
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("id", id)
+      .is("read_at", null);
+    if (error) console.error("markRead failed", error);
   },
-  markAllRead(actorId: string) {
-    setDb((d) => ({
-      ...d,
-      notifications: d.notifications.map((n) =>
-        n.recipientId === actorId && !n.readAt ? { ...n, readAt: nowOnReferenceDay(d) } : n,
-      ),
-    }));
+  async markAllRead(actorId: string) {
+    const { error } = await (supabase as any)
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("recipient_id", actorId)
+      .is("read_at", null);
+    if (error) console.error("markAllRead failed", error);
   },
 };
 export const customerService = mockCustomerService;

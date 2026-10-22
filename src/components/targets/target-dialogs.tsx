@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FieldError, FilterSelect } from "@/components/shared";
 import type { Target } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
-import { targetService, type FieldErrors } from "@/services/services";
+import type { Db } from "@/data/mock-db";
+import { useCreateTarget, useUpdateTarget } from "@/hooks/use-targets";
+import type { FieldErrors } from "@/services/services";
 import type { AccessScope } from "@/lib/session";
 import { findRepTarget, shiftMonth } from "@/lib/catalog-calculations";
 import { formatMonth, formatNaira } from "@/lib/format";
@@ -17,11 +18,11 @@ import { formatMonth, formatNaira } from "@/lib/format";
 export const monthOptions = (center: string) => Array.from({ length: 12 }, (_, i) => shiftMonth(center, i - 6)).map((m) => ({ value: m, label: formatMonth(m) }));
 
 /** Set a new rep target. Branch is always derived from the rep. */
-export function SetTargetDialog({ open, onOpenChange, scope, defaultMonth, onEditExisting }: { open: boolean; onOpenChange: (o: boolean) => void; scope: AccessScope; defaultMonth: string; onEditExisting: (t: Target) => void }) {
-  const db = useDb();
+export function SetTargetDialog({ open, onOpenChange, scope, defaultMonth, onEditExisting, db }: { open: boolean; onOpenChange: (o: boolean) => void; scope: AccessScope; defaultMonth: string; onEditExisting: (t: Target) => void; db: Db }) {
   const [form, setForm] = useState({ repId: "", month: defaultMonth, amount: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
+  const createTarget = useCreateTarget();
   useEffect(() => { if (open) { setForm({ repId: "", month: defaultMonth, amount: "" }); setErrors({}); } }, [open, defaultMonth]);
 
   const reps = db.users.filter((u) => u.role === "sales_rep" && u.status === "active" && u.branchId && (!scope.branchIds || scope.branchIds.includes(u.branchId)));
@@ -32,11 +33,23 @@ export function SetTargetDialog({ open, onOpenChange, scope, defaultMonth, onEdi
   async function submit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
-    const r = await targetService.create({ repId: form.repId, month: form.month, amount: form.amount.trim() === "" ? Number.NaN : Number(form.amount) }, scope.user.id);
-    setSaving(false);
-    if (!r.ok) { setErrors(r.errors); toast.error(r.errors.form ?? "Please fix the highlighted fields"); return; }
-    toast.success("Target set", { description: `${rep?.name} · ${formatMonth(form.month)} · ${formatNaira(r.data.amount)}` });
-    onOpenChange(false);
+    const amount = form.amount.trim() === "" ? Number.NaN : Number(form.amount);
+    if (!rep?.branchId || !Number.isFinite(amount) || amount <= 0) {
+      const next = { ...(!rep?.branchId ? { repId: "Choose an active sales representative with a branch" } : {}), ...(!Number.isFinite(amount) || amount <= 0 ? { amount: "Enter a target above zero" } : {}) };
+      setErrors(next);
+      setSaving(false);
+      toast.error("Please fix the highlighted fields");
+      return;
+    }
+    try {
+      await createTarget.mutateAsync({ scope: "rep", branch_id: rep.branchId, user_id: rep.id, month: form.month, amount: Math.round(amount) });
+      toast.success("Target set", { description: `${rep.name} · ${formatMonth(form.month)} · ${formatNaira(amount)}` });
+      onOpenChange(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not set target";
+      setErrors({ form: message });
+      toast.error(message);
+    } finally { setSaving(false); }
   }
 
   return (
@@ -62,12 +75,12 @@ export function SetTargetDialog({ open, onOpenChange, scope, defaultMonth, onEdi
 }
 
 /** Edit amount with a two-step confirmation showing current vs new. */
-export function EditTargetDialog({ target, onClose, actorId }: { target: Target | null; onClose: () => void; actorId: string }) {
-  const db = useDb();
+export function EditTargetDialog({ target, onClose, actorId: _actorId, db }: { target: Target | null; onClose: () => void; actorId: string; db: Db }) {
   const [amount, setAmount] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
+  const updateTarget = useUpdateTarget();
   useEffect(() => { if (target) { setAmount(String(target.amount)); setConfirming(false); setError(undefined); } }, [target]);
   const rep = db.users.find((u) => u.id === target?.userId);
   const next = Number(amount);
@@ -81,11 +94,16 @@ export function EditTargetDialog({ target, onClose, actorId }: { target: Target 
   async function save() {
     if (!target) return;
     setSaving(true);
-    const r = await targetService.update(target.id, next, actorId);
-    setSaving(false);
-    if (!r.ok) { setConfirming(false); setError(r.errors.amount ?? r.errors.form); toast.error(r.errors.form ?? "Could not update target"); return; }
-    toast.success("Target updated", { description: `${rep?.name} · ${formatNaira(r.data.amount)}` });
-    onClose();
+    try {
+      await updateTarget.mutateAsync({ id: target.id, updates: { amount: Math.round(next) } });
+      toast.success("Target updated", { description: `${rep?.name} · ${formatNaira(next)}` });
+      onClose();
+    } catch (error) {
+      setConfirming(false);
+      const message = error instanceof Error ? error.message : "Could not update target";
+      setError(message);
+      toast.error(message);
+    } finally { setSaving(false); }
   }
 
   return (

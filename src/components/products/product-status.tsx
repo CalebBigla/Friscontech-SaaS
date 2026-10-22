@@ -2,10 +2,11 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { Product, ProductStatus } from "@/data/mock-db";
-import { productService, requestProductDeactivation } from "@/services/services";
+import { requestProductDeactivation } from "@/services/services";
 import { Textarea } from "@/components/ui/textarea";
 import { useDb } from "@/services/mock-store";
 import { getAccessScope } from "@/lib/session";
+import { useDeactivateProduct, useReactivateProduct } from "@/hooks/use-products";
 
 export function ProductStatusBadge({ status }: { status: ProductStatus }) {
   return <span className={`status whitespace-nowrap ${status === "active" ? "status-success" : "status-warning"}`}>{status === "active" ? "Active" : "Inactive"}</span>;
@@ -17,6 +18,8 @@ export function ProductStatusDialog({ product, onClose, actorId }: { product: Pr
   const [reason, setReason] = useState("");
   const db = useDb();
   const scope = getAccessScope(db, actorId);
+  const deactivateProduct = useDeactivateProduct();
+  const reactivateProduct = useReactivateProduct();
   const deactivating = product?.status === "active";
   const deleting = scope.user.role === "owner" && deactivating;
   const needsApproval = deactivating && !scope.canDeactivateProducts;
@@ -44,10 +47,14 @@ export function ProductStatusDialog({ product, onClose, actorId }: { product: Pr
               toast.success("Deactivation request sent to your manager.", { description: r.data.id });
               setReason(""); onClose(); return;
             }
-            const r = await productService.setStatus(product.id, deactivating ? "inactive" : "active", actorId);
-            setBusy(false);
-            if (r.ok) toast.success(`${product.name} ${deleting ? "deleted" : deactivating ? "deactivated" : "activated"}`); else toast.error(r.errors.form ?? "Could not update product");
-            onClose();
+            try {
+              if (deactivating) await deactivateProduct.mutateAsync(product.id);
+              else await reactivateProduct.mutateAsync(product.id);
+              toast.success(`${product.name} ${deleting ? "deleted" : deactivating ? "deactivated" : "activated"}`);
+              onClose();
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "Could not update product");
+            } finally { setBusy(false); }
           }}>{busy ? "Saving…" : needsApproval ? "Send request" : deleting ? "Delete product" : deactivating ? "Deactivate product" : "Activate product"}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

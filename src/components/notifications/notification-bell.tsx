@@ -3,14 +3,13 @@ import { Bell, CheckCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { AppNotification } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
+import { useAuth } from "@/contexts/auth-context";
+import { useNotifications } from "@/hooks/use-notifications";
 import { notificationService } from "@/services/services";
-import { useCurrentUserId } from "@/lib/session";
 import { formatDayTime } from "@/lib/format";
 
 /** Where a notification leads; every target page re-checks the role itself. */
-function target(n: AppNotification) {
+function target(n: any) {
   if (n.entityType === "stock_request")
     return { to: "/stock-requests/$requestId" as const, params: { requestId: n.entityId } };
   if (n.entityType === "onboarding") return { to: "/team" as const };
@@ -18,12 +17,12 @@ function target(n: AppNotification) {
 }
 
 export function NotificationBell() {
-  const db = useDb();
-  const userId = useCurrentUserId();
-  const mine = db.notifications
-    .filter((n) => n.tenantId === db.tenant.id && n.recipientId === userId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const unread = mine.filter((n) => !n.readAt).length;
+  const { user } = useAuth();
+  const userId = user?.id ?? "";
+  const { data: mine = [] } = useNotifications(userId);
+  const sorted = [...mine].sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt));
+  const unread = sorted.filter((n: any) => !n.readAt).length;
+  const referenceDate = new Date().toISOString().slice(0, 10);
 
   return (
     <Popover>
@@ -60,9 +59,9 @@ export function NotificationBell() {
             </Button>
           )}
         </div>
-        {mine.length ? (
+        {sorted.length ? (
           <div className="max-h-96 divide-y divide-border overflow-y-auto">
-            {mine.slice(0, 30).map((n) => (
+            {sorted.slice(0, 30).map((n: any) => (
               <Link
                 key={n.id}
                 {...target(n)}
@@ -75,7 +74,7 @@ export function NotificationBell() {
                 <span className="min-w-0">
                   <span className="block text-xs font-semibold leading-snug">{n.message}</span>
                   <span className="mt-1 block text-[10px] text-muted-foreground">
-                    {formatDayTime(n.createdAt, db.tenant.referenceDate)}
+                    {formatDayTime(n.createdAt, referenceDate)}
                   </span>
                 </span>
               </Link>

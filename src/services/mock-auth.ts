@@ -68,6 +68,7 @@ export const mockAuth = {
   },
   signOut(userId: string) {
     setDb((d) => ({ ...d, activities: [createAuditLog(d, userId, "Logout", "Signed out", { entityId: userId }), ...d.activities] }));
+    setCurrentUserId(null);
   },
   /** Returns the reset link. A real backend emails it and returns nothing (no account enumeration). */
   async requestReset(email: string): Promise<Res<string | null>> {

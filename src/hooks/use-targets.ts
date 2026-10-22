@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { queryKeys } from '@/lib/query-keys';
 import { handleSupabaseError } from '@/lib/supabase-helpers';
+import { useAuth } from '@/contexts/auth-context';
 import type { Database } from '@/types/database.types';
 
 type TargetRow = Database['public']['Tables']['targets']['Row'];
@@ -120,12 +121,14 @@ export function useBranchTargets(branchId: string, month: string) {
  * Create a new target
  */
 export function useCreateTarget() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: TargetInsert) => {
+    mutationFn: async (input: Omit<TargetInsert, 'tenant_id'>) => {
+      if (!user?.tenantId) throw new Error('Not authenticated');
       const { data, error } = await (supabase as any).from('targets')
-        .insert(input)
+        .insert({ ...input, tenant_id: user.tenantId })
         .select()
         .single();
 
@@ -154,12 +157,14 @@ export function useCreateTarget() {
  * Bulk create targets (for setting multiple targets at once)
  */
 export function useBulkCreateTargets() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (inputs: TargetInsert[]) => {
+      if (!user?.tenantId) throw new Error('Not authenticated');
       const { data, error } = await (supabase as any).from('targets')
-        .insert(inputs)
+        .insert(inputs.map(({ tenant_id: _tenantId, ...input }) => ({ ...input, tenant_id: user.tenantId })))
         .select();
 
       if (error) throw handleSupabaseError(error);

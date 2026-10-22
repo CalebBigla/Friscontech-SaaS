@@ -10,9 +10,7 @@ import { ProductFormDialog } from "@/components/products/add-product-dialog";
 import { ImportProductsDialog } from "@/components/products/import-products-dialog";
 import { ProductStatusDialog, ProductStatusBadge } from "@/components/products/product-status";
 import type { Product } from "@/data/mock-db";
-import { useProducts } from "@/hooks/use-products";
-import { useTenantId } from "@/hooks/use-tenant";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getProductCategories, getProductSummary, sortProducts, type ProductSortKey } from "@/lib/catalog-calculations";
 import { getInventoryRows } from "@/lib/inventory-calculations";
@@ -23,9 +21,7 @@ const sortOptions: { value: ProductSortKey; label: string }[] = [
 ];
 
 export function ProductsPage() {
-  const db = useDb();
-  const tenantId = useTenantId();
-  const { data: productsData, isLoading: productsLoading } = useProducts();
+  const { db, isLoading: productsLoading, error: dataError } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const manage = scope.canManageProducts;
@@ -38,8 +34,7 @@ export function ProductsPage() {
   const [toggling, setToggling] = useState<Product | null>(null);
   const [importing, setImporting] = useState(false);
 
-  // Use Supabase products if available, fallback to mock for now during migration
-  const products: Product[] = (productsData as Product[] | undefined) || db.products;
+  const products: Product[] = db.products;
 
   const summary = getProductSummary({ ...db, products });
   const categories = getProductCategories({ ...db, products });
@@ -66,6 +61,7 @@ export function ProductsPage() {
 
   return (
     <AppShell title="Products" subtitle={manage ? "Central product catalogue" : "Products you can sell"} actions={manage ? <div className="flex gap-2"><Button variant="outline" onClick={() => setImporting(true)}><Upload className="size-4" /><span className="hidden sm:inline">Import</span></Button><Button onClick={() => setEditing("new")}><Plus className="size-4" /><span className="hidden sm:inline">Add Product</span></Button></div> : undefined}>
+      {dataError && <div role="alert" className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">Could not load live product data: {dataError instanceof Error ? dataError.message : "Database request failed"}</div>}
       {manage && <ImportProductsDialog open={importing} onOpenChange={setImporting} db={db} scope={scope} />}
       <div className="mb-5"><h1 className="text-xl font-bold">Products</h1><p className="mt-1 text-xs text-muted-foreground">{manage ? "Manage your product catalogue and product information." : "Active products and what's available at your branch."}</p></div>
       {manage && <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">

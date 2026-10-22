@@ -5,7 +5,7 @@ import { BadgeCheck, Boxes, CircleDollarSign, ClipboardList, Wallet } from "luci
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { EmptyState, MetricCard, Panel } from "@/components/shared";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getApprovals } from "@/lib/approvals";
 import {
@@ -20,7 +20,7 @@ import { canReviewApproval } from "@/services/services";
 
 /** Branch-scoped Manager overview, derived from shared sales and payment records. */
 export function ManagerDashboard() {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
   const scope = getAccessScope(db, useCurrentUserId());
   const today = db.tenant.referenceDate;
   const month = monthOf(today);

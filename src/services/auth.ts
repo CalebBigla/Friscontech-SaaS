@@ -1,441 +1,256 @@
 /**
  * Supabase Authentication Service
- * 
- * Replaces mock-auth.ts with production Supabase Auth.
- * Handles signup, signin, signout, password reset, and session management.
- * Creates user profiles in the users table on signup.
+ *
+ * Auth (Supabase) and authorization (FrisconTech `users` profile) are kept separate:
+ *   - Authentication = "does this person have a valid Supabase account?"
+ *   - Authorization = "is this person an ACTIVE FrisconTech user, and what
+ *     organization/role/branch can they access?" (read from the public.users profile)
+ *
+ * Owner registration: supabase.auth.signUp with user_metadata.is_owner = true. The
+ * handle_new_user() trigger (migration 20260118010000) creates the tenant + owner
+ * profile (status='active') in the same transaction. No pre-existing row is required.
+ *
+ * Staff onboarding: the auth account is created by the onboarding form's submit step
+ * (see onboarding-service). handle_new_user() creates a PENDING profile linked to the
+ * onboarding. The owner activates it via approve_onboarding() (status -> 'active').
+ *
+ * Sign-in is refused when the profile status is not 'active' (pending / rejected /
+ * inactive / suspended), so an unapproved staff member cannot reach the app.
  */
 import { supabase } from "@/lib/supabase";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { createAuditLog } from "@/services/services";
 
-export type AuthResult<T = true> = 
-  | { ok: true; data: T } 
+async function writeAuditBestEffort(action: string, params: Record<string, unknown>) {
+  try {
+    const { error } = await (supabase as any).rpc("create_audit_log", params);
+    if (error) console.warn(`[AUDIT] ${action} log failed`, error);
+  } catch (error) {
+    console.warn(`[AUDIT] ${action} log failed`, error);
+  }
+}
+
+export type AuthResult<T = true> =
+  | { ok: true; data: T }
   | { ok: false; error: string };
 
-/**
- * Password validation (min 8 chars, letters + numbers)
- */
+/** Password rules (min 8 chars, letters + numbers). */
 export const passwordProblem = (pw: string) =>
-  pw.length < 8 || !/[0-9]/.test(pw) || !/[a-z]/i.test(pw) 
-    ? "At least 8 characters with letters and numbers" 
+  pw.length < 8 || !/[0-9]/.test(pw) || !/[a-z]/i.test(pw)
+    ? "At least 8 characters with letters and numbers"
     : null;
 
 /**
- * Check if the owner account already exists
- * (First signup becomes owner, subsequent signups are closed)
+ * Does an owner account already exist? Anon cannot read `users` through RLS, so this
+ * calls a public SECURITY DEFINER helper. Used by the login page to decide whether to
+ * show "Sign in" or "Create owner account".
  */
 export async function ownerHasAccount(): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("users")
-    .select("id, email")
-    .eq("role", "owner")
-    .single();
-
-  if (error) return false;
-  return !!data?.email; // Owner has account if email is set
-}
-
-/**
- * Check if a specific user has an auth account
- */
-export async function hasAccount(userId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from("users")
-    .select("email")
-    .eq("id", userId)
-    .single();
-
-  return !!data?.email;
-}
-
-/**
- * Sign up the first owner account
- * Only allowed if no owner account exists yet
- */
-export async function signUpOwner(
-  email: string,
-  password: string
-): Promise<AuthResult> {
   try {
-    // Check if owner already exists
+    const { data, error } = await (supabase as any).rpc("owner_account_exists");
+    if (error) {
+      // Fall back to assuming an owner exists so we don't accidentally open sign-up.
+      console.error("owner_account_exists failed", error);
+      return true;
+    }
+    return !!data;
+  } catch {
+    return true;
+  }
+}
+
+export interface OwnerSignupInput {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  orgName: string;
+  orgLegalName?: string;
+  orgPhone?: string;
+}
+
+/**
+ * Sign up the FIRST owner. The handle_new_user trigger creates the tenant + owner
+ * profile (status='active'). After this, sign-up is closed — staff join by invite only.
+ */
+export async function signUpOwner(input: OwnerSignupInput): Promise<AuthResult<{ confirmationRequired: boolean }>> {
+  try {
     const ownerExists = await ownerHasAccount();
     if (ownerExists) {
+      return { ok: false, error: "Sign-up is closed. Staff join through an onboarding link." };
+    }
+    const pwProblem = passwordProblem(input.password);
+    if (pwProblem) return { ok: false, error: pwProblem };
+
+    const email = input.email.trim().toLowerCase();
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password: input.password,
+      options: {
+        data: {
+          is_owner: true,
+          first_name: input.firstName.trim(),
+          last_name: input.lastName.trim(),
+          org_name: input.orgName.trim(),
+          org_legal_name: input.orgLegalName?.trim() || input.orgName.trim(),
+          org_phone: input.orgPhone?.trim() || "",
+        },
+      },
+    });
+
+    if (error) return { ok: false, error: error.message };
+    if (!data.user) return { ok: false, error: "Failed to create account." };
+
+    // If email confirmation is required on the project, no session is returned.
+    if (!data.session) {
       return {
-        ok: false,
-        error: "Sign-up is closed. Staff join through an onboarding link.",
+        ok: true,
+        data: { confirmationRequired: true },
       };
     }
 
-    // Validate password
-    const pwProblem = passwordProblem(password);
-    if (pwProblem) {
-      return { ok: false, error: pwProblem };
-    }
-
-    // Get the owner user record
-    const { data: ownerUser, error: ownerError } = await supabase
-      .from("users")
-      .select("id, tenant_id")
-      .eq("role", "owner")
-      .single();
-
-    if (ownerError || !ownerUser) {
-      return { ok: false, error: "No owner record found." };
-    }
-
-    // Create Supabase auth account
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
-      password,
-      options: {
-        data: {
-          user_id: ownerUser.id, // Link to our users table
-          tenant_id: ownerUser.tenant_id,
-          role: "owner",
-        },
-      },
+    // Audit log via the real create_audit_log signature.
+    await writeAuditBestEffort("Owner signup", {
+      p_tenant_id: data.user.id, // placeholder; the trigger created the real tenant — re-fetched on next load
+      p_actor_id: data.user.id,
+      p_action: "Owner account created",
+      p_subject: `${input.firstName} ${input.lastName} · ${email}`,
+      p_entity: "team_member",
+      p_entity_id: data.user.id,
     });
 
-    if (authError) {
-      return { ok: false, error: authError.message };
-    }
-
-    if (!authData.user) {
-      return { ok: false, error: "Failed to create account." };
-    }
-
-    // Update the users table with email and auth_id
-    const { error: updateError } = await supabase
-      .from("users")
-      .update({ 
-        email: email.trim().toLowerCase(),
-        auth_id: authData.user.id 
-      })
-      .eq("id", ownerUser.id);
-
-    if (updateError) {
-      console.error("Failed to update user profile:", updateError);
-    }
-
-    // Create audit log for signup
-    await (supabase as any).rpc("create_audit_log", {
-      p_user_id: ownerUser.id,
-      p_action_type: "Signup",
-      p_description: "Owner account created",
-      p_entity_type: "User",
-      p_entity_id: ownerUser.id,
-    });
-
-    return { ok: true, data: true };
+    return { ok: true, data: { confirmationRequired: false } };
   } catch (err) {
-    console.error("Owner signup error:", err);
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : "Signup failed",
-    };
+    console.error("Owner signup error", err);
+    return { ok: false, error: err instanceof Error ? err.message : "Signup failed" };
   }
 }
 
 /**
- * Register an auth account for an existing user (via onboarding)
- * Called when a staff member completes onboarding
+ * Sign in with email + password. Authentication is Supabase; authorization is the
+ * public.users profile. Refuses sign-in unless the profile status is 'active'.
  */
-export async function register(
-  userId: string,
-  email: string,
-  password: string
-): Promise<AuthResult> {
+export async function signIn(email: string, password: string): Promise<AuthResult> {
   try {
-    // Validate password
-    const pwProblem = passwordProblem(password);
-    if (pwProblem) {
-      return { ok: false, error: pwProblem };
-    }
-
-    // Get the user record
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("id, tenant_id, role, status")
-      .eq("id", userId)
-      .single();
-
-    if (userError || !user) {
-      return { ok: false, error: "User not found." };
-    }
-
-    // Check if email is already taken
-    const { data: existingAuth } = await supabase.auth.admin.listUsers();
-    const emailExists = existingAuth?.users?.some(
-      (u) => u.email?.toLowerCase() === email.trim().toLowerCase()
-    );
-
-    if (emailExists) {
-      return { ok: false, error: "This email already has an account." };
-    }
-
-    // Create Supabase auth account
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
-      options: {
-        data: {
-          user_id: user.id,
-          tenant_id: user.tenant_id,
-          role: user.role,
-        },
-      },
     });
-
     if (authError) {
-      return { ok: false, error: authError.message };
-    }
-
-    if (!authData.user) {
-      return { ok: false, error: "Failed to create account." };
-    }
-
-    // Update the users table with email and auth_id
-    const { error: updateError } = await supabase
-      .from("users")
-      .update({ 
-        email: email.trim().toLowerCase(),
-        auth_id: authData.user.id 
-      })
-      .eq("id", userId);
-
-    if (updateError) {
-      console.error("Failed to update user profile:", updateError);
-    }
-
-    return { ok: true, data: true };
-  } catch (err) {
-    console.error("Registration error:", err);
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : "Registration failed",
-    };
-  }
-}
-
-/**
- * Sign in with email and password
- */
-export async function signIn(
-  email: string,
-  password: string
-): Promise<AuthResult> {
-  try {
-    const { data: authData, error: authError } =
-      await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
-      });
-
-    if (authError) {
+      if ((authError as { code?: string }).code === "email_not_confirmed") {
+        return { ok: false, error: "Confirm your email before signing in. Check your inbox for the confirmation link." };
+      }
       return { ok: false, error: "Wrong email or password." };
     }
+    if (!authData.user) return { ok: false, error: "Failed to sign in." };
 
-    if (!authData.user) {
-      return { ok: false, error: "Failed to sign in." };
-    }
-
-    // Get the user profile
-    const { data: user, error: userError } = await supabase
+    // The profile id IS the auth user id (users.id references auth.users(id)).
+    const { data: profile, error: profileError } = await (supabase as any)
       .from("users")
-      .select("id, status, role")
-      .eq("auth_id", authData.user.id)
-      .single();
+      .select("id, status, role, tenant_id")
+      .eq("id", authData.user.id)
+      .maybeSingle();
 
-    if (userError || !user) {
-      // Try matching by email as fallback
-      const { data: userByEmail } = await supabase
-        .from("users")
-        .select("id, status, role")
-        .eq("email", email.trim().toLowerCase())
-        .single();
-
-      if (!userByEmail) {
-        await supabase.auth.signOut();
-        return { ok: false, error: "Account not found." };
-      }
-
-      // Update auth_id link
-      await supabase
-        .from("users")
-        .update({ auth_id: authData.user.id })
-        .eq("id", userByEmail.id);
-    }
-
-    const userProfile = user || (await supabase
-      .from("users")
-      .select("id, status, role")
-      .eq("email", email.trim().toLowerCase())
-      .single()).data;
-
-    if (!userProfile) {
+    if (profileError || !profile) {
       await supabase.auth.signOut();
-      return { ok: false, error: "Account not found." };
+      return { ok: false, error: "Your account is not part of an organization. Ask your owner for an invite." };
     }
 
-    // Check user status
-    if (userProfile.status === "pending") {
+    if (profile.status === "pending") {
       await supabase.auth.signOut();
-      return {
-        ok: false,
-        error: "Your account is waiting for the Owner to activate it.",
-      };
+      return { ok: false, error: "Your account is waiting for the Owner to activate it." };
     }
-
-    if (userProfile.status !== "active") {
+    if (profile.status === "rejected") {
+      await supabase.auth.signOut();
+      return { ok: false, error: "Your onboarding was declined. Contact the Owner." };
+    }
+    if (profile.status === "suspended") {
+      await supabase.auth.signOut();
+      return { ok: false, error: "This account has been suspended. Contact the Owner." };
+    }
+    if (profile.status !== "active") {
       await supabase.auth.signOut();
       return { ok: false, error: "This account has been deactivated." };
     }
 
-    // Create audit log for login
-    await (supabase as any).rpc("create_audit_log", {
-      p_user_id: userProfile.id,
-      p_action_type: "Login",
-      p_description: "Signed in with email and password",
-      p_entity_type: "User",
-      p_entity_id: userProfile.id,
+    // Audit the login (best-effort; the profile now exists so RLS allows it).
+    await writeAuditBestEffort("Login", {
+      p_tenant_id: profile.tenant_id,
+      p_actor_id: profile.id,
+      p_action: "Login",
+      p_subject: "Signed in with email and password",
+      p_entity: "session",
+      p_entity_id: profile.id,
     });
 
     return { ok: true, data: true };
   } catch (err) {
-    console.error("Sign in error:", err);
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : "Sign in failed",
-    };
+    console.error("Sign in error", err);
+    return { ok: false, error: err instanceof Error ? err.message : "Sign in failed" };
   }
 }
 
-/**
- * Sign out current user
- */
+/** Sign out the current user. */
 export async function signOut(userId?: string): Promise<void> {
   try {
-    // Create audit log before signing out
     if (userId) {
-      await (supabase as any).rpc("create_audit_log", {
-        p_user_id: userId,
-        p_action_type: "Logout",
-        p_description: "Signed out",
-        p_entity_type: "User",
+      // Best-effort audit; ignore errors.
+      const { data: { session } } = await supabase.auth.getSession();
+      const tenantId = (session?.user as any)?.user_metadata?.tenant_id;
+      await writeAuditBestEffort("Logout", {
+        p_tenant_id: tenantId ?? userId,
+        p_actor_id: userId,
+        p_action: "Logout",
+        p_subject: "Signed out",
+        p_entity: "session",
         p_entity_id: userId,
       });
     }
-
     await supabase.auth.signOut();
   } catch (err) {
-    console.error("Sign out error:", err);
+    console.error("Sign out error", err);
   }
 }
 
 /**
- * Request password reset email
- * Returns success regardless of whether email exists (no account enumeration)
+ * Request a password reset email. Always returns success (no account enumeration).
  */
-export async function requestPasswordReset(
-  email: string
-): Promise<AuthResult<null>> {
+export async function requestPasswordReset(email: string): Promise<AuthResult<null>> {
   try {
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      email.trim().toLowerCase(),
-      {
-        redirectTo: `${window.location.origin}/reset-password`,
-      }
-    );
-
-    if (error) {
-      console.error("Password reset request error:", error);
-    }
-
-    // Always return success (no account enumeration)
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) console.error("Password reset request error", error);
     return { ok: true, data: null };
   } catch (err) {
-    console.error("Password reset error:", err);
+    console.error("Password reset error", err);
     return { ok: true, data: null };
   }
 }
 
-/**
- * Reset password with token (from email link)
- * Supabase handles the token validation automatically
- */
+/** Reset password (the Supabase recovery flow already validated the token). */
 export async function resetPassword(newPassword: string): Promise<AuthResult> {
   try {
-    // Validate password
     const pwProblem = passwordProblem(newPassword);
-    if (pwProblem) {
-      return { ok: false, error: pwProblem };
-    }
-
-    const { data, error } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
-
-    if (error) {
-      return { ok: false, error: error.message };
-    }
-
-    if (!data.user) {
-      return { ok: false, error: "Failed to reset password." };
-    }
-
-    // Get user profile for audit log
-    const { data: user } = await supabase
-      .from("users")
-      .select("id")
-      .eq("auth_id", data.user.id)
-      .single();
-
-    if (user) {
-      await (supabase as any).rpc("create_audit_log", {
-        p_user_id: user.id,
-        p_action_type: "Password reset",
-        p_description: "Reset password with a recovery link",
-        p_entity_type: "User",
-        p_entity_id: user.id,
-      });
-    }
-
+    if (pwProblem) return { ok: false, error: pwProblem };
+    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) return { ok: false, error: error.message };
+    if (!data.user) return { ok: false, error: "Failed to reset password." };
     return { ok: true, data: true };
   } catch (err) {
-    console.error("Password reset error:", err);
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : "Password reset failed",
-    };
+    console.error("Password reset error", err);
+    return { ok: false, error: err instanceof Error ? err.message : "Password reset failed" };
   }
 }
 
-/**
- * Get current authenticated user
- */
-export async function getCurrentUser(): Promise<SupabaseUser | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export async function getCurrentUser() {
+  const { data: { user } } = await supabase.auth.getUser();
   return user;
 }
 
-/**
- * Get current session
- */
 export async function getSession() {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { data: { session } } = await supabase.auth.getSession();
   return session;
 }
 
-/**
- * Subscribe to auth state changes
- */
-export function onAuthStateChange(
-  callback: (event: string, session: any) => void
-) {
+export function onAuthStateChange(callback: (event: string, session: any) => void) {
   return supabase.auth.onAuthStateChange(callback);
 }

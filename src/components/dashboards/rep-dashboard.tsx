@@ -22,7 +22,7 @@ import {
 } from "@/components/shared";
 import { RecordSaleDialog } from "@/components/sales/record-sale-dialog";
 import { NewRequestDialog } from "@/components/stock-requests/new-request-dialog";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import {
   filterSales,
@@ -36,7 +36,7 @@ import { monthOf } from "@/lib/dates";
 import { formatDayTime, formatMonth, formatNaira, formatNumber, formatPercent } from "@/lib/format";
 
 export function RepDashboard() {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
   const scope = getAccessScope(db, useCurrentUserId());
   const [saleOpen, setSaleOpen] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
@@ -302,7 +302,7 @@ export function RepDashboard() {
         <ShoppingCart className="size-3" />
         Figures include completed sales only.
       </p>
-      <RecordSaleDialog open={saleOpen} onOpenChange={setSaleOpen} scope={scope} />
+      <RecordSaleDialog open={saleOpen} onOpenChange={setSaleOpen} scope={scope} db={db} />
       <NewRequestDialog open={requestOpen} onOpenChange={setRequestOpen} scope={scope} />
     </AppShell>
   );

@@ -31,7 +31,7 @@ import {
   StockStatusBadge,
 } from "@/components/shared";
 import { TargetProgressBar, TargetStatusBadge } from "@/components/targets/target-shared";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getPreferences } from "@/services/services";
 import { getPeriodRange, type PeriodKey } from "@/lib/dates";
@@ -82,7 +82,7 @@ function downloadCsv(name: string, header: string[], rows: (string | number)[][]
 }
 
 export function ReportsPage() {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
   const scope = getAccessScope(db, useCurrentUserId());
   const today = db.tenant.referenceDate;
   const init: Draft = {

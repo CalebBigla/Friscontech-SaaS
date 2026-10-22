@@ -21,6 +21,7 @@ import {
   Users,
 } from "lucide-react";
 import { useDb } from "@/services/mock-store";
+import { useAuth } from "@/contexts/auth-context";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { filterSales, monthRange, saleTotal, getSalesRevenue } from "@/lib/calculations";
 import {
@@ -43,8 +44,10 @@ import {
 
 export function TeamDetailPage({ userId: memberId }: { userId: string }) {
   const db = useDb();
-  const userId = useCurrentUserId();
-  const scope = getAccessScope(db, userId);
+  const { user: authUser } = useAuth();
+  const legacyUserId = useCurrentUserId(); // always called (hooks order must be stable)
+  const userId = authUser?.id ?? legacyUserId;
+  const scope = getAccessScope(authUser ? { ...db, users: [authUser] } : db, userId);
   const [editing, setEditing] = useState(false);
   const [toggling, setToggling] = useState(false);
   const u = getTeamMember(db, scope, memberId);

@@ -1,14 +1,17 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowUpDown, Eye, MoreHorizontal, Pencil, Plus, Power, ShieldCheck, Trash2, UserCheck, Users, UserRound } from "lucide-react";
+import { ArrowUpDown, Clock, Eye, MoreHorizontal, Pencil, Plus, Power, ShieldCheck, Trash2, UserCheck, Users, UserRound } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ALL, EmptyState, FilterSelect, MetricCard, Panel, SearchBox } from "@/components/shared";
 import { MemberStatusBadge, MemberStatusDialog, RoleBadge, TeamMemberDialog } from "@/components/team/team-dialogs";
+import { OnboardingStatusBadge } from "@/components/team/onboarding-panel";
 import type { Role, User, UserStatus } from "@/data/mock-db";
 import { useDb } from "@/services/mock-store";
+import { useAuth } from "@/contexts/auth-context";
+import { usePendingOnboardings } from "@/hooks/use-onboardings";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { formatDate, formatDayTime, initials, roleLabel } from "@/lib/format";
 import { canEditMember, getLastActivity, getTeamMembers, getTeamSummary, sortTeam, userStatusLabel, type TeamSortKey } from "@/lib/team";
@@ -16,8 +19,11 @@ import { canEditMember, getLastActivity, getTeamMembers, getTeamSummary, sortTea
 export function TeamPage() {
   const db = useDb();
   const userId = useCurrentUserId();
-  const scope = getAccessScope(db, userId);
+  const { user: authUser } = useAuth();
+  const scope = getAccessScope(authUser ? { ...db, users: [authUser] } : db, authUser?.id ?? userId);
+  const tenantId = authUser?.tenantId ?? "";
   const all = useMemo(() => getTeamMembers(db, scope), [db, scope]);
+  const { data: pendingOnboardings = [] } = usePendingOnboardings(tenantId);
   const [query, setQuery] = useState("");
   const [role, setRole] = useState(ALL);
   const [branchId, setBranchId] = useState(ALL);
@@ -70,6 +76,30 @@ export function TeamPage() {
         <MetricCard icon={ShieldCheck} tone="violet" label="Managers" value={String(summary.managers)} detail={scope.user.role === "owner" ? "Branch leadership" : "You"} />
         <MetricCard icon={UserRound} tone="warning" label="Sales representatives" value={String(summary.reps)} detail={`${summary.storekeepers} storekeepers`} />
       </div>
+      {/* ---- Pending onboarding submissions (owner only) ---- */}
+      {scope.user.role === "owner" && pendingOnboardings.length > 0 && (
+        <Panel title="Pending review" subtitle={`${pendingOnboardings.length} submission${pendingOnboardings.length !== 1 ? "s" : ""} awaiting your review`} className="mb-5 overflow-hidden">
+          <div className="divide-y divide-border">
+            {pendingOnboardings.map((o: any) => (
+              <div key={o.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{o.data?.firstName} {o.data?.lastName}</p>
+                  <p className="text-[11px] text-muted-foreground">{o.employeeId} · {o.jobTitle} · Submitted {o.submittedAt ? formatDate(o.submittedAt.slice(0, 10)) : "—"}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <OnboardingStatusBadge status={o.status} />
+                  {o.userId && (
+                    <Button size="sm" variant="outline" asChild>
+                      <Link to="/team/$userId" params={{ userId: o.userId }}><Eye className="size-4" />Review</Link>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+
       <Panel className="overflow-hidden" title="Team members" subtitle={`${rows.length} of ${all.length} members`} action={
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <SearchBox value={query} onChange={setQuery} placeholder="Search name or email" className="sm:w-56" />

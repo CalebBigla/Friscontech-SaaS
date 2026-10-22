@@ -163,11 +163,19 @@ export function useDeactivateProduct() {
   return useMutation({
     mutationFn: async (productId: string) => {
       if (!user?.tenantId) throw new Error('Not authenticated');
+
+      if (user.role === 'manager') {
+        const { data, error } = await (supabase as any).rpc('set_product_status', {
+          p_product_id: productId,
+          p_status: 'inactive',
+        });
+        if (error) handleSupabaseError(error);
+        return transformProduct(data);
+      }
       
       const { data, error } = await (supabase as any).from('products')
         .update({ 
           status: 'inactive',
-          deactivated_at: new Date().toISOString(),
         })
         .eq('id', productId)
         .select()
@@ -201,11 +209,19 @@ export function useReactivateProduct() {
   return useMutation({
     mutationFn: async (productId: string) => {
       if (!user?.tenantId) throw new Error('Not authenticated');
+
+      if (user.role === 'manager') {
+        const { data, error } = await (supabase as any).rpc('set_product_status', {
+          p_product_id: productId,
+          p_status: 'active',
+        });
+        if (error) handleSupabaseError(error);
+        return transformProduct(data);
+      }
       
       const { data, error } = await (supabase as any).from('products')
         .update({ 
           status: 'active',
-          deactivated_at: null,
         })
         .eq('id', productId)
         .select()

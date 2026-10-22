@@ -196,15 +196,15 @@ export function useCreateAuditLog() {
         queryKey: queryKeys.activities.all(data.tenant_id),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.activities.byUser(data.user_id),
+        queryKey: queryKeys.activities.byUser(data.actor_id),
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.activities.recent(data.tenant_id),
       });
       
-      if (data.entity_type && data.entity_id) {
+      if (data.entity && data.entity_id) {
         queryClient.invalidateQueries({
-          queryKey: queryKeys.activities.byEntity(data.entity_type, data.entity_id),
+          queryKey: queryKeys.activities.byEntity(data.entity, data.entity_id),
         });
       }
     },
@@ -240,7 +240,7 @@ export function useBulkCreateAuditLogs() {
         });
         
         // Invalidate user-specific queries
-        const uniqueUsers = [...new Set(data.map((a) => a.user_id))];
+        const uniqueUsers = [...new Set(data.map((a) => a.actor_id))];
         uniqueUsers.forEach((userId) => {
           if (!userId) return;
           queryClient.invalidateQueries({

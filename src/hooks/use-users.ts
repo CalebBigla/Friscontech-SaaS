@@ -26,6 +26,8 @@ export function useUsers() {
       const { data, error } = await (supabase as any).from('users')
         .select('*')
         .eq('tenant_id', user.tenantId)
+        .eq('status', 'active')
+        .not('role', 'is', null)
         .order('first_name');
       
       if (error) handleSupabaseError(error);

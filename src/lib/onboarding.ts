@@ -1,5 +1,4 @@
-/** Onboarding selectors + step validation. Pure functions only. */
-import type { Db } from "@/data/mock-db";
+/** Onboarding selectors + step validation. Pure functions only — no Supabase deps. */
 import type { EmployeeData, EmployeeField, Onboarding } from "@/data/onboarding";
 import type { AccessScope } from "@/lib/session";
 
@@ -81,29 +80,27 @@ export function validateStep(o: Pick<Onboarding, "photo">, d: EmployeeData, step
 }
 
 export type LinkState = "valid" | "expired" | "revoked" | "used" | "missing";
-export function onboardingLinkState(o: Onboarding | undefined, now = new Date().toISOString()): LinkState {
+export function onboardingLinkState(o: Pick<Onboarding, "tokenRevoked" | "tokenUsed" | "tokenExpiresAt" | "status"> | undefined, now = new Date().toISOString()): LinkState {
   if (!o) return "missing";
   if (o.tokenRevoked) return "revoked";
-  if (o.tokenUsed || o.status === "submitted" || o.status === "active") return "used";
+  if (o.tokenUsed || o.status === "submitted" || o.status === "approved") return "used";
   if (o.tokenExpiresAt < now) return "expired";
   return "valid";
 }
 
-export const findOnboardingByUser = (db: Db, userId: string) => db.onboardings.find((o) => o.userId === userId);
-export const findOnboardingByToken = (db: Db, token: string) => (token ? db.onboardings.find((o) => o.token === token) : undefined);
-export const findOnboardingByGuarantorToken = (db: Db, token: string) => (token ? db.onboardings.find((o) => o.guarantorToken === token) : undefined);
-
-/** Only the Owner sees full form data, documents and the confidential guarantor response. */
-export const canViewOnboardingDetails = (scope: AccessScope) => scope.user.role === "owner";
-
-export function onboardingUrl(token: string) {
+/** URL helpers — pure, no store. */
+export function onboardingUrl(rawToken: string) {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  return `${origin}/onboard/${token}`;
+  return `${origin}/onboard/${rawToken}`;
 }
 export function guarantorUrl(token: string) {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   return `${origin}/guarantor/${token}`;
 }
+
+/** Only the Owner sees full form data, documents and the confidential guarantor response. */
+export const canViewOnboardingDetails = (scope: AccessScope) => scope.user.role === "owner";
+
 export const fullName = (d: EmployeeData, p: "" | "spouse" | "ec" | "ec2" = "") => {
   const g = (k: string) => (d as Record<string, string>)[p ? `${p}${k}` : k.charAt(0).toLowerCase() + k.slice(1)] ?? "";
   return [g("FirstName"), g("MiddleInitial"), g("LastName")].filter(Boolean).join(" ");

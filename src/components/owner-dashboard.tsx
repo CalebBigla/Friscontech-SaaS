@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { AppShell, RestrictedNotice } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { EmptyState, MetricCard, Panel, RequestStatusBadge } from "@/components/shared";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import {
   getInventorySummary,
 } from "@/lib/inventory-calculations";
@@ -55,7 +55,7 @@ function minutesAgo(iso: string, now: string) {
 }
 
 export function OwnerDashboard() {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const [period, setPeriod] = useState<Period>("Week");

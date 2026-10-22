@@ -2,9 +2,8 @@ import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { Branch } from "@/data/mock-db";
 import { useDeactivateBranch } from "@/hooks/use-branches";
-import { branchService } from "@/services/services";
 
-export function DeactivateBranchDialog({ branch, onClose, actorId }: { branch: Branch | null; onClose: () => void; actorId: string }) {
+export function DeactivateBranchDialog({ branch, onClose }: { branch: Branch | null; onClose: () => void; actorId: string }) {
   const deactivateBranch = useDeactivateBranch();
   const busy = deactivateBranch.isPending;
   
@@ -22,14 +21,6 @@ export function DeactivateBranchDialog({ branch, onClose, actorId }: { branch: B
             if (!branch) return;
             
             try {
-              // Validate first (keep existing validation logic)
-              const validationResult = await branchService.deactivate(branch.id, actorId);
-              if (!validationResult.ok) {
-                toast.error(validationResult.errors?.form || "Could not deactivate branch");
-                return;
-              }
-              
-              // Perform Supabase mutation
               await deactivateBranch.mutateAsync(branch.id);
               toast.success(`${branch.name} deactivated`);
               onClose();

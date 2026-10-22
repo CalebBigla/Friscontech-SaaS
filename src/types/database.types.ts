@@ -39,22 +39,28 @@ export interface Database {
           tenant_id: string
           name: string
           code: string
-          location: string | null
+          location: string
+          address: string
+          phone: string
+          email: string
           status: 'active' | 'inactive'
           manager_id: string | null
           created_at: string
-          deactivated_at: string | null
+          updated_at: string
         }
         Insert: {
           id?: string
           tenant_id: string
           name: string
           code: string
-          location?: string | null
+          location: string
+          address: string
+          phone: string
+          email: string
           status?: 'active' | 'inactive'
           manager_id?: string | null
           created_at?: string
-          deactivated_at?: string | null
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -62,54 +68,63 @@ export interface Database {
           name?: string
           code?: string
           location?: string | null
+          address?: string
+          phone?: string
+          email?: string
           status?: 'active' | 'inactive'
           manager_id?: string | null
           created_at?: string
-          deactivated_at?: string | null
+          updated_at?: string
         }
       }
       users: {
         Row: {
           id: string
           tenant_id: string
-          branch_id: string | null
           first_name: string
           last_name: string
-          email: string | null
+          email: string
           phone: string | null
-          role: 'owner' | 'manager' | 'storekeeper' | 'sales_rep'
-          status: 'active' | 'inactive' | 'pending'
+          role: 'owner' | 'manager' | 'storekeeper' | 'sales_rep' | null
+          branch_id: string | null
+          manager_id: string | null
+          status: 'active' | 'inactive' | 'pending' | 'rejected' | 'suspended'
           joined_at: string
           deactivated_at: string | null
-          auth_id: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           tenant_id: string
-          branch_id?: string | null
           first_name: string
           last_name: string
-          email?: string | null
+          email?: string
           phone?: string | null
-          role: 'owner' | 'manager' | 'storekeeper' | 'sales_rep'
-          status?: 'active' | 'inactive' | 'pending'
+          role?: 'owner' | 'manager' | 'storekeeper' | 'sales_rep' | null
+          branch_id?: string | null
+          manager_id?: string | null
+          status?: 'active' | 'inactive' | 'pending' | 'rejected' | 'suspended'
           joined_at?: string
           deactivated_at?: string | null
-          auth_id?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           tenant_id?: string
-          branch_id?: string | null
           first_name?: string
           last_name?: string
-          email?: string | null
+          email?: string
           phone?: string | null
-          role?: 'owner' | 'manager' | 'storekeeper' | 'sales_rep'
-          status?: 'active' | 'inactive' | 'pending'
+          role?: 'owner' | 'manager' | 'storekeeper' | 'sales_rep' | null
+          branch_id?: string | null
+          manager_id?: string | null
+          status?: 'active' | 'inactive' | 'pending' | 'rejected' | 'suspended'
           joined_at?: string
           deactivated_at?: string | null
-          auth_id?: string | null
+          created_at?: string
+          updated_at?: string
         }
       }
       user_preferences: {
@@ -148,9 +163,8 @@ export interface Database {
           status: 'active' | 'inactive'
           low_stock_threshold: number | null
           description: string | null
-          image_url: string | null
           created_at: string
-          deactivated_at: string | null
+          updated_at: string
         }
         Insert: {
           id?: string
@@ -164,9 +178,8 @@ export interface Database {
           status?: 'active' | 'inactive'
           low_stock_threshold?: number | null
           description?: string | null
-          image_url?: string | null
           created_at?: string
-          deactivated_at?: string | null
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -180,9 +193,8 @@ export interface Database {
           status?: 'active' | 'inactive'
           low_stock_threshold?: number | null
           description?: string | null
-          image_url?: string | null
           created_at?: string
-          deactivated_at?: string | null
+          updated_at?: string
         }
       }
       inventory_records: {
@@ -193,8 +205,9 @@ export interface Database {
           product_id: string
           quantity_on_hand: number
           quantity_reserved: number
-          created_at: string
-          updated_at: string
+          low_stock_threshold: number
+          reorder_level: number
+          last_updated: string
         }
         Insert: {
           id?: string
@@ -203,8 +216,9 @@ export interface Database {
           product_id: string
           quantity_on_hand?: number
           quantity_reserved?: number
-          created_at?: string
-          updated_at?: string
+          low_stock_threshold?: number
+          reorder_level?: number
+          last_updated?: string
         }
         Update: {
           id?: string
@@ -213,8 +227,9 @@ export interface Database {
           product_id?: string
           quantity_on_hand?: number
           quantity_reserved?: number
-          created_at?: string
-          updated_at?: string
+          low_stock_threshold?: number
+          reorder_level?: number
+          last_updated?: string
         }
       }
       inventory_movements: {
@@ -300,88 +315,100 @@ export interface Database {
         Row: {
           id: string
           tenant_id: string
-          branch_id: string
+          branch_id: string | null
           name: string
+          contact_person: string
           email: string | null
           phone: string | null
           address: string | null
-          business_name: string | null
-          credit_limit: number
-          status: 'active' | 'inactive' | 'suspended'
+          credit_limit: number | null
+          status: 'active' | 'inactive'
           created_by: string
           created_at: string
-          deactivated_at: string | null
         }
         Insert: {
           id?: string
           tenant_id: string
-          branch_id: string
+          branch_id?: string | null
           name: string
+          contact_person: string
           email?: string | null
           phone?: string | null
           address?: string | null
-          business_name?: string | null
-          credit_limit?: number
-          status?: 'active' | 'inactive' | 'suspended'
+          credit_limit?: number | null
+          status?: 'active' | 'inactive'
           created_by: string
           created_at?: string
-          deactivated_at?: string | null
         }
         Update: {
           id?: string
           tenant_id?: string
-          branch_id?: string
+          branch_id?: string | null
           name?: string
+          contact_person?: string
           email?: string | null
           phone?: string | null
           address?: string | null
-          business_name?: string | null
-          credit_limit?: number
-          status?: 'active' | 'inactive' | 'suspended'
+          credit_limit?: number | null
+          status?: 'active' | 'inactive'
           created_by?: string
           created_at?: string
-          deactivated_at?: string | null
         }
       }
       sales: {
         Row: {
           id: string
           tenant_id: string
+          code: string
           branch_id: string
           customer_id: string | null
+          order_id: string | null
           sales_rep_id: string
           product_id: string
           quantity: number
           unit_price: number
-          total_amount: number
           sale_date: string
+          walk_in_name: string | null
+          walk_in_phone: string | null
+          status: 'completed' | 'pending' | 'voided'
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           tenant_id: string
+          code: string
           branch_id: string
           customer_id?: string | null
+          order_id?: string | null
           sales_rep_id: string
           product_id: string
           quantity: number
           unit_price: number
-          total_amount: number
           sale_date: string
+          walk_in_name?: string | null
+          walk_in_phone?: string | null
+          status?: 'completed' | 'pending' | 'voided'
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           tenant_id?: string
+          code?: string
           branch_id?: string
           customer_id?: string | null
+          order_id?: string | null
           sales_rep_id?: string
           product_id?: string
           quantity?: number
           unit_price?: number
-          total_amount?: number
           sale_date?: string
+          walk_in_name?: string | null
+          walk_in_phone?: string | null
+          status?: 'completed' | 'pending' | 'voided'
           created_at?: string
+          updated_at?: string
         }
       }
       customer_payments: {
@@ -682,36 +709,33 @@ export interface Database {
         Row: {
           id: string
           tenant_id: string
-          branch_id: string | null
+          scope: 'branch' | 'rep'
+          branch_id: string
           user_id: string | null
-          product_id: string | null
           month: string
-          target_amount: number
-          created_by: string
+          amount: number
           created_at: string
           updated_at: string
         }
         Insert: {
           id?: string
           tenant_id: string
-          branch_id?: string | null
+          scope: 'branch' | 'rep'
+          branch_id: string
           user_id?: string | null
-          product_id?: string | null
           month: string
-          target_amount: number
-          created_by: string
+          amount: number
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
           tenant_id?: string
-          branch_id?: string | null
+          scope?: 'branch' | 'rep'
+          branch_id?: string
           user_id?: string | null
-          product_id?: string | null
           month?: string
-          target_amount?: number
-          created_by?: string
+          amount?: number
           created_at?: string
           updated_at?: string
         }
@@ -764,69 +788,138 @@ export interface Database {
         Row: {
           id: string
           tenant_id: string
-          token: string
-          first_name: string
-          last_name: string
-          phone: string
-          branch_id: string
-          role: 'manager' | 'storekeeper' | 'sales_rep'
-          created_by: string
-          completed: boolean
-          completed_at: string | null
-          expires_at: string
+          user_id: string | null
+          created_by: string | null
+          employee_id: string
+          job_title: string
+          department: string
+          start_date: string
+          status: 'invited' | 'in_progress' | 'submitted' | 'approved' | 'rejected'
+          token_hash: string
+          token_expires_at: string
+          token_revoked: boolean
+          used_at: string | null
+          step: number
+          data: Json
+          correction_note: string | null
+          submitter_email: string | null
+          guarantor_status: 'not_sent' | 'sent' | 'completed'
+          guarantor_token: string | null
+          guarantor_response: Json | null
+          guarantor_decision: 'accepted' | 'declined' | null
+          guarantor_decision_reason: string | null
+          guarantor_decided_at: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          rejection_reason: string | null
+          assigned_role: 'owner' | 'manager' | 'storekeeper' | 'sales_rep' | null
+          assigned_branch_id: string | null
+          submitted_at: string | null
+          activated_at: string | null
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           tenant_id: string
-          token: string
-          first_name: string
-          last_name: string
-          phone: string
-          branch_id: string
-          role: 'manager' | 'storekeeper' | 'sales_rep'
-          created_by: string
-          completed?: boolean
-          completed_at?: string | null
-          expires_at: string
+          user_id?: string | null
+          created_by?: string | null
+          employee_id: string
+          job_title: string
+          department: string
+          start_date: string
+          status?: 'invited' | 'in_progress' | 'submitted' | 'approved' | 'rejected'
+          token_hash: string
+          token_expires_at: string
+          token_revoked?: boolean
+          used_at?: string | null
+          step?: number
+          data?: Json
+          correction_note?: string | null
+          submitter_email?: string | null
+          guarantor_status?: 'not_sent' | 'sent' | 'completed'
+          guarantor_token?: string | null
+          guarantor_response?: Json | null
+          guarantor_decision?: 'accepted' | 'declined' | null
+          guarantor_decision_reason?: string | null
+          guarantor_decided_at?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          rejection_reason?: string | null
+          assigned_role?: 'owner' | 'manager' | 'storekeeper' | 'sales_rep' | null
+          assigned_branch_id?: string | null
+          submitted_at?: string | null
+          activated_at?: string | null
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           tenant_id?: string
-          token?: string
-          first_name?: string
-          last_name?: string
-          phone?: string
-          branch_id?: string
-          role?: 'manager' | 'storekeeper' | 'sales_rep'
-          created_by?: string
-          completed?: boolean
-          completed_at?: string | null
-          expires_at?: string
+          user_id?: string | null
+          created_by?: string | null
+          employee_id?: string
+          job_title?: string
+          department?: string
+          start_date?: string
+          status?: 'invited' | 'in_progress' | 'submitted' | 'approved' | 'rejected'
+          token_hash?: string
+          token_expires_at?: string
+          token_revoked?: boolean
+          used_at?: string | null
+          step?: number
+          data?: Json
+          correction_note?: string | null
+          submitter_email?: string | null
+          guarantor_status?: 'not_sent' | 'sent' | 'completed'
+          guarantor_token?: string | null
+          guarantor_response?: Json | null
+          guarantor_decision?: 'accepted' | 'declined' | null
+          guarantor_decision_reason?: string | null
+          guarantor_decided_at?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          rejection_reason?: string | null
+          assigned_role?: 'owner' | 'manager' | 'storekeeper' | 'sales_rep' | null
+          assigned_branch_id?: string | null
+          submitted_at?: string | null
+          activated_at?: string | null
           created_at?: string
+          updated_at?: string
         }
       }
       onboarding_files: {
         Row: {
           id: string
           onboarding_id: string
-          file_type: 'id_card' | 'photo' | 'guarantor_id' | 'address_proof' | 'other'
-          file_url: string
+          file_type: 'photo' | 'credential'
+          file_name: string
+          cloudinary_public_id: string
+          cloudinary_url: string
+          file_size: number
+          mime_type: string
           uploaded_at: string
         }
         Insert: {
           id?: string
           onboarding_id: string
-          file_type: 'id_card' | 'photo' | 'guarantor_id' | 'address_proof' | 'other'
-          file_url: string
+          file_type: 'photo' | 'credential'
+          file_name: string
+          cloudinary_public_id: string
+          cloudinary_url: string
+          file_size: number
+          mime_type: string
           uploaded_at?: string
         }
         Update: {
           id?: string
           onboarding_id?: string
-          file_type?: 'id_card' | 'photo' | 'guarantor_id' | 'address_proof' | 'other'
-          file_url?: string
+          file_type?: 'photo' | 'credential'
+          file_name?: string
+          cloudinary_public_id?: string
+          cloudinary_url?: string
+          file_size?: number
+          mime_type?: string
           uploaded_at?: string
         }
       }
@@ -834,33 +927,36 @@ export interface Database {
         Row: {
           id: string
           tenant_id: string
-          user_id: string
-          action_type: string
-          description: string
-          entity_type: string | null
+          action: string
+          subject: string
+          actor_id: string
+          entity: 'product' | 'sale' | 'payment' | 'expense' | 'remittance' | 'stock_request' | 'target' | 'team_member' | 'branch' | 'inventory' | 'settings' | 'session' | 'customer'
           entity_id: string | null
+          emergency: boolean | null
           metadata: Json | null
           created_at: string
         }
         Insert: {
           id?: string
           tenant_id: string
-          user_id: string
-          action_type: string
-          description: string
-          entity_type?: string | null
+          action: string
+          subject: string
+          actor_id: string
+          entity: 'product' | 'sale' | 'payment' | 'expense' | 'remittance' | 'stock_request' | 'target' | 'team_member' | 'branch' | 'inventory' | 'settings' | 'session' | 'customer'
           entity_id?: string | null
+          emergency?: boolean | null
           metadata?: Json | null
           created_at?: string
         }
         Update: {
           id?: string
           tenant_id?: string
-          user_id?: string
-          action_type?: string
-          description?: string
-          entity_type?: string | null
+          action?: string
+          subject?: string
+          actor_id?: string
+          entity?: 'product' | 'sale' | 'payment' | 'expense' | 'remittance' | 'stock_request' | 'target' | 'team_member' | 'branch' | 'inventory' | 'settings' | 'session' | 'customer'
           entity_id?: string | null
+          emergency?: boolean | null
           metadata?: Json | null
           created_at?: string
         }
@@ -869,34 +965,34 @@ export interface Database {
         Row: {
           id: string
           tenant_id: string
-          user_id: string
-          type: 'payment_pending' | 'payment_confirmed' | 'stock_low' | 'approval_needed' | 'general'
-          title: string
+          recipient_id: string
+          type: 'payment_awaiting_acknowledgement' | 'payment_awaiting_confirmation' | 'payment_confirmed' | 'payment_declined' | 'onboarding_submitted' | 'onboarding_approved' | 'onboarding_rejected' | 'guarantor_completed' | 'stock_request_submitted' | 'stock_request_approved' | 'stock_request_rejected' | 'stock_request_fulfilled'
+          entity_type: 'payment' | 'customer_payment' | 'onboarding' | 'stock_request'
+          entity_id: string
           message: string
-          action_url: string | null
-          read: boolean
+          read_at: string | null
           created_at: string
         }
         Insert: {
           id?: string
           tenant_id: string
-          user_id: string
-          type: 'payment_pending' | 'payment_confirmed' | 'stock_low' | 'approval_needed' | 'general'
-          title: string
+          recipient_id: string
+          type: 'payment_awaiting_acknowledgement' | 'payment_awaiting_confirmation' | 'payment_confirmed' | 'payment_declined' | 'onboarding_submitted' | 'onboarding_approved' | 'onboarding_rejected' | 'guarantor_completed' | 'stock_request_submitted' | 'stock_request_approved' | 'stock_request_rejected' | 'stock_request_fulfilled'
+          entity_type: 'payment' | 'customer_payment' | 'onboarding' | 'stock_request'
+          entity_id: string
           message: string
-          action_url?: string | null
-          read?: boolean
+          read_at?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           tenant_id?: string
-          user_id?: string
-          type?: 'payment_pending' | 'payment_confirmed' | 'stock_low' | 'approval_needed' | 'general'
-          title?: string
+          recipient_id?: string
+          type?: 'payment_awaiting_acknowledgement' | 'payment_awaiting_confirmation' | 'payment_confirmed' | 'payment_declined' | 'onboarding_submitted' | 'onboarding_approved' | 'onboarding_rejected' | 'guarantor_completed' | 'stock_request_submitted' | 'stock_request_approved' | 'stock_request_rejected' | 'stock_request_fulfilled'
+          entity_type?: 'payment' | 'customer_payment' | 'onboarding' | 'stock_request'
+          entity_id?: string
           message?: string
-          action_url?: string | null
-          read?: boolean
+          read_at?: string | null
           created_at?: string
         }
       }
@@ -935,24 +1031,120 @@ export interface Database {
       }
       create_audit_log: {
         Args: {
-          p_user_id: string
-          p_action_type: string
-          p_description: string
-          p_entity_type?: string
+          p_tenant_id: string
+          p_actor_id: string
+          p_action: string
+          p_subject: string
+          p_entity: string
           p_entity_id?: string
+          p_emergency?: boolean
           p_metadata?: Json
         }
-        Returns: void
+        Returns: string
       }
       create_notification: {
         Args: {
-          p_user_id: string
+          p_tenant_id: string
+          p_recipient_id: string
           p_type: string
-          p_title: string
+          p_entity_type: string
+          p_entity_id: string
           p_message: string
-          p_action_url?: string
         }
+        Returns: string
+      }
+      mark_notification_read: {
+        Args: { p_notification_id: string }
         Returns: void
+      }
+      get_unread_notification_count: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
+      handle_new_user: {
+        Args: Record<PropertyKey, never>
+        Returns: void
+      }
+      hash_token: {
+        Args: { p_token: string }
+        Returns: string
+      }
+      get_onboarding_by_token: {
+        Args: { p_token: string }
+        Returns: {
+          id: string
+          tenant_id: string
+          user_id: string | null
+          employee_id: string
+          job_title: string
+          department: string
+          start_date: string
+          status: string
+          step: number
+          data: Json
+          correction_note: string | null
+          guarantor_status: string
+          guarantor_token: string | null
+          token_expires_at: string
+          token_revoked: boolean
+          used_at: string | null
+          submitted_at: string | null
+          created_at: string
+        }[]
+      }
+      save_onboarding_progress: {
+        Args: { p_token: string; p_data: Json; p_step: number; p_partial_files?: Json }
+        Returns: { id: string; status: string; step: number }[]
+      }
+      submit_onboarding: {
+        Args: { p_token: string; p_data: Json; p_email: string }
+        Returns: { id: string; status: string }[]
+      }
+      send_guarantor_link: {
+        Args: { p_token: string }
+        Returns: string
+      }
+      submit_guarantor: {
+        Args: { p_guarantor_token: string; p_response: Json }
+        Returns: { id: string; guarantor_status: string }[]
+      }
+      register_onboarding_file: {
+        Args: {
+          p_token: string
+          p_file_type: string
+          p_file_name: string
+          p_storage_path: string
+          p_size: number
+          p_mime: string
+        }
+        Returns: string
+      }
+      list_onboarding_files: {
+        Args: { p_token: string }
+        Returns: {
+          id: string
+          file_type: string
+          file_name: string
+          cloudinary_url: string
+          file_size: number
+          mime_type: string
+        }[]
+      }
+      delete_onboarding_file: {
+        Args: { p_token: string; p_file_id: string }
+        Returns: void
+      }
+      review_guarantor: {
+        Args: { p_onboarding_id: string; p_decision: string; p_reason: string }
+        Returns: { id: string; guarantor_decision: string }[]
+      }
+      approve_onboarding: {
+        Args: { p_onboarding_id: string; p_role: string; p_branch_id: string | null }
+        Returns: { user_id: string; onboarding_id: string }[]
+      }
+      reject_onboarding: {
+        Args: { p_onboarding_id: string; p_reason: string }
+        Returns: { id: string; status: string }[]
       }
     }
     Enums: {

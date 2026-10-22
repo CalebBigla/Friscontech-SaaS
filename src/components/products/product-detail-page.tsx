@@ -9,7 +9,7 @@ import { NearestExpiryBadge } from "@/components/expiry/expiry-widgets";
 import { MovementList } from "@/components/inventory/movement-list";
 import { ProductFormDialog } from "@/components/products/add-product-dialog";
 import { ProductStatusBadge, ProductStatusDialog } from "@/components/products/product-status";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getProduct, getProductCategories, getProductInventory, getProductSales, getProductStockMovements } from "@/lib/catalog-calculations";
 import { monthRange } from "@/lib/calculations";
@@ -17,12 +17,14 @@ import { monthOf } from "@/lib/dates";
 import { formatCompactNaira, formatMonth, formatNaira, formatNumber } from "@/lib/format";
 
 export function ProductDetailPage({ productId }: { productId: string }) {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const [editing, setEditing] = useState(false);
   const [toggling, setToggling] = useState(false);
   const product = getProduct(db, productId);
+  if (isLoading) return <AppShell title="Product"><p className="py-12 text-center text-sm text-muted-foreground">Loading persisted product…</p></AppShell>;
+  if (error) return <AppShell title="Product"><RestrictedNotice message={error instanceof Error ? error.message : "Could not load product data."} /></AppShell>;
   if (!product) return <AppShell title="Product"><RestrictedNotice message="This product does not exist." /><div className="mt-4 text-center"><Button variant="outline" asChild><Link to="/products"><ArrowLeft className="size-4" />Back to products</Link></Button></div></AppShell>;
 
   const month = monthOf(db.tenant.referenceDate);

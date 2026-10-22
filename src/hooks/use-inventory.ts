@@ -26,7 +26,7 @@ export function useInventory() {
       const { data, error } = await (supabase as any).from('inventory_records')
         .select('*')
         .eq('tenant_id', user.tenantId)
-        .order('created_at', { ascending: false });
+        .order('last_updated', { ascending: false });
       
       if (error) handleSupabaseError(error);
       

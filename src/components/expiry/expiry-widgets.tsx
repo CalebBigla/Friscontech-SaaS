@@ -35,8 +35,8 @@ export function ExpiringSoonPanel({ db, branchIds, className = "mt-4" }: { db: D
   return (
     <Panel title="Expiring soon" subtitle={`Batches expiring within ${db.tenant.expiryAlertMonths} months, or already expired`} className={className} action={<CalendarClock className="size-4 text-muted-foreground" />}>
       <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-4">
-        {tiles.map((t) => (
-          <div key={t.label} className="rounded-md border border-border p-3"><p className="text-[11px] text-muted-foreground">{t.label}</p><p className={`mt-1 text-lg font-bold ${t.tone}`}>{formatNumber(t.value)}</p></div>
+        {tiles.map((t, index) => (
+          <div key={index} className="rounded-md border border-border p-3"><p className="text-[11px] text-muted-foreground">{t.label}</p><p className={`mt-1 text-lg font-bold ${t.tone}`}>{formatNumber(t.value)}</p></div>
         ))}
       </div>
       {s.alerts.length ? (

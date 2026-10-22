@@ -7,7 +7,7 @@ import type { AccessScope } from "@/lib/session";
 import { filterSales, saleTotal } from "@/lib/calculations";
 import { findRepTarget, getTargetProgress } from "@/lib/catalog-calculations";
 
-export const userStatusLabel: Record<UserStatus, string> = { active: "Active", inactive: "Inactive", pending: "Pending" };
+export const userStatusLabel: Record<UserStatus, string> = { active: "Active", inactive: "Inactive", pending: "Pending", rejected: "Rejected", suspended: "Suspended" };
 
 /** Can `scope` see/manage this user? Owner: everyone. Manager: storekeepers/reps in their branch or reporting to them. */
 export function canAccessMember(scope: AccessScope, u: User) {
@@ -34,7 +34,7 @@ export function assignableRoles(scope: AccessScope): Role[] {
   if (scope.user.role === "manager") return ["storekeeper", "sales_rep"];
   return [];
 }
-export const roleNeedsBranch = (role: Role) => role === "storekeeper" || role === "sales_rep";
+export const roleNeedsBranch = (role: Role) => role === "manager" || role === "storekeeper" || role === "sales_rep";
 
 /** Latest timestamp the user authored anything: sales, requests, reviews, stock movements or logged activities. */
 export function getLastActivity(db: Db, userId: string): string | null {

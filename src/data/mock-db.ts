@@ -51,7 +51,7 @@ export type Branch = {
   status: BranchStatus;
   createdAt: string;
 };
-export type UserStatus = "active" | "inactive" | "pending";
+export type UserStatus = "active" | "inactive" | "pending" | "rejected" | "suspended";
 /** managerId = the manager this member reports to (null for owner/managers). */
 export type User = {
   id: string;

@@ -9,8 +9,7 @@ import { ALL, BandBadge, BranchStatusBadge, EmptyState, FilterSelect, MetricCard
 import { BranchFormDialog } from "@/components/branches/branch-form-dialog";
 import { DeactivateBranchDialog } from "@/components/branches/deactivate-dialog";
 import type { Branch } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
-import { useBranches } from "@/hooks/use-branches";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getBranchManager, getBranchPerformance, getBranchStaff } from "@/lib/calculations";
@@ -20,14 +19,13 @@ import { formatMonth, formatNaira, formatPercent } from "@/lib/format";
 type SortKey = "name" | "revenue" | "target" | "achievement" | "staff" | "status";
 
 export function BranchesPage() {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const { user } = useAuth();
   
   // Fetch branches from Supabase
-  const { data: branchesData, isLoading, error } = useBranches();
-  const branches: Branch[] = (branchesData as Branch[] | undefined) || [];
+  const branches: Branch[] = db.branches;
   
   const month = monthOf(db.tenant.referenceDate);
   const [query, setQuery] = useState("");

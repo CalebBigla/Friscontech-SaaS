@@ -1,288 +1,111 @@
 /**
- * React Query hooks for notifications
- * 
- * Real-time notifications for payments, stock alerts, approvals, and general messages.
- * Users see only their own notifications with read/unread state.
+ * React Query hooks for notifications (Supabase-backed, real schema).
+ *
+ * DB schema: recipient_id, read_at (TIMESTAMPTZ, nullable), entity_type, entity_id,
+ * message, type (CHECK-constrained). RLS: a recipient only sees their own rows.
  */
-
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import { queryKeys } from '@/lib/query-keys';
-import { handleSupabaseError } from '@/lib/supabase-helpers';
-import type { Database } from '@/types/database.types';
-
-type NotificationRow = Database['public']['Tables']['notifications']['Row'];
-type NotificationInsert = Database['public']['Tables']['notifications']['Insert'];
-type NotificationUpdate = Database['public']['Tables']['notifications']['Update'];
-
-type NotificationType = 'payment_pending' | 'payment_confirmed' | 'stock_low' | 'approval_needed' | 'general';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { queryKeys } from "@/lib/query-keys";
+import { handleSupabaseError } from "@/lib/supabase-helpers";
+import { transformNotification } from "@/lib/type-adapters";
 
 interface NotificationFilters {
-  type?: NotificationType;
   read?: boolean;
 }
 
-/**
- * Fetch all notifications for a specific user with optional filters
- */
-export function useNotifications(
-  userId: string,
-  filters: NotificationFilters = {}
-) {
+/** All notifications for the signed-in user (RLS filters to their rows). */
+export function useNotifications(userId: string, filters: NotificationFilters = {}) {
   return useQuery({
-    queryKey: queryKeys.notifications.list(userId, filters),
+    queryKey: queryKeys.notifications.list(userId, filters as any),
     queryFn: async () => {
-      let query = supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (filters.type) {
-        query = query.eq('type', filters.type);
-      }
-      if (filters.read !== undefined) {
-        query = query.eq('read', filters.read);
-      }
-
-      const { data, error } = await query;
+      let q = (supabase as any)
+        .from("notifications")
+        .select("*")
+        .eq("recipient_id", userId)
+        .order("created_at", { ascending: false });
+      if (filters.read === true) q = q.is("read_at", null);
+      if (filters.read === false) q = q.not("read_at", "is", null);
+      const { data, error } = await q;
       if (error) throw handleSupabaseError(error);
-      return data as NotificationRow[];
+      return (data || []).map(transformNotification);
     },
     enabled: !!userId,
   });
 }
 
-/**
- * Fetch unread notifications count for a user
- */
+/** Unread count for the bell badge. */
 export function useUnreadNotificationsCount(userId: string) {
   return useQuery({
     queryKey: queryKeys.notifications.unreadCount(userId),
     queryFn: async () => {
-      const { count, error } = await (supabase as any).from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('read', false);
-
+      const { count, error } = await (supabase as any)
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("recipient_id", userId)
+        .is("read_at", null);
       if (error) throw handleSupabaseError(error);
       return count ?? 0;
     },
     enabled: !!userId,
-    refetchInterval: 30000, // Poll every 30 seconds for new notifications
+    refetchInterval: 30000,
   });
 }
 
-/**
- * Fetch unread notifications for a user
- */
+/** Unread notifications list. */
 export function useUnreadNotifications(userId: string) {
   return useQuery({
     queryKey: queryKeys.notifications.unread(userId),
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('notifications')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('read', false)
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await (supabase as any)
+        .from("notifications")
+        .select("*")
+        .eq("recipient_id", userId)
+        .is("read_at", null)
+        .order("created_at", { ascending: false });
       if (error) throw handleSupabaseError(error);
-      return data as NotificationRow[];
+      return (data || []).map(transformNotification);
     },
     enabled: !!userId,
   });
 }
 
-/**
- * Fetch a single notification by ID
- */
-export function useNotification(id: string) {
-  return useQuery({
-    queryKey: queryKeys.notifications.detail(id),
-    queryFn: async () => {
-      const { data, error } = await (supabase as any).from('notifications')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-      return data as NotificationRow;
-    },
-    enabled: !!id,
-  });
-}
-
-/**
- * Create a new notification
- */
-export function useCreateNotification() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: NotificationInsert) => {
-      const { data, error } = await (supabase as any).from('notifications')
-        .insert(input)
-        .select()
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-      return data as NotificationRow;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.all(data.user_id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.unreadCount(data.user_id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.unread(data.user_id),
-      });
-    },
-  });
-}
-
-/**
- * Bulk create notifications (for sending to multiple users)
- */
-export function useBulkCreateNotifications() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (inputs: NotificationInsert[]) => {
-      const { data, error } = await (supabase as any).from('notifications')
-        .insert(inputs)
-        .select();
-
-      if (error) throw handleSupabaseError(error);
-      return data as NotificationRow[];
-    },
-    onSuccess: (data) => {
-      // Invalidate queries for all affected users
-      const uniqueUsers = [...new Set(data.map(n => n.user_id))];
-      uniqueUsers.forEach(userId => {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.notifications.all(userId),
-        });
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.notifications.unreadCount(userId),
-        });
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.notifications.unread(userId),
-        });
-      });
-    },
-  });
-}
-
-/**
- * Mark a notification as read
- */
+/** Mark a single notification as read (RLS: recipient only). */
 export function useMarkNotificationRead() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await (supabase as any).from('notifications')
-        .update({ read: true })
-        .eq('id', id)
+      const { data, error } = await (supabase as any)
+        .from("notifications")
+        .update({ read_at: new Date().toISOString() })
+        .eq("id", id)
+        .is("read_at", null)
         .select()
         .single();
-
       if (error) throw handleSupabaseError(error);
-      return data as NotificationRow;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.all(data.user_id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.detail(data.id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.unreadCount(data.user_id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.unread(data.user_id),
-      });
-    },
-  });
-}
-
-/**
- * Mark all notifications as read for a user
- */
-export function useMarkAllNotificationsRead() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (userId: string) => {
-      const { error } = await (supabase as any).from('notifications')
-        .update({ read: true })
-        .eq('user_id', userId)
-        .eq('read', false);
-
-      if (error) throw handleSupabaseError(error);
-      return { userId };
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.all(data.userId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.unreadCount(data.userId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.unread(data.userId),
-      });
-    },
-  });
-}
-
-/**
- * Delete a notification
- */
-export function useDeleteNotification() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from('notifications')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw handleSupabaseError(error);
-      return { id };
+      return data;
     },
     onSuccess: () => {
-      // Invalidate all notification queries since we don't have userId here
-      queryClient.invalidateQueries({
-        queryKey: ["notifications"],
-      });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 }
 
-/**
- * Delete all read notifications for a user (cleanup)
- */
-export function useDeleteReadNotifications() {
+/** Mark all of a user's notifications as read. */
+export function useMarkAllNotificationsRead() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await (supabase as any).from('notifications')
-        .delete()
-        .eq('user_id', userId)
-        .eq('read', true);
-
+      const { error } = await (supabase as any)
+        .from("notifications")
+        .update({ read_at: new Date().toISOString() })
+        .eq("recipient_id", userId)
+        .is("read_at", null);
       if (error) throw handleSupabaseError(error);
       return { userId };
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.all(data.userId),
-      });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 }

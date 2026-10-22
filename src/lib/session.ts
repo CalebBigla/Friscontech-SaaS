@@ -8,9 +8,9 @@ import type { Db, User } from "@/data/mock-db";
 import { useAuth } from "@/contexts/auth-context";
 
 // Legacy demo user switching (for development/testing only)
-let currentUserId = "user-001";
+let currentUserId: string | null = null;
 const listeners = new Set<() => void>();
-export function setCurrentUserId(id: string) {
+export function setCurrentUserId(id: string | null) {
   currentUserId = id;
   listeners.forEach((l) => l());
 }
@@ -23,12 +23,17 @@ const subscribe = (l: () => void) => {
  * @deprecated Use useAuth().user.id instead for production
  * This is kept for backward compatibility during migration
  */
-export const useCurrentUserId = () =>
-  useSyncExternalStore(
+export const useCurrentUserId = () => {
+  const { user } = useAuth();
+  const demoUserId = useSyncExternalStore(
     subscribe,
     () => currentUserId,
     () => currentUserId,
   );
+  // A real Supabase profile always wins. The legacy ID exists only when the
+  // explicitly selected demo auth flow sets it; there is no production default.
+  return user?.id ?? demoUserId ?? "";
+};
 
 export type AccessScope = {
   user: User;
@@ -106,6 +111,28 @@ export function setAuthUserRef(user: User | null) {
 
 export function getAccessScope(db: Db, userId: string): AccessScope {
   const s = baseScope(db, userId);
+
+  // Do not let the convenience flags below restore permissions for a missing,
+  // pending, or inactive profile. This includes flags derived from the
+  // placeholder role used to satisfy the legacy AccessScope type.
+  if (s.user.status !== "active") {
+    return {
+      ...s,
+      canViewInventoryAdmin: false,
+      canViewAuditLogs: false,
+      canManageSettings: false,
+      canViewOrganizationSettings: false,
+      canReviewApprovals: false,
+      canDeactivateProducts: false,
+      canAcknowledgeStock: false,
+      canAcknowledgePayments: false,
+      canConfirmPayments: false,
+      canViewCustomers: false,
+      canManageCustomers: false,
+      canSetCreditLimit: false,
+    };
+  }
+
   const r = s.user.role;
   return {
     ...s,
@@ -137,9 +164,49 @@ type Extra =
 function baseScope(db: Db, userId: string): Omit<AccessScope, Extra> {
   // Use auth user as fallback when db.users is empty (Supabase migration)
   const user = db.users.find((x) => x.id === userId)
-    ?? db.users[0]
-    ?? _authUser
-    ?? ({ id: userId, role: "sales_rep", tenantId: "", branchId: null, name: "User", firstName: "User", lastName: "", email: "", status: "active", joinedAt: "", managerId: null, createdAt: "" } as User);
+    ?? (_authUser?.id === userId ? _authUser : null);
+
+  // If no user found through normal channels, return zero-permission scope to deny access
+  // This should not happen in production with proper authentication
+  if (!user) {
+    return {
+      user: {
+        id: userId,
+        role: "sales_rep",
+        tenantId: "",
+        branchId: null,
+        name: "User",
+        firstName: "User",
+        lastName: "",
+        email: "",
+        status: "inactive",
+        joinedAt: "",
+        managerId: null,
+        createdAt: ""
+      },
+      branchIds: [],
+      canManageBranches: false,
+      canRecordSales: false,
+      canViewSales: false,
+      ...none,
+      canViewInventoryAdmin: false,
+    };
+  }
+
+  // Non-active users (pending/rejected/suspended/inactive) get a zero-permission scope
+  // so every RoleGate denies them before they ever reach data-fetching hooks.
+  // The auth-context already signs them out on load; this is a second line of defense.
+  if (user.status !== "active") {
+    return {
+      user,
+      branchIds: [],
+      canManageBranches: false,
+      canRecordSales: false,
+      canViewSales: false,
+      ...none,
+      canViewInventoryAdmin: false,
+    };
+  }
   const own = user.branchId ? [user.branchId] : [];
   switch (user.role) {
     case "owner":
