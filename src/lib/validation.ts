@@ -4,7 +4,7 @@
  * Same rules and messages the app has always shown. The database (RPCs and
  * CHECK constraints) enforces them again; this only gives faster feedback.
  */
-import type { ApprovalRequest, Customer, CustomerPayment, CustomerPaymentMethod, Db, Expense, ExpenseCategory, InventoryRecord, ManagerRemittance, Payment, StockRequest, User } from "@/data/mock-db";
+import type { ApprovalRequest, Customer, CustomerPayment, CustomerPaymentMethod, Db, Expense, ExpenseCategory, InventoryRecord, ManagerRemittance, Payment, StockRequest, Target, User } from "@/data/mock-db";
 import type { OwnerRemittancePayeeType, OwnerRemittancePaymentMethod } from "@/data/remittances";
 import {
   expenseCategories,
@@ -531,5 +531,38 @@ export function validateOwnerRemittance(db: Db, scope: AccessScope, input: Owner
   if (!input.purpose.trim()) errors.purpose = "Purpose is required";
   if (input.paymentMethod === "transfer" && !input.reference?.trim()) errors.reference = "A transfer reference is required";
   if (input.branchId && !db.branches.some((b) => b.id === input.branchId && b.tenantId === db.tenant.id)) errors.branchId = "Choose a valid branch";
+  return hasErrors(errors) ? errors : null;
+}
+
+// ---------- targets ----------
+
+export type TargetInput = { repId: string; month: string; amount: number };
+
+export function validateTarget(db: Db, scope: AccessScope, input: TargetInput, editingId?: string): FieldErrors {
+  const errors: FieldErrors = {};
+  const rep = db.users.find((u) => u.id === input.repId);
+  if (!rep) errors.repId = "Select a sales representative";
+  else if (rep.role !== "sales_rep") errors.repId = "Targets can only be set for sales representatives";
+  else if (rep.status !== "active") errors.repId = "This sales representative is inactive";
+  else if (!rep.branchId) errors.repId = "This sales representative has no branch";
+  else if (scope.branchIds && !scope.branchIds.includes(rep.branchId)) errors.repId = "You can only set targets for your branch";
+  if (!/^\d{4}-\d{2}$/.test(input.month)) errors.month = "Select a month";
+  if (!Number.isFinite(input.amount) || input.amount <= 0) errors.amount = "Enter a target above zero";
+  if (!errors.repId && !errors.month
+    && db.targets.some((t) => t.id !== editingId && t.scope === "rep" && t.userId === input.repId && t.month === input.month))
+    errors.repId = "This rep already has a target for that month — edit it instead";
+  return errors;
+}
+
+export function validateTargetCreate(db: Db, scope: AccessScope, input: TargetInput): FieldErrors | null {
+  if (!scope.canManageTargets) return { form: "You cannot set targets" };
+  const errors = validateTarget(db, scope, input);
+  return hasErrors(errors) ? errors : null;
+}
+
+/** Only the amount changes; sales history is never touched. */
+export function validateTargetUpdate(db: Db, scope: AccessScope, target: Target, amount: number): FieldErrors | null {
+  if (!scope.canManageTargets) return { form: "You cannot edit targets" };
+  const errors = validateTarget(db, scope, { repId: target.userId ?? "", month: target.month, amount }, target.id);
   return hasErrors(errors) ? errors : null;
 }

@@ -10,8 +10,8 @@ import { FieldError, FilterSelect } from "@/components/shared";
 import type { Target } from "@/data/mock-db";
 import type { Db } from "@/data/mock-db";
 import { useCreateTarget, useUpdateTarget } from "@/hooks/use-targets";
-import type { FieldErrors } from "@/services/services";
-import type { AccessScope } from "@/lib/session";
+import { runWrite, validateTargetCreate, validateTargetUpdate, type FieldErrors } from "@/lib/validation";
+import { getAccessScope, type AccessScope } from "@/lib/session";
 import { findRepTarget, shiftMonth } from "@/lib/catalog-calculations";
 import { formatMonth, formatNaira } from "@/lib/format";
 
@@ -34,22 +34,18 @@ export function SetTargetDialog({ open, onOpenChange, scope, defaultMonth, onEdi
     e.preventDefault();
     setSaving(true);
     const amount = form.amount.trim() === "" ? Number.NaN : Number(form.amount);
-    if (!rep?.branchId || !Number.isFinite(amount) || amount <= 0) {
-      const next = { ...(!rep?.branchId ? { repId: "Choose an active sales representative with a branch" } : {}), ...(!Number.isFinite(amount) || amount <= 0 ? { amount: "Enter a target above zero" } : {}) };
-      setErrors(next);
-      setSaving(false);
-      toast.error("Please fix the highlighted fields");
+    const input = { repId: form.repId, month: form.month, amount };
+    const result = await runWrite(validateTargetCreate(db, scope, input), () =>
+      createTarget.mutateAsync({ p_rep_id: form.repId, p_month: form.month, p_amount: Math.round(amount) }),
+    );
+    setSaving(false);
+    if (!result.ok) {
+      setErrors(result.errors);
+      toast.error(result.errors.form ?? "Please fix the highlighted fields");
       return;
     }
-    try {
-      await createTarget.mutateAsync({ scope: "rep", branch_id: rep.branchId, user_id: rep.id, month: form.month, amount: Math.round(amount) });
-      toast.success("Target set", { description: `${rep.name} · ${formatMonth(form.month)} · ${formatNaira(amount)}` });
-      onOpenChange(false);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not set target";
-      setErrors({ form: message });
-      toast.error(message);
-    } finally { setSaving(false); }
+    toast.success("Target set", { description: `${rep?.name ?? ""} · ${formatMonth(form.month)} · ${formatNaira(amount)}` });
+    onOpenChange(false);
   }
 
   return (
@@ -75,7 +71,7 @@ export function SetTargetDialog({ open, onOpenChange, scope, defaultMonth, onEdi
 }
 
 /** Edit amount with a two-step confirmation showing current vs new. */
-export function EditTargetDialog({ target, onClose, actorId: _actorId, db }: { target: Target | null; onClose: () => void; actorId: string; db: Db }) {
+export function EditTargetDialog({ target, onClose, actorId, db }: { target: Target | null; onClose: () => void; actorId: string; db: Db }) {
   const [amount, setAmount] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -94,16 +90,19 @@ export function EditTargetDialog({ target, onClose, actorId: _actorId, db }: { t
   async function save() {
     if (!target) return;
     setSaving(true);
-    try {
-      await updateTarget.mutateAsync({ id: target.id, updates: { amount: Math.round(next) } });
-      toast.success("Target updated", { description: `${rep?.name} · ${formatNaira(next)}` });
-      onClose();
-    } catch (error) {
+    const result = await runWrite(validateTargetUpdate(db, getAccessScope(db, actorId), target, next), () =>
+      updateTarget.mutateAsync({ p_target_id: target.id, p_amount: Math.round(next) }),
+    );
+    setSaving(false);
+    if (!result.ok) {
       setConfirming(false);
-      const message = error instanceof Error ? error.message : "Could not update target";
+      const message = result.errors.amount ?? result.errors.repId ?? result.errors.form ?? "Could not update target";
       setError(message);
       toast.error(message);
-    } finally { setSaving(false); }
+      return;
+    }
+    toast.success("Target updated", { description: `${rep?.name} · ${formatNaira(next)}` });
+    onClose();
   }
 
   return (

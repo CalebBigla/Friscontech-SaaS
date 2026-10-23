@@ -804,108 +804,6 @@ export async function requestProductDeactivation(
 }
 
 // ---------- targets ----------
-export type TargetInput = { repId: string; month: string; amount: number };
-export function validateTarget(db: Db, input: TargetInput, actorId: string, editingId?: string) {
-  const errors: FieldErrors = {};
-  const scope = getAccessScope(db, actorId);
-  const rep = db.users.find((u) => u.id === input.repId);
-  if (!rep) errors.repId = "Select a sales representative";
-  else if (rep.role !== "sales_rep")
-    errors.repId = "Targets can only be set for sales representatives";
-  else if (rep.status !== "active") errors.repId = "This sales representative is inactive";
-  else if (!rep.branchId) errors.repId = "This sales representative has no branch";
-  else if (scope.branchIds && !scope.branchIds.includes(rep.branchId))
-    errors.repId = "You can only set targets for your branch";
-  if (!/^\d{4}-\d{2}$/.test(input.month)) errors.month = "Select a month";
-  if (!Number.isFinite(input.amount) || input.amount <= 0)
-    errors.amount = "Enter a target above zero";
-  if (
-    !errors.repId &&
-    !errors.month &&
-    db.targets.some(
-      (t) =>
-        t.id !== editingId &&
-        t.scope === "rep" &&
-        t.userId === input.repId &&
-        t.month === input.month,
-    )
-  )
-    errors.repId = "This rep already has a target for that month — edit it instead";
-  return errors;
-}
-export const mockTargetService = {
-  async create(input: TargetInput, actorId: string): Promise<Result<Target>> {
-    await latency();
-    const current = getDb();
-    if (!getAccessScope(current, actorId).canManageTargets)
-      return { ok: false, errors: { form: "You cannot set targets" } };
-    const errors = validateTarget(current, input, actorId);
-    if (Object.keys(errors).length) return { ok: false, errors };
-    const rep = current.users.find((u) => u.id === input.repId)!;
-    const at = nowOnReferenceDay(current);
-    const target: Target = {
-      id: `target-${rep.id}-${input.month}`,
-      tenantId: current.tenant.id,
-      scope: "rep",
-      branchId: rep.branchId!,
-      userId: rep.id,
-      month: input.month,
-      amount: Math.round(input.amount),
-      createdAt: at,
-      updatedAt: at,
-    };
-    setDb((d) => ({
-      ...d,
-      targets: [...d.targets, target],
-      activities: [
-        activity(
-          d,
-          actorId,
-          "Target created",
-          `${rep.name} · ${input.month} · ₦${target.amount.toLocaleString("en-NG")}`,
-        ),
-        ...d.activities,
-      ],
-    }));
-    return { ok: true, data: target };
-  },
-  /** Changes only the amount — sales history is never touched. */
-  async update(id: string, amount: number, actorId: string): Promise<Result<Target>> {
-    await latency();
-    const current = getDb();
-    const existing = current.targets.find((t) => t.id === id && t.scope === "rep");
-    if (!existing) return { ok: false, errors: { form: "Target not found" } };
-    if (!getAccessScope(current, actorId).canManageTargets)
-      return { ok: false, errors: { form: "You cannot edit targets" } };
-    const errors = validateTarget(
-      current,
-      { repId: existing.userId ?? "", month: existing.month, amount },
-      actorId,
-      id,
-    );
-    if (Object.keys(errors).length) return { ok: false, errors };
-    const target: Target = {
-      ...existing,
-      amount: Math.round(amount),
-      updatedAt: nowOnReferenceDay(current),
-    };
-    const rep = current.users.find((u) => u.id === existing.userId)?.name;
-    setDb((d) => ({
-      ...d,
-      targets: d.targets.map((t) => (t.id === id ? target : t)),
-      activities: [
-        activity(
-          d,
-          actorId,
-          "Target updated",
-          `${rep} · ${existing.month} · ₦${existing.amount.toLocaleString("en-NG")} → ₦${target.amount.toLocaleString("en-NG")}`,
-        ),
-        ...d.activities,
-      ],
-    }));
-    return { ok: true, data: target };
-  },
-};
 
 // Swap points for the live API.
 // ---------- team (views over db.users; never deletes) ----------
@@ -1177,7 +1075,6 @@ export const notificationService = {
 
 export const teamService = mockTeamService;
 export { onboardingService } from "@/services/onboarding-service";
-export const targetService = mockTargetService;
 export const productService = mockProductService;
 export const branchService = mockBranchService;
 export const salesService = mockSalesService;

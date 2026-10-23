@@ -145,6 +145,8 @@ export const queryKeys = {
 
   // Targets
   targets: {
+    /** Prefix of every target query. */
+    root: () => ["targets"] as const,
     all: (tenantId: string) => ["targets", tenantId] as const,
     list: (tenantId: string, filters?: object) =>
       ["targets", tenantId, "list", filters] as const,

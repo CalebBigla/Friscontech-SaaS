@@ -12,10 +12,10 @@ import { handleSupabaseError } from '@/lib/supabase-helpers';
 import { useAuth } from '@/contexts/auth-context';
 import type { Database } from '@/types/database.types';
 import { transformTarget } from '@/lib/type-adapters';
+import { callRpc, type PlannedRpcs } from '@/lib/rpc';
+import type { Target } from '@/data/mock-db';
 
 type TargetRow = Database['public']['Tables']['targets']['Row'];
-type TargetInsert = Database['public']['Tables']['targets']['Insert'];
-type TargetUpdate = Database['public']['Tables']['targets']['Update'];
 
 interface TargetFilters {
   branchId?: string;
@@ -114,160 +114,24 @@ export function useBranchTargets(branchId: string, month: string) {
   });
 }
 
-/**
- * Create a new target
- */
-export function useCreateTarget() {
+/** Target writes change targets, dashboards and the audit log. */
+function useTargetMutation<N extends "create_target" | "update_target_amount">(name: N) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: Omit<TargetInsert, 'tenant_id'>) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      const { data, error } = await (supabase as any).from('targets')
-        .insert({ ...input, tenant_id: user.tenantId })
-        .select()
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-      return data as TargetRow;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.targets.all(data.tenant_id),
-      });
-      if (data.user_id) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.targets.byUser(data.user_id, data.month),
-        });
-      }
-      if (data.branch_id) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.targets.byBranch(data.branch_id, data.month),
-        });
-      }
-    },
-  });
-}
-
-/**
- * Bulk create targets (for setting multiple targets at once)
- */
-export function useBulkCreateTargets() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (inputs: TargetInsert[]) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      const { data, error } = await (supabase as any).from('targets')
-        .insert(inputs.map(({ tenant_id: _tenantId, ...input }) => ({ ...input, tenant_id: user.tenantId })))
-        .select();
-
-      if (error) throw handleSupabaseError(error);
-      return data as TargetRow[];
-    },
-    onSuccess: (data) => {
-      if (data && data.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        const tenantId = (data[0] as TargetRow).tenant_id;
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.targets.all(tenantId),
-        });
-        
-        // Invalidate specific queries for affected users/branches
-        const uniqueUsers = [...new Set(data.map(t => t.user_id).filter(Boolean))];
-        const uniqueBranches = [...new Set(data.map(t => t.branch_id).filter(Boolean))];
-        
-        uniqueUsers.forEach(userId => {
-          if (userId) {
-            queryClient.invalidateQueries({
-              queryKey: queryKeys.targets.byUser(userId),
-            });
-          }
-        });
-        
-        uniqueBranches.forEach(branchId => {
-          if (branchId) {
-            queryClient.invalidateQueries({
-              queryKey: queryKeys.targets.byBranch(branchId),
-            });
-          }
-        });
-      }
-    },
-  });
-}
-
-/**
- * Update an existing target
- */
-export function useUpdateTarget() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      id,
-      updates,
-    }: {
-      id: string;
-      updates: TargetUpdate;
-    }) => {
-      const now = new Date().toISOString();
-      
-      const { data, error } = await (supabase as any).from('targets')
-        .update({
-          ...updates,
-          updated_at: now,
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-      return data as TargetRow;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.targets.all(data.tenant_id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.targets.detail(data.id),
-      });
-      if (data.user_id) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.targets.byUser(data.user_id, data.month),
-        });
-      }
-      if (data.branch_id) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.targets.byBranch(data.branch_id, data.month),
-        });
-      }
-    },
-  });
-}
-
-/**
- * Delete a target
- */
-export function useDeleteTarget() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from('targets')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw handleSupabaseError(error);
-      return { id };
+    mutationFn: async (args: PlannedRpcs[N]): Promise<Target> => {
+      const row = await callRpc(name, args);
+      return transformTarget(row as TargetRow);
     },
     onSuccess: () => {
-      // Invalidate all targets queries since we don't have tenantId here
-      queryClient.invalidateQueries({
-        queryKey: ["targets"],
-      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.targets.root() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all(user?.tenantId ?? '') });
     },
   });
 }
+
+/** Owner sets a rep target (RPC create_target). */
+export const useCreateTarget = () => useTargetMutation('create_target');
+/** Owner edits a target amount (RPC update_target_amount). */
+export const useUpdateTarget = () => useTargetMutation('update_target_amount');

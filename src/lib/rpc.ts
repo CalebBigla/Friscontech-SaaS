@@ -255,6 +255,20 @@ export type PlannedRpcs = {
     p_note: string | null;
     p_branch_id: string | null;
   };
+  /**
+   * Owner sets a monthly rep target (scope rep, branch = the rep's branch, amount
+   * rounded). One target per rep and month. Returns the targets row.
+   */
+  create_target: {
+    p_rep_id: string;
+    p_month: string;
+    p_amount: number;
+  };
+  /** Owner changes a rep target's amount only. Returns the targets row. */
+  update_target_amount: {
+    p_target_id: string;
+    p_amount: number;
+  };
 };
 
 export async function callRpc<N extends keyof PlannedRpcs>(name: N, args: PlannedRpcs[N]): Promise<unknown> {
