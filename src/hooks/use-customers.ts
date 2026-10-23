@@ -137,8 +137,8 @@ export function useUpdateCustomer() {
       queryClient.invalidateQueries({ 
         queryKey: queryKeys.customers.all(user?.tenantId || '') 
       });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.customers.byBranch(data.branchId) 
+      if (data.branchId) queryClient.invalidateQueries({
+        queryKey: queryKeys.customers.byBranch(data.branchId)
       });
       queryClient.invalidateQueries({ 
         queryKey: queryKeys.customers.detail(data.id) 

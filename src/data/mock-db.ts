@@ -398,7 +398,7 @@ export type Activity = {
     amount?: number;
     cashAmount?: number;
     transferAmount?: number;
-    paymentMethod?: "cash" | "transfer" | "cash_and_transfer" | "none";
+    paymentMethod?: "cash" | "transfer" | "cheque" | "cash_and_transfer" | "none";
     transferReference?: string;
     outstandingAmount?: number;
     declineReason?: string;

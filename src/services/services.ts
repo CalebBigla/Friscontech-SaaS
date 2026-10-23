@@ -2425,8 +2425,9 @@ export const mockExpenseService = {
 };
 const ownerPayeeTypes: OwnerRemittancePayeeType[] = [
   "supplier",
-  "service_provider",
-  "external_payee",
+  "landlord",
+  "utility",
+  "contractor",
   "other",
 ];
 const validOwnerRemittanceDate = (value: string) => validExpenseDate(value);

@@ -38,10 +38,10 @@ export function useAuditLogs(tenantId: string, filters: AuditFilters = {}) {
         .order('created_at', { ascending: false });
 
       if (filters.userId) {
-        query = query.eq('user_id', filters.userId);
+        query = query.eq('actor_id', filters.userId);
       }
       if (filters.actionType) {
-        query = query.eq('action_type', filters.actionType);
+        query = query.eq('action', filters.actionType);
       }
       if (filters.entityType) {
         query = query.eq('entity_type', filters.entityType);
@@ -78,7 +78,7 @@ export function useUserAuditLogs(userId: string, limit: number = 50) {
     queryFn: async () => {
       const { data, error } = await (supabase as any).from('activities')
         .select('*')
-        .eq('user_id', userId)
+        .eq('actor_id', userId)
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -162,7 +162,7 @@ export function useAuditLogsByAction(
       const { data, error } = await (supabase as any).from('activities')
         .select('*')
         .eq('tenant_id', tenantId)
-        .eq('action_type', actionType)
+        .eq('action', actionType)
         .order('created_at', { ascending: false })
         .limit(limit);
 

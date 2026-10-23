@@ -48,7 +48,7 @@ export function useInventoryByBranch(branchId: string | undefined) {
       const { data, error } = await (supabase as any).from('inventory_records')
         .select('*')
         .eq('branch_id', branchId)
-        .order('updated_at', { ascending: false });
+        .order('last_updated', { ascending: false });
       
       if (error) handleSupabaseError(error);
       
@@ -88,10 +88,19 @@ export function useInventoryMovements(recordId: string | undefined) {
     queryKey: queryKeys.inventory.movements(recordId || ''),
     queryFn: async () => {
       if (!recordId) throw new Error('Record ID required');
-      
+
+      // Movements are keyed by branch + product, not by inventory record id.
+      const { data: record, error: recordError } = await (supabase as any).from('inventory_records')
+        .select('tenant_id, branch_id, product_id')
+        .eq('id', recordId)
+        .single();
+      if (recordError) handleSupabaseError(recordError);
+
       const { data, error } = await (supabase as any).from('inventory_movements')
         .select('*')
-        .eq('reference_id', recordId)
+        .eq('tenant_id', record.tenant_id)
+        .eq('branch_id', record.branch_id)
+        .eq('product_id', record.product_id)
         .order('created_at', { ascending: false });
       
       if (error) handleSupabaseError(error);

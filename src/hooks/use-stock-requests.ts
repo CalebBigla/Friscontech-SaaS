@@ -69,7 +69,7 @@ export function useStockRequestsByRequester(requesterId: string | undefined) {
       
       const { data, error } = await (supabase as any).from('stock_requests')
         .select('*')
-        .eq('requester_id', requesterId)
+        .eq('rep_id', requesterId)
         .order('created_at', { ascending: false });
       
       if (error) handleSupabaseError(error);

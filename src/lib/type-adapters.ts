@@ -2,41 +2,157 @@
  * Type Adapters
  *
  * Transform between database rows (snake_case) and app objects (camelCase).
- * Every transformer references only columns that actually exist in database.types.ts.
+ * Column names follow supabase/migrations/, not the generated database.types.ts,
+ * which is stale. Where they differ, the row type is declared locally below.
  */
 
 import type { Row } from "@/lib/supabase-helpers";
-import type { Branch, BranchStatus, User, Product, ProductStatus } from "@/data/mock-db";
+import type {
+  Activity, ApprovalRequest, AppNotification, Branch, BranchStatus,
+  Customer, CustomerPayment, Expense, InventoryMovement, InventoryRecord,
+  Payment, Product, ProductStatus, Sale, StockBatch, StockRequest, Target,
+  User, UserPreference,
+} from "@/data/mock-db";
+import type { EmployeeData, Onboarding, StoredFile } from "@/data/onboarding";
+import type { OwnerRemittance } from "@/data/remittances";
+
+/** Local rows follow the migration schema where generated database.types.ts is stale. */
+export interface InventoryRecordMigrationRow {
+  id: string; tenant_id: string; branch_id: string; product_id: string;
+  quantity_on_hand: number; quantity_reserved: number; low_stock_threshold: number;
+  reorder_level: number; last_updated: string;
+}
+/** Column shape follows 20260114140000_create_products_and_inventory.sql. */
+export interface StockBatchMigrationRow {
+  id: string; tenant_id: string; branch_id: string; product_id: string;
+  batch_number: string | null; expiry_date: string | null; quantity_received: number;
+  quantity_remaining: number; received_at: string;
+}
+/** `type` is the actual column in 20260114140000_create_products_and_inventory.sql. */
+export interface InventoryMovementMigrationRow {
+  id: string; tenant_id: string; branch_id: string; product_id: string;
+  type: InventoryMovement["type"]; quantity: number; reference_type: InventoryMovement["referenceType"] | null;
+  reference_id: string | null; performed_by: string; note: string | null; created_at: string;
+}
+/** Columns follow 20260114170000_create_operations_tables.sql. */
+export interface ApprovalRequestMigrationRow {
+  id: string; tenant_id: string; type: ApprovalRequest["type"]; status: ApprovalRequest["status"];
+  branch_id: string | null; requested_by: string; requested_at: string;
+  reviewed_by: string | null; reviewed_at: string | null; rejection_reason: string | null;
+  note: string | null; emergency: boolean | null; emergency_reason: string | null;
+  applied_at: string | null; product_id: string | null; quantity: number | null;
+  batch_number: string | null; expiry_date: string | null; member_data: unknown;
+  created_at: string; updated_at: string;
+}
+/** Columns follow 20260114170000_create_operations_tables.sql. */
+export interface StockRequestMigrationRow {
+  id: string; tenant_id: string; branch_id: string; rep_id: string; product_id: string;
+  quantity_requested: number; quantity_approved: number | null; quantity_fulfilled: number | null;
+  batch_id: string | null; priority: StockRequest["priority"]; status: StockRequest["status"];
+  requested_at: string; approved_at: string | null; approved_by: string | null;
+  fulfilled_at: string | null; fulfilled_by: string | null; rejected_at: string | null;
+  processed_by: string | null; rejection_reason: string | null; acknowledged_at: string | null;
+  acknowledged_by: string | null; note: string | null; created_at: string; updated_at: string;
+}
+/** Column shapes follow 20260114150000_create_customers_and_sales.sql. */
+export interface CustomerPaymentMigrationRow {
+  id: string; tenant_id: string; customer_id: string; branch_id: string; manager_id: string;
+  amount: number; method: CustomerPayment["method"]; received_by: string; order_id: string | null;
+  payment_date: string; proof_name: string | null; status: CustomerPayment["status"];
+  submitted_at: string; acknowledged_at: string | null; acknowledged_by: string | null;
+  confirmed_at: string | null; confirmed_by: string | null; declined_at: string | null;
+  declined_by: string | null; decline_reason: string | null; reference: string | null;
+  note: string | null; created_at: string; updated_at: string;
+}
+/** Column shape follows 20260114160000_create_financial_workflows.sql. */
+export interface PaymentMigrationRow {
+  id: string; tenant_id: string; branch_id: string; sales_rep_id: string; manager_id: string;
+  period: string; cash_amount: number; transfer_amount: number; transfer_reference: string | null;
+  proof_name: string | null; status: Payment["status"]; submitted_at: string;
+  acknowledged_at: string | null; acknowledged_by: string | null; confirmed_at: string | null;
+  confirmed_by: string | null; declined_at: string | null; declined_by: string | null;
+  decline_reason: string | null; note: string | null; created_at: string; updated_at: string;
+}
+/** Column shape follows 20260114160000_create_financial_workflows.sql. */
+export interface ManagerRemittanceMigrationRow {
+  id: string; tenant_id: string; branch_id: string; manager_id: string; period: string;
+  total_received: number; expense_amount: number; net_remittance_due: number; cash_amount: number;
+  transfer_amount: number; outstanding_amount: number; transfer_reference: string | null;
+  status: import("@/data/mock-db").ManagerRemittance["status"]; submitted_at: string | null;
+  confirmed_at: string | null; confirmed_by: string | null; declined_at: string | null;
+  declined_by: string | null; decline_reason: string | null; note: string | null;
+  payment_ids: string[]; expense_ids: string[]; created_at: string; updated_at: string;
+}
+/** Column shape follows 20260114160000_create_financial_workflows.sql. */
+export interface OwnerRemittanceMigrationRow {
+  id: string; tenant_id: string; payee_type: OwnerRemittance["payeeType"]; payee_name: string; amount: number;
+  payment_method: OwnerRemittance["paymentMethod"]; reference: string | null; purpose: string; remittance_date: string;
+  note: string | null; created_by: string; created_at: string; updated_at: string;
+}
+/** Column shape follows 20260114160000_create_financial_workflows.sql. */
+export interface ExpenseMigrationRow {
+  id: string; tenant_id: string; branch_id: string | null; manager_id: string | null;
+  owner_id: string | null; category: Expense["category"]; amount: number; expense_date: string;
+  description: string; note: string | null; status: Expense["status"];
+  created_at: string; updated_at: string;
+}
+/** Columns follow 20260114150000_create_customers_and_sales.sql. */
+export interface CustomerMigrationRow {
+  id: string; tenant_id: string; branch_id: string | null; name: string; contact_person: string;
+  phone: string | null; email: string | null; address: string | null; credit_limit: number | null;
+  status: Customer["status"]; created_by: string; created_at: string; updated_at: string;
+}
+/** Final invite-first columns follow 20260118010000_restructure_onboardings.sql. */
+export interface OnboardingMigrationRow {
+  id: string; tenant_id: string; user_id: string | null; employee_id: string; job_title: string;
+  department: string; start_date: string; status: Onboarding["status"]; token_expires_at: string;
+  token_revoked: boolean; used_at: string | null; step: number; data: unknown;
+  correction_note: string | null; guarantor_status: Onboarding["guarantorStatus"];
+  guarantor_token: string | null; guarantor_response: unknown; guarantor_decision: Onboarding["guarantorDecision"] | null;
+  guarantor_decision_reason: string | null; guarantor_decided_at: string | null;
+  created_at: string; submitted_at: string | null; activated_at: string | null;
+}
+/** Column names and CHECK values follow 20260114120000_create_initial_schema.sql. */
+export interface UserPreferenceMigrationRow {
+  user_id: string; date_format: UserPreference["dateFormat"];
+  default_report_period: UserPreference["defaultReportPeriod"]; updated_at: string;
+}
+/** Notification columns and CHECK values follow 20260114180000_create_system_tables.sql. */
+export interface NotificationMigrationRow {
+  id: string; tenant_id: string; recipient_id: string; type: AppNotification["type"];
+  entity_type: AppNotification["entityType"]; entity_id: string; message: string;
+  read_at: string | null; created_at: string;
+}
 
 // ─────────────────────────── BRANCHES ────────────────────────────
 
-export function transformBranch(dbRow: Row<"branches">): Branch {
+export function transformBranch(dbRow: { id: string; tenant_id: string; name: string; code: string; location: string; address: string; phone: string; email: string; status: BranchStatus; manager_id: string | null; created_at: string }): Branch {
   return {
-    id:           dbRow.id,
-    tenantId:     dbRow.tenant_id,
-    name:         dbRow.name,
-    code:         dbRow.code,
-    location:     dbRow.location,
-    address:      dbRow.address,
-    phone:        dbRow.phone,
-    email:        dbRow.email,
-    status:       dbRow.status as BranchStatus,
-    managerId:    dbRow.manager_id ?? null,
-    createdAt:    dbRow.created_at,
+    id:           dbRow['id'],
+    tenantId:     dbRow['tenant_id'],
+    name:         dbRow['name'],
+    code:         dbRow['code'],
+    location:     dbRow['location'],
+    address:      dbRow['address'],
+    phone:        dbRow['phone'],
+    email:        dbRow['email'],
+    status:       dbRow['status'] as BranchStatus,
+    managerId:    dbRow['manager_id'] ?? null,
+    createdAt:    dbRow['created_at'],
   };
 }
 
-export function branchToDb(branch: Partial<Branch>, tenantId: string): any {
-  const r: any = { tenant_id: tenantId };
-  if (branch.id)                          r.id              = branch.id;
-  if (branch.name)                        r.name            = branch.name;
-  if (branch.code)                        r.code            = branch.code;
-  if (branch.location  !== undefined)     r.location        = branch.location;
-  if (branch.address   !== undefined)     r.address         = branch.address;
-  if (branch.phone     !== undefined)     r.phone           = branch.phone;
-  if (branch.email     !== undefined)     r.email           = branch.email;
-  if (branch.status)                      r.status          = branch.status;
-  if (branch.managerId !== undefined)     r.manager_id      = branch.managerId || null;
+export function branchToDb(branch: Partial<Branch>, tenantId: string): Record<string, unknown> {
+  const r: Record<string, unknown> = { tenant_id: tenantId };
+  if (branch.id)                          r['id']              = branch.id;
+  if (branch.name)                        r['name']            = branch.name;
+  if (branch.code)                        r['code']            = branch.code;
+  if (branch.location  !== undefined)     r['location']        = branch.location;
+  if (branch.address   !== undefined)     r['address']         = branch.address;
+  if (branch.phone     !== undefined)     r['phone']           = branch.phone;
+  if (branch.email     !== undefined)     r['email']           = branch.email;
+  if (branch.status)                      r['status']          = branch.status;
+  if (branch.managerId !== undefined)     r['manager_id']      = branch.managerId || null;
   return r;
 }
 
@@ -45,66 +161,65 @@ export function branchToDb(branch: Partial<Branch>, tenantId: string): any {
 // role is NULL for a pending onboarding-created profile (set at approval).
 // status: active | inactive | pending | rejected | suspended.
 
-export function transformUser(dbRow: Row<"users">): User {
-  const firstName = dbRow.first_name ?? "";
-  const lastName  = dbRow.last_name  ?? "";
+export function transformUser(dbRow: { id: string; tenant_id: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null; role: User["role"] | null; status: User["status"]; branch_id: string | null; manager_id: string | null; joined_at: string | null; deactivated_at: string | null; created_at: string | null }): User {
+  const firstName = dbRow['first_name'] ?? "";
+  const lastName  = dbRow['last_name']  ?? "";
   return {
-    id:            dbRow.id,
-    tenantId:      dbRow.tenant_id,
-    name:          [firstName, lastName].filter(Boolean).join(" ") || dbRow.email || "User",
+    id:            dbRow['id'],
+    tenantId:      dbRow['tenant_id'],
+    name:          [firstName, lastName].filter(Boolean).join(" ") || dbRow['email'] || "User",
     firstName,
     lastName,
-    email:         dbRow.email   ?? "",
-    phone:         dbRow.phone   ?? null,
-    role:          (dbRow.role ?? "sales_rep") as any,
-    status:        dbRow.status  as any,
-    branchId:      dbRow.branch_id ?? null,
-    managerId:     dbRow.manager_id ?? null,
-    joinedAt:      dbRow.joined_at,
-    deactivatedAt: dbRow.deactivated_at ?? null,
-    authId:        dbRow.id, // id is the auth id
-    createdAt:     dbRow.joined_at ?? dbRow.created_at ?? "",
+    email:         dbRow['email']   ?? "",
+    phone:         dbRow['phone']   ?? null,
+    role:          (dbRow['role'] ?? "sales_rep") as User["role"],
+    status:        dbRow['status'] as User["status"],
+    branchId:      dbRow['branch_id'] ?? null,
+    managerId:     dbRow['manager_id'] ?? null,
+    ...(dbRow['joined_at'] ? { joinedAt: dbRow['joined_at'] } : {}),
+    deactivatedAt: dbRow['deactivated_at'] ?? null,
+    authId:        dbRow['id'], // id is the auth id
+    createdAt:     dbRow['joined_at'] ?? dbRow['created_at'] ?? "",
   };
 }
 
-export function userToDb(user: Partial<User>, tenantId: string): any {
-  const r: any = { tenant_id: tenantId };
-  if (user.id)                          r.id               = user.id;
-  if (user.branchId  !== undefined)     r.branch_id        = user.branchId  ?? null;
-  if (user.firstName)                   r.first_name       = user.firstName;
-  if (user.lastName)                    r.last_name        = user.lastName;
-  if (user.email    !== undefined)      r.email            = user.email;
-  if (user.phone    !== undefined)      r.phone            = user.phone     ?? null;
-  if (user.role     !== undefined)      r.role             = user.role;
-  if (user.status)                      r.status           = user.status;
-  if (user.managerId !== undefined)     r.manager_id       = user.managerId ?? null;
-  if (user.joinedAt)                    r.joined_at        = user.joinedAt;
-  if (user.deactivatedAt !== undefined) r.deactivated_at   = user.deactivatedAt ?? null;
+export function userToDb(user: Partial<User>, tenantId: string): Record<string, unknown> {
+  const r: Record<string, unknown> = { tenant_id: tenantId };
+  if (user.id)                          r['id']               = user.id;
+  if (user.branchId  !== undefined)     r['branch_id']        = user.branchId  ?? null;
+  if (user.firstName)                   r['first_name']       = user.firstName;
+  if (user.lastName)                    r['last_name']        = user.lastName;
+  if (user.email    !== undefined)      r['email']            = user.email;
+  if (user.phone    !== undefined)      r['phone']            = user.phone     ?? null;
+  if (user.role     !== undefined)      r['role']             = user.role;
+  if (user.status)                      r['status']           = user.status;
+  if (user.managerId !== undefined)     r['manager_id']       = user.managerId ?? null;
+  if (user.joinedAt)                    r['joined_at']        = user.joinedAt;
+  if (user.deactivatedAt !== undefined) r['deactivated_at']   = user.deactivatedAt ?? null;
   return r;
 }
 
 // ─────────────────────────── USER PREFERENCES ────────────────────
 
-export function transformPreference(dbRow: Row<"user_preferences">): any {
+export function transformPreference(dbRow: UserPreferenceMigrationRow): UserPreference {
   return {
-    userId:              dbRow['user_id'],
-    dateFormat:          dbRow['date_format'],
-    defaultReportPeriod: dbRow['report_period'],
-    updatedAt:           dbRow['updated_at'],
+    userId:              dbRow.user_id,
+    dateFormat:          dbRow.date_format,
+    defaultReportPeriod: dbRow.default_report_period,
+    updatedAt:           dbRow.updated_at,
   };
 }
 
-export function preferenceToDb(pref: Partial<any>, userId: string): any {
-  const r: any = { user_id: userId };
-  if (pref['dateFormat'])          r.date_format   = pref['dateFormat'];
-  if (pref['reportPeriod'])        r.report_period = pref['reportPeriod'];
-  if (pref['defaultReportPeriod']) r.report_period = pref['defaultReportPeriod'];
+export function preferenceToDb(pref: Partial<UserPreference>, userId: string): Record<string, unknown> {
+  const r: Record<string, unknown> = { user_id: userId };
+  if (pref.dateFormat)          r['date_format']           = pref.dateFormat;
+  if (pref.defaultReportPeriod) r['default_report_period'] = pref.defaultReportPeriod;
   return r;
 }
 
 // ─────────────────────────── PRODUCTS ────────────────────────────
 
-export function transformProduct(dbRow: Row<"products">): Product {
+export function transformProduct(dbRow: { id: string; tenant_id: string; name: string; sku: string; category: string; unit: string; unit_cost: number; unit_price: number; status: ProductStatus; low_stock_threshold: number | null; description: string | null; created_at: string; updated_at: string }): Product {
   return {
     id:                dbRow['id'],
     tenantId:          dbRow['tenant_id'],
@@ -122,24 +237,24 @@ export function transformProduct(dbRow: Row<"products">): Product {
   };
 }
 
-export function productToDb(product: Partial<Product>, tenantId: string): any {
-  const r: any = { tenant_id: tenantId };
-  if (product.id)                           r.id                  = product.id;
-  if (product.name)                         r.name                = product.name;
-  if (product.sku)                          r.sku                 = product.sku;
-  if (product.category)                     r.category            = product.category;
-  if (product.unit)                         r.unit                = product.unit;
-  if (product.unitCost     !== undefined)   r.unit_cost           = product.unitCost;
-  if (product.unitPrice    !== undefined)   r.unit_price          = product.unitPrice;
-  if (product.status)                       r.status              = product.status;
-  if ((product as any).lowStockThreshold !== undefined) r.low_stock_threshold = (product as any).lowStockThreshold ?? null;
-  if ((product as any).description !== undefined)       r.description         = (product as any).description ?? null;
+export function productToDb(product: Partial<Product>, tenantId: string): Record<string, unknown> {
+  const r: Record<string, unknown> = { tenant_id: tenantId };
+  if (product.id)                           r['id']                  = product.id;
+  if (product.name)                         r['name']                = product.name;
+  if (product.sku)                          r['sku']                 = product.sku;
+  if (product.category)                     r['category']            = product.category;
+  if (product.unit)                         r['unit']                = product.unit;
+  if (product.unitCost     !== undefined)   r['unit_cost']           = product.unitCost;
+  if (product.unitPrice    !== undefined)   r['unit_price']          = product.unitPrice;
+  if (product.status)                       r['status']              = product.status;
+  if (product.lowStockThreshold !== undefined) r['low_stock_threshold'] = product.lowStockThreshold;
+  if (product.description !== undefined)       r['description']         = product.description ?? null;
   return r;
 }
 
 // ─────────────────────────── INVENTORY ───────────────────────────
 
-export function transformInventoryRecord(dbRow: Row<"inventory_records">): any {
+export function transformInventoryRecord(dbRow: InventoryRecordMigrationRow): InventoryRecord {
   return {
     id:               dbRow['id'],
     tenantId:         dbRow['tenant_id'],
@@ -147,43 +262,47 @@ export function transformInventoryRecord(dbRow: Row<"inventory_records">): any {
     productId:        dbRow['product_id'],
     quantityOnHand:   dbRow['quantity_on_hand'],
     quantityReserved: dbRow['quantity_reserved'],
-    updatedAt:        dbRow['last_updated'],
+    lowStockThreshold: dbRow.low_stock_threshold,
+    reorderLevel:      dbRow.reorder_level,
+    lastUpdated:       dbRow.last_updated,
   };
 }
 
-export function inventoryRecordToDb(r: Partial<any>, tenantId: string): any {
-  const out: any = { tenant_id: tenantId };
-  if (r['id'])                          out.id                = r['id'];
-  if (r['branchId'])                    out.branch_id         = r['branchId'];
-  if (r['productId'])                   out.product_id        = r['productId'];
-  if (r['quantityOnHand']   !== undefined) out.quantity_on_hand   = r['quantityOnHand'];
-  if (r['quantityReserved'] !== undefined) out.quantity_reserved  = r['quantityReserved'];
+export function inventoryRecordToDb(r: Partial<InventoryRecord>, tenantId: string): Record<string, unknown> {
+  const out: Record<string, unknown> = { tenant_id: tenantId };
+  if (r['id'])                          out['id']                = r['id'];
+  if (r['branchId'])                    out['branch_id']         = r['branchId'];
+  if (r['productId'])                   out['product_id']        = r['productId'];
+  if (r['quantityOnHand']   !== undefined) out['quantity_on_hand']   = r['quantityOnHand'];
+  if (r['quantityReserved'] !== undefined) out['quantity_reserved']  = r['quantityReserved'];
+  if (r['lowStockThreshold'] !== undefined) out['low_stock_threshold'] = r['lowStockThreshold'];
+  if (r['reorderLevel'] !== undefined) out['reorder_level'] = r['reorderLevel'];
   return out;
 }
 
-export function transformInventoryMovement(dbRow: Row<"inventory_movements">): any {
+export function transformInventoryMovement(dbRow: InventoryMovementMigrationRow): InventoryMovement {
   return {
     id:           dbRow['id'],
     tenantId:     dbRow['tenant_id'],
     branchId:     dbRow['branch_id'],
     productId:    dbRow['product_id'],
-    movementType: dbRow['movement_type'],
+    type:          dbRow.type,
     quantity:     dbRow['quantity'],
     // DB uses reference_type + reference_id, not a single "reference" string
-    referenceType: dbRow['reference_type'] ?? undefined,
-    referenceId:   dbRow['reference_id']   ?? undefined,
-    note:          dbRow['note']           ?? undefined,
+    ...(dbRow['reference_type'] ? { referenceType: dbRow['reference_type'] } : {}),
+    ...(dbRow['reference_id'] ? { referenceId: dbRow['reference_id'] } : {}),
+    ...(dbRow['note'] ? { note: dbRow['note'] } : {}),
     performedBy:  dbRow['performed_by'],
     createdAt:    dbRow['created_at'],
   };
 }
 
-export function inventoryMovementToDb(m: Partial<any>, tenantId: string): any {
+export function inventoryMovementToDb(m: Partial<InventoryMovement>, tenantId: string): Record<string, unknown> {
   const out: any = { tenant_id: tenantId };
   if (m['id'])            out.id             = m['id'];
   if (m['branchId'])      out.branch_id      = m['branchId'];
   if (m['productId'])     out.product_id     = m['productId'];
-  if (m['movementType'])  out.movement_type  = m['movementType'];
+  if (m.type)             out.type           = m.type;
   if (m['quantity'] !== undefined) out.quantity = m['quantity'];
   if (m['referenceType']) out.reference_type = m['referenceType'];
   if (m['referenceId'] !== undefined) out.reference_id = m['referenceId'] ?? null;
@@ -192,21 +311,21 @@ export function inventoryMovementToDb(m: Partial<any>, tenantId: string): any {
   return out;
 }
 
-export function transformStockBatch(dbRow: Row<"stock_batches">): any {
+export function transformStockBatch(dbRow: StockBatchMigrationRow): StockBatch {
   return {
     id:                dbRow['id'],
     tenantId:          dbRow['tenant_id'],
     branchId:          dbRow['branch_id'],
     productId:         dbRow['product_id'],
-    batchNumber:       dbRow['batch_number'] ?? undefined,
-    expiryDate:        dbRow['expiry_date']  ?? undefined,
+    batchNumber:       dbRow['batch_number'] ?? "",
+    expiryDate:        dbRow['expiry_date']  ?? "",
     quantityReceived:  dbRow['quantity_received'],
     quantityRemaining: dbRow['quantity_remaining'],
     receivedAt:        dbRow['received_at'],
   };
 }
 
-export function stockBatchToDb(b: Partial<any>, tenantId: string): any {
+export function stockBatchToDb(b: Partial<StockBatch>, tenantId: string): Record<string, unknown> {
   const out: any = { tenant_id: tenantId };
   if (b['id'])                           out.id                = b['id'];
   if (b['branchId'])                     out.branch_id         = b['branchId'];
@@ -222,27 +341,27 @@ export function stockBatchToDb(b: Partial<any>, tenantId: string): any {
 // ─────────────────────────── SALES ───────────────────────────────
 // Column mapping follows supabase/migrations/20260114150000_create_customers_and_sales.sql.
 
-export function transformSale(dbRow: Row<"sales">): any {
+export function transformSale(dbRow: Row<"sales">): Sale {
   return {
     id:          dbRow['id'],
     tenantId:    dbRow['tenant_id'],
     code:        dbRow['code'],
     branchId:    dbRow['branch_id'],
     salesRepId:  dbRow['sales_rep_id'],
-    customerId:  dbRow['customer_id'] ?? undefined,
-    orderId:     dbRow['order_id'] ?? undefined,
+    ...(dbRow['customer_id'] ? { customerId: dbRow['customer_id'] } : {}),
+    ...(dbRow['order_id'] ? { orderId: dbRow['order_id'] } : {}),
     productId:   dbRow['product_id'],
     quantity:    dbRow['quantity'],
     unitPrice:   dbRow['unit_price'],
     saleDate:    dbRow['sale_date'],
     createdAt:   dbRow['created_at'],
     status:      dbRow['status'],
-    walkInName:  dbRow['walk_in_name'] ?? undefined,
-    walkInPhone: dbRow['walk_in_phone'] ?? undefined,
+    ...(dbRow['walk_in_name'] ? { walkInName: dbRow['walk_in_name'] } : {}),
+    ...(dbRow['walk_in_phone'] ? { walkInPhone: dbRow['walk_in_phone'] } : {}),
   };
 }
 
-export function saleToDb(sale: Partial<any>, tenantId: string): any {
+export function saleToDb(sale: Partial<Sale>, tenantId: string): Record<string, unknown> {
   const out: any = { tenant_id: tenantId };
   if (sale['id'])                       out.id           = sale['id'];
   out.code = sale['code'] ?? `SAL-${globalThis.crypto.randomUUID()}`;
@@ -263,7 +382,7 @@ export function saleToDb(sale: Partial<any>, tenantId: string): any {
 // ─────────────────────────── CUSTOMERS ───────────────────────────
 // Column mapping follows supabase/migrations/20260114150000_create_customers_and_sales.sql.
 
-export function transformCustomer(dbRow: Row<"customers">): any {
+export function transformCustomer(dbRow: CustomerMigrationRow): Customer {
   return {
     id:           dbRow['id'],
     tenantId:     dbRow['tenant_id'],
@@ -273,14 +392,15 @@ export function transformCustomer(dbRow: Row<"customers">): any {
     phone:        dbRow['phone']   ?? "",
     email:        dbRow['email']   ?? "",
     address:      dbRow['address'] ?? "",
-    creditLimit:  dbRow['credit_limit'] ?? undefined,
+    ...(dbRow['credit_limit'] !== null ? { creditLimit: dbRow['credit_limit'] } : {}),
     status:       dbRow['status'],
     createdBy:    dbRow['created_by'],
     createdAt:    dbRow['created_at'],
+    updatedAt:    dbRow['updated_at'],
   };
 }
 
-export function customerToDb(c: Partial<any>, tenantId: string): any {
+export function customerToDb(c: Partial<Customer>, tenantId: string): Record<string, unknown> {
   const out: any = { tenant_id: tenantId };
   if (c['id'])                          out.id             = c['id'];
   if (c['branchId'])                    out.branch_id      = c['branchId'];
@@ -299,31 +419,46 @@ export function customerToDb(c: Partial<any>, tenantId: string): any {
 // DB schema: id, tenant_id, branch_id, customer_id, sales_rep_id,
 //            amount, payment_method, reference_number, note, payment_date, created_at
 
-export function transformCustomerPayment(dbRow: Row<"customer_payments">): any {
+export function transformCustomerPayment(dbRow: CustomerPaymentMigrationRow): CustomerPayment {
   return {
     id:            dbRow['id'],
     tenantId:      dbRow['tenant_id'],
     branchId:      dbRow['branch_id'],
     customerId:    dbRow['customer_id'],
-    salesRepId:    dbRow['sales_rep_id'],
+    managerId:     dbRow['manager_id'],
     amount:        dbRow['amount'],
-    paymentMethod: dbRow['payment_method'],
-    reference:     dbRow['reference_number'] ?? undefined,
-    note:          dbRow['note']             ?? undefined,
+    method:        dbRow['method'],
+    receivedBy:    dbRow['received_by'],
+    ...(dbRow['order_id'] ? { orderId: dbRow['order_id'] } : {}),
+    status:        dbRow['status'],
+    submittedAt:   dbRow['submitted_at'],
+    ...(dbRow['acknowledged_at'] ? { acknowledgedAt: dbRow['acknowledged_at'] } : {}),
+    ...(dbRow['acknowledged_by'] ? { acknowledgedBy: dbRow['acknowledged_by'] } : {}),
+    ...(dbRow['confirmed_at'] ? { confirmedAt: dbRow['confirmed_at'] } : {}),
+    ...(dbRow['confirmed_by'] ? { confirmedBy: dbRow['confirmed_by'] } : {}),
+    ...(dbRow['declined_at'] ? { declinedAt: dbRow['declined_at'] } : {}),
+    ...(dbRow['declined_by'] ? { declinedBy: dbRow['declined_by'] } : {}),
+    ...(dbRow['decline_reason'] ? { declineReason: dbRow['decline_reason'] } : {}),
+    ...(dbRow['proof_name'] ? { proofName: dbRow['proof_name'] } : {}),
+    ...(dbRow['reference'] ? { reference: dbRow['reference'] } : {}),
+    ...(dbRow['note'] ? { note: dbRow['note'] } : {}),
     paymentDate:   dbRow['payment_date'],
     createdAt:     dbRow['created_at'],
+    updatedAt:     dbRow['updated_at'],
   };
 }
 
-export function customerPaymentToDb(p: Partial<any>, tenantId: string): any {
+export function customerPaymentToDb(p: Partial<CustomerPayment>, tenantId: string): Record<string, unknown> {
   const out: any = { tenant_id: tenantId };
   if (p['id'])                          out.id               = p['id'];
   if (p['branchId'])                    out.branch_id        = p['branchId'];
   if (p['customerId'])                  out.customer_id      = p['customerId'];
-  if (p['salesRepId'])                  out.sales_rep_id     = p['salesRepId'];
+  if (p['managerId'])                   out.manager_id       = p['managerId'];
+  if (p['receivedBy'])                  out.received_by      = p['receivedBy'];
+  if (p['orderId'] !== undefined)       out.order_id         = p['orderId'] ?? null;
   if (p['amount']     !== undefined)    out.amount           = p['amount'];
-  if (p['paymentMethod'])               out.payment_method   = p['paymentMethod'];
-  if (p['reference']  !== undefined)    out.reference_number = p['reference']  ?? null;
+  if (p['method'])                      out.method           = p['method'];
+  if (p['reference']  !== undefined)    out.reference        = p['reference']  ?? null;
   if (p['note']       !== undefined)    out.note             = p['note']       ?? null;
   if (p['paymentDate'])                 out.payment_date     = p['paymentDate'];
   return out;
@@ -335,35 +470,39 @@ export function customerPaymentToDb(p: Partial<any>, tenantId: string): any {
 //            submitted_at, acknowledged_by/at, confirmed_by/at,
 //            status, decline_reason, created_at
 
-export function transformPayment(dbRow: Row<"payments">): any {
+export function transformPayment(dbRow: PaymentMigrationRow): Payment {
   return {
     id:               dbRow['id'],
     tenantId:         dbRow['tenant_id'],
     branchId:         dbRow['branch_id'],
     salesRepId:       dbRow['sales_rep_id'],
+    managerId:        dbRow['manager_id'],
     period:           dbRow['period'],
-    totalSales:       dbRow['total_sales'],
     cashAmount:       dbRow['cash_amount'],
     transferAmount:   dbRow['transfer_amount'],
-    transferReference: dbRow['transfer_reference'] ?? undefined,
+    ...(dbRow['transfer_reference'] ? { transferReference: dbRow['transfer_reference'] } : {}),
     submittedAt:      dbRow['submitted_at'],
-    acknowledgedBy:   dbRow['acknowledged_by'] ?? undefined,
-    acknowledgedAt:   dbRow['acknowledged_at'] ?? undefined,
-    confirmedBy:      dbRow['confirmed_by']    ?? undefined,
-    confirmedAt:      dbRow['confirmed_at']    ?? undefined,
+    ...(dbRow['acknowledged_by'] ? { acknowledgedBy: dbRow['acknowledged_by'] } : {}),
+    ...(dbRow['acknowledged_at'] ? { acknowledgedAt: dbRow['acknowledged_at'] } : {}),
+    ...(dbRow['confirmed_by'] ? { confirmedBy: dbRow['confirmed_by'] } : {}),
+    ...(dbRow['confirmed_at'] ? { confirmedAt: dbRow['confirmed_at'] } : {}),
     status:           dbRow['status'],
-    declineReason:    dbRow['decline_reason']  ?? undefined,
+    ...(dbRow['decline_reason'] ? { declineReason: dbRow['decline_reason'] } : {}),
+    ...(dbRow['declined_at'] ? { declinedAt: dbRow['declined_at'] } : {}),
+    ...(dbRow['declined_by'] ? { declinedBy: dbRow['declined_by'] } : {}),
+    ...(dbRow['proof_name'] ? { proofName: dbRow['proof_name'] } : {}),
+    ...(dbRow['note'] ? { note: dbRow['note'] } : {}),
     createdAt:        dbRow['created_at'],
+    updatedAt:        dbRow['updated_at'],
   };
 }
 
-export function paymentToDb(p: Partial<any>, tenantId: string): any {
+export function paymentToDb(p: Partial<Payment>, tenantId: string): Record<string, unknown> {
   const out: any = { tenant_id: tenantId };
   if (p['id'])                            out.id                 = p['id'];
   if (p['branchId'])                      out.branch_id          = p['branchId'];
   if (p['salesRepId'])                    out.sales_rep_id       = p['salesRepId'];
   if (p['period'])                        out.period             = p['period'];
-  if (p['totalSales']      !== undefined) out.total_sales        = p['totalSales'];
   if (p['cashAmount']      !== undefined) out.cash_amount        = p['cashAmount'];
   if (p['transferAmount']  !== undefined) out.transfer_amount    = p['transferAmount'];
   if (p['transferReference'] !== undefined) out.transfer_reference = p['transferReference'] ?? null;
@@ -381,22 +520,25 @@ export function paymentToDb(p: Partial<any>, tenantId: string): any {
 // DB schema: id, tenant_id, branch_id, manager_id, category,
 //            amount, description, receipt_url, expense_date, created_at
 
-export function transformExpense(dbRow: Row<"expenses">): any {
+export function transformExpense(dbRow: ExpenseMigrationRow): Expense {
   return {
     id:          dbRow['id'],
     tenantId:    dbRow['tenant_id'],
     branchId:    dbRow['branch_id'],
-    managerId:   dbRow['manager_id'],
+    ...(dbRow['manager_id'] ? { managerId: dbRow['manager_id'] } : {}),
     category:    dbRow['category'],
     amount:      dbRow['amount'],
-    description: dbRow['description'] ?? undefined,
-    receiptUrl:  dbRow['receipt_url']  ?? undefined,
+    ...(dbRow['owner_id'] ? { ownerId: dbRow['owner_id'] } : {}),
+    description: dbRow['description'],
+    ...(dbRow['note'] ? { note: dbRow['note'] } : {}),
+    status:      dbRow['status'],
     expenseDate: dbRow['expense_date'],
     createdAt:   dbRow['created_at'],
+    updatedAt:   dbRow['updated_at'],
   };
 }
 
-export function expenseToDb(e: Partial<any>, tenantId: string): any {
+export function expenseToDb(e: Partial<Expense>, tenantId: string): Record<string, unknown> {
   const out: any = { tenant_id: tenantId };
   if (e['id'])                         out.id           = e['id'];
   if (e['branchId'])                   out.branch_id    = e['branchId'];
@@ -404,14 +546,16 @@ export function expenseToDb(e: Partial<any>, tenantId: string): any {
   if (e['category'])                   out.category     = e['category'];
   if (e['amount']     !== undefined)   out.amount       = e['amount'];
   if (e['description'] !== undefined)  out.description  = e['description'] ?? null;
-  if (e['receiptUrl']  !== undefined)  out.receipt_url  = e['receiptUrl']  ?? null;
+  if (e['ownerId'])                    out.owner_id     = e['ownerId'];
+  if (e['note']       !== undefined)   out.note         = e['note'] ?? null;
+  if (e['status'])                     out.status       = e['status'];
   if (e['expenseDate'])                out.expense_date = e['expenseDate'];
   return out;
 }
 
 // ─────────────────────────── MANAGER REMITTANCES ─────────────────
 
-export function transformManagerRemittance(dbRow: Row<"manager_remittances">): any {
+export function transformManagerRemittance(dbRow: ManagerRemittanceMigrationRow): import("@/data/mock-db").ManagerRemittance {
   return {
     id:                dbRow['id'],
     tenantId:          dbRow['tenant_id'],
@@ -419,23 +563,30 @@ export function transformManagerRemittance(dbRow: Row<"manager_remittances">): a
     managerId:         dbRow['manager_id'],
     period:            dbRow['period'],
     totalReceived:     dbRow['total_received'],
-    totalExpenses:     dbRow['total_expenses'],
-    netRemittance:     dbRow['net_remittance'],
+    expenseAmount:     dbRow['expense_amount'],
+    netRemittanceDue:  dbRow['net_remittance_due'],
     cashAmount:        dbRow['cash_amount'],
     transferAmount:    dbRow['transfer_amount'],
-    transferReference: dbRow['transfer_reference'] ?? undefined,
-    submittedAt:       dbRow['submitted_at'],
-    reviewedBy:        dbRow['reviewed_by']  ?? undefined,
-    reviewedAt:        dbRow['reviewed_at']  ?? undefined,
+    ...(dbRow['transfer_reference'] ? { transferReference: dbRow['transfer_reference'] } : {}),
+    ...(dbRow['submitted_at'] ? { submittedAt: dbRow['submitted_at'] } : {}),
+    ...(dbRow['confirmed_by'] ? { confirmedBy: dbRow['confirmed_by'] } : {}),
+    ...(dbRow['confirmed_at'] ? { confirmedAt: dbRow['confirmed_at'] } : {}),
     status:            dbRow['status'],
-    rejectReason:      dbRow['reject_reason'] ?? undefined,
+    ...(dbRow['declined_at'] ? { declinedAt: dbRow['declined_at'] } : {}),
+    ...(dbRow['declined_by'] ? { declinedBy: dbRow['declined_by'] } : {}),
+    ...(dbRow['decline_reason'] ? { declineReason: dbRow['decline_reason'] } : {}),
+    ...(dbRow['note'] ? { note: dbRow['note'] } : {}),
+    outstandingAmount: dbRow['outstanding_amount'],
+    paymentIds:        dbRow['payment_ids'] as string[],
+    expenseIds:        dbRow['expense_ids'] as string[],
     createdAt:         dbRow['created_at'],
+    updatedAt:         dbRow['updated_at'],
   };
 }
 
 // ─────────────────────────── OWNER REMITTANCES ───────────────────
 
-export function transformOwnerRemittance(dbRow: Row<"owner_remittances">): any {
+export function transformOwnerRemittance(dbRow: OwnerRemittanceMigrationRow): OwnerRemittance {
   return {
     id:              dbRow.id,
     tenantId:        dbRow.tenant_id,
@@ -443,50 +594,64 @@ export function transformOwnerRemittance(dbRow: Row<"owner_remittances">): any {
     payeeName:       dbRow.payee_name,
     amount:          dbRow.amount,
     paymentMethod:   dbRow.payment_method,
-    referenceNumber: dbRow.reference_number ?? undefined,
-    description:     dbRow.description      ?? undefined,
-    paymentDate:     dbRow.payment_date,
-    createdBy:       dbRow.created_by,
+    ...(dbRow.reference ? { reference: dbRow.reference } : {}),
+    purpose:         dbRow.purpose,
+    remittanceDate:  dbRow.remittance_date,
+    ownerId:         dbRow.created_by,
     createdAt:       dbRow.created_at,
+    updatedAt:       dbRow.updated_at,
   };
 }
 
 // ─────────────────────────── STOCK REQUESTS ──────────────────────
 
-export function transformStockRequest(dbRow: Row<"stock_requests">): any {
+export function transformStockRequest(dbRow: StockRequestMigrationRow): StockRequest {
   return {
     id:                dbRow.id,
     tenantId:          dbRow.tenant_id,
     branchId:          dbRow.branch_id,
-    requesterId:       dbRow.requester_id,
+    repId:              dbRow.rep_id,
     productId:         dbRow.product_id,
     quantityRequested: dbRow.quantity_requested,
-    quantityApproved:  dbRow.quantity_approved  ?? undefined,
-    quantityIssued:    dbRow.quantity_issued     ?? undefined,
-    requestReason:     dbRow.request_reason      ?? undefined,
+    ...(dbRow.quantity_approved !== null ? { quantityApproved: dbRow.quantity_approved } : {}),
+    ...(dbRow.quantity_fulfilled !== null ? { quantityFulfilled: dbRow.quantity_fulfilled } : {}),
+    priority:          dbRow.priority,
+    requestedAt:       dbRow.requested_at,
+    ...(dbRow.approved_at ? { approvedAt: dbRow.approved_at } : {}),
+    ...(dbRow.rejected_at ? { rejectedAt: dbRow.rejected_at } : {}),
+    ...(dbRow.processed_by ? { processedBy: dbRow.processed_by } : {}),
     status:            dbRow.status,
-    reviewedBy:        dbRow.reviewed_by         ?? undefined,
-    reviewedAt:        dbRow.reviewed_at         ?? undefined,
-    fulfilledBy:       dbRow.fulfilled_by        ?? undefined,
-    fulfilledAt:       dbRow.fulfilled_at        ?? undefined,
-    rejectionReason:   dbRow.rejection_reason    ?? undefined,
-    createdAt:         dbRow.created_at,
+    ...(dbRow.approved_by ? { approvedBy: dbRow.approved_by } : {}),
+    ...(dbRow.fulfilled_by ? { fulfilledBy: dbRow.fulfilled_by } : {}),
+    ...(dbRow.fulfilled_at ? { fulfilledAt: dbRow.fulfilled_at } : {}),
+    ...(dbRow.rejection_reason ? { rejectionReason: dbRow.rejection_reason } : {}),
+    ...(dbRow.batch_id ? { batchId: dbRow.batch_id } : {}),
+    ...(dbRow.acknowledged_at ? { acknowledgedAt: dbRow.acknowledged_at } : {}),
+    ...(dbRow.acknowledged_by ? { acknowledgedBy: dbRow.acknowledged_by } : {}),
+    ...(dbRow.note ? { note: dbRow.note } : {}),
   };
 }
 
-export function stockRequestToDb(r: Partial<any>, tenantId: string): any {
+export function stockRequestToDb(r: Partial<StockRequest>, tenantId: string): Record<string, unknown> {
   const out: any = { tenant_id: tenantId };
   if (r['id'])                              out.id                 = r['id'];
   if (r['branchId'])                        out.branch_id          = r['branchId'];
-  if (r['requesterId'])                     out.requester_id       = r['requesterId'];
+  if (r['repId'])                           out.rep_id              = r['repId'];
   if (r['productId'])                       out.product_id         = r['productId'];
   if (r['quantityRequested'] !== undefined) out.quantity_requested = r['quantityRequested'];
   if (r['quantityApproved']  !== undefined) out.quantity_approved  = r['quantityApproved']  ?? null;
-  if (r['quantityIssued']    !== undefined) out.quantity_issued    = r['quantityIssued']    ?? null;
-  if (r['requestReason']    !== undefined)  out.request_reason     = r['requestReason']     ?? null;
+  if (r['quantityFulfilled'] !== undefined) out.quantity_fulfilled = r['quantityFulfilled'] ?? null;
+  if (r['priority'])                       out.priority            = r['priority'];
+  if (r['requestedAt'])                    out.requested_at         = r['requestedAt'];
+  if (r['approvedAt'] !== undefined)       out.approved_at          = r['approvedAt'] ?? null;
+  if (r['rejectedAt'] !== undefined)       out.rejected_at          = r['rejectedAt'] ?? null;
+  if (r['processedBy'] !== undefined)      out.processed_by         = r['processedBy'] ?? null;
+  if (r['approvedBy'] !== undefined)       out.approved_by          = r['approvedBy'] ?? null;
+  if (r['batchId'] !== undefined)          out.batch_id             = r['batchId'] ?? null;
+  if (r['acknowledgedAt'] !== undefined)   out.acknowledged_at      = r['acknowledgedAt'] ?? null;
+  if (r['acknowledgedBy'] !== undefined)   out.acknowledged_by      = r['acknowledgedBy'] ?? null;
+  if (r['note'] !== undefined)             out.note                 = r['note'] ?? null;
   if (r['status'])                          out.status             = r['status'];
-  if (r['reviewedBy']   !== undefined)      out.reviewed_by        = r['reviewedBy']   ?? null;
-  if (r['reviewedAt']   !== undefined)      out.reviewed_at        = r['reviewedAt']   ?? null;
   if (r['fulfilledBy']  !== undefined)      out.fulfilled_by       = r['fulfilledBy']  ?? null;
   if (r['fulfilledAt']  !== undefined)      out.fulfilled_at       = r['fulfilledAt']  ?? null;
   if (r['rejectionReason'] !== undefined)   out.rejection_reason   = r['rejectionReason'] ?? null;
@@ -495,13 +660,13 @@ export function stockRequestToDb(r: Partial<any>, tenantId: string): any {
 
 // ─────────────────────────── TARGETS ─────────────────────────────
 
-export function transformTarget(dbRow: Row<"targets">): any {
+export function transformTarget(dbRow: Row<"targets">): Target {
   return {
     id:           dbRow['id'],
     tenantId:     dbRow['tenant_id'],
     scope:        dbRow['scope'],
     branchId:     dbRow['branch_id'],
-    userId:       dbRow['user_id']     ?? undefined,
+    userId:       dbRow['user_id']     ?? null,
     month:        dbRow['month'],
     amount:       dbRow['amount'],
     createdAt:    dbRow['created_at'],
@@ -509,7 +674,7 @@ export function transformTarget(dbRow: Row<"targets">): any {
   };
 }
 
-export function targetToDb(t: Partial<any>, tenantId: string): any {
+export function targetToDb(t: Partial<Target>, tenantId: string): Record<string, unknown> {
   const out: any = { tenant_id: tenantId };
   if (t['id'])                        out.id            = t['id'];
   if (t['scope']     !== undefined)   out.scope         = t['scope'];
@@ -522,35 +687,50 @@ export function targetToDb(t: Partial<any>, tenantId: string): any {
 
 // ─────────────────────────── APPROVALS ───────────────────────────
 
-export function transformApprovalRequest(dbRow: Row<"approval_requests">): any {
+export function transformApprovalRequest(dbRow: ApprovalRequestMigrationRow): ApprovalRequest {
   return {
     id:              dbRow['id'],
     tenantId:        dbRow['tenant_id'],
     branchId:        dbRow['branch_id'],
-    requesterId:     dbRow['requester_id'],
-    requestType:     dbRow['request_type'],
-    referenceId:     dbRow['reference_id'],
-    reason:          dbRow['reason']           ?? undefined,
+    type:            dbRow.type,
+    requestedBy:     dbRow.requested_by,
+    requestedAt:     dbRow.requested_at,
     status:          dbRow['status'],
-    reviewedBy:      dbRow['reviewed_by']      ?? undefined,
-    reviewedAt:      dbRow['reviewed_at']      ?? undefined,
-    rejectionReason: dbRow['rejection_reason'] ?? undefined,
-    createdAt:       dbRow['created_at'],
+    ...(dbRow['reviewed_by'] ? { reviewedBy: dbRow['reviewed_by'] } : {}),
+    ...(dbRow['reviewed_at'] ? { reviewedAt: dbRow['reviewed_at'] } : {}),
+    ...(dbRow['rejection_reason'] ? { rejectionReason: dbRow['rejection_reason'] } : {}),
+    ...(dbRow.note ? { note: dbRow.note } : {}),
+    ...(dbRow.emergency !== null ? { emergency: dbRow.emergency } : {}),
+    ...(dbRow.emergency_reason ? { emergencyReason: dbRow.emergency_reason } : {}),
+    ...(dbRow.applied_at ? { appliedAt: dbRow.applied_at } : {}),
+    ...(dbRow.product_id ? { productId: dbRow.product_id } : {}),
+    ...(dbRow.quantity !== null ? { quantity: dbRow.quantity } : {}),
+    ...(dbRow.batch_number ? { batchNumber: dbRow.batch_number } : {}),
+    ...(dbRow.expiry_date ? { expiryDate: dbRow.expiry_date } : {}),
+    ...(dbRow.member_data && typeof dbRow.member_data === "object" ? { member: dbRow.member_data as NonNullable<ApprovalRequest["member"]> } : {}),
   };
 }
 
-export function approvalRequestToDb(a: Partial<any>, tenantId: string): any {
+export function approvalRequestToDb(a: Partial<ApprovalRequest>, tenantId: string): Record<string, unknown> {
   const out: any = { tenant_id: tenantId };
   if (a['id'])                              out.id               = a['id'];
   if (a['branchId'])                        out.branch_id        = a['branchId'];
-  if (a['requesterId'])                     out.requester_id     = a['requesterId'];
-  if (a['requestType'])                     out.request_type     = a['requestType'];
-  if (a['referenceId'])                     out.reference_id     = a['referenceId'];
-  if (a['reason']          !== undefined)   out.reason           = a['reason']           ?? null;
+  if (a['requestedBy'])                     out.requested_by      = a['requestedBy'];
+  if (a['type'])                            out.type              = a['type'];
+  if (a['requestedAt'])                     out.requested_at      = a['requestedAt'];
   if (a['status'])                          out.status           = a['status'];
   if (a['reviewedBy']      !== undefined)   out.reviewed_by      = a['reviewedBy']       ?? null;
   if (a['reviewedAt']      !== undefined)   out.reviewed_at      = a['reviewedAt']       ?? null;
   if (a['rejectionReason'] !== undefined)   out.rejection_reason = a['rejectionReason']  ?? null;
+  if (a.note !== undefined)                 out.note              = a.note ?? null;
+  if (a.emergency !== undefined)            out.emergency         = a.emergency;
+  if (a.emergencyReason !== undefined)      out.emergency_reason  = a.emergencyReason ?? null;
+  if (a.appliedAt !== undefined)            out.applied_at        = a.appliedAt ?? null;
+  if (a.productId !== undefined)            out.product_id        = a.productId ?? null;
+  if (a.quantity !== undefined)             out.quantity          = a.quantity ?? null;
+  if (a.batchNumber !== undefined)          out.batch_number      = a.batchNumber ?? null;
+  if (a.expiryDate !== undefined)           out.expiry_date       = a.expiryDate ?? null;
+  if (a.member !== undefined)               out.member_data       = a.member ?? null;
   return out;
 }
 
@@ -559,33 +739,29 @@ export function approvalRequestToDb(a: Partial<any>, tenantId: string): any {
 // entity_id + message + type (CHECK-constrained to specific onboarding/payment/stock
 // notification types). No title / action_url columns.
 
-export function transformNotification(dbRow: Row<"notifications">): any {
+export function transformNotification(dbRow: NotificationMigrationRow): AppNotification {
   return {
     id:        dbRow['id'],
     tenantId:  dbRow['tenant_id'],
     recipientId: dbRow['recipient_id'],
-    userId:    dbRow['recipient_id'], // alias for legacy callers
     type:      dbRow['type'],
     entityType: dbRow['entity_type'],
     entityId: dbRow['entity_id'],
     message:   dbRow['message'],
-    readAt:    dbRow['read_at'],
-    read:      dbRow['read_at'] !== null, // derived boolean for legacy callers
+    ...(dbRow['read_at'] ? { readAt: dbRow['read_at'] } : {}),
     createdAt: dbRow['created_at'],
   };
 }
 
-export function notificationToDb(n: Partial<any>, tenantId: string): any {
+export function notificationToDb(n: Partial<AppNotification>, tenantId: string): Record<string, unknown> {
   const out: any = { tenant_id: tenantId };
   if (n['id'])                       out.id         = n['id'];
   if (n['recipientId'])              out.recipient_id = n['recipientId'];
-  else if (n['userId'])              out.recipient_id = n['userId'];
   if (n['type'])                     out.type       = n['type'];
   if (n['entityType'])               out.entity_type = n['entityType'];
   if (n['entityId'])                 out.entity_id  = n['entityId'];
   if (n['message'])                  out.message    = n['message'];
   if (n['readAt'] !== undefined)     out.read_at    = n['readAt'] ?? null;
-  else if (n['read'] !== undefined)  out.read_at    = n['read'] ? new Date().toISOString() : null;
   return out;
 }
 
@@ -593,30 +769,28 @@ export function notificationToDb(n: Partial<any>, tenantId: string): any {
 // DB schema: action, subject, actor_id, entity (CHECK-constrained), entity_id, emergency,
 // metadata. The create_audit_log() RPC is the canonical writer.
 
-export function transformActivity(dbRow: Row<"activities">): any {
+export function transformActivity(dbRow: Row<"activities">): Activity {
   return {
     id:         dbRow['id'],
     tenantId:   dbRow['tenant_id'],
     actorId:    dbRow['actor_id'],
     action:     dbRow['action'],
-    actionType: dbRow['action'], // alias for legacy callers
     subject:    dbRow['subject'],
     entity:     dbRow['entity'],
-    entityType: dbRow['entity'], // alias for legacy callers
-    entityId:   dbRow['entity_id']   ?? undefined,
+    ...(dbRow['entity_id'] ? { entityId: dbRow['entity_id'] } : {}),
     emergency:  dbRow['emergency'] ?? false,
-    metadata:   dbRow['metadata']    as any,
+    ...(dbRow['metadata'] && typeof dbRow['metadata'] === "object" ? { metadata: dbRow['metadata'] as NonNullable<Activity["metadata"]> } : {}),
     createdAt:  dbRow['created_at'],
   };
 }
 
-export function activityToDb(a: Partial<any>, tenantId: string): any {
+export function activityToDb(a: Partial<Activity>, tenantId: string): Record<string, unknown> {
   const out: any = { tenant_id: tenantId };
   if (a['id'])                          out.id           = a['id'];
   if (a['actorId'])                     out.actor_id     = a['actorId'];
-  if (a['action'] || a['actionType'])      out.action       = a['action'] || a['actionType'];
-  if (a['subject'] || a['description'])    out.subject      = a['subject'] || a['description'];
-  if (a['entity'] || a['entityType'])      out.entity       = a['entity'] || a['entityType'];
+  if (a['action'])                     out.action       = a['action'];
+  if (a['subject'])                    out.subject      = a['subject'];
+  if (a['entity'])                     out.entity       = a['entity'];
   if (a['entityId'] !== undefined)     out.entity_id    = a['entityId'] ?? null;
   if (a['emergency'] !== undefined)    out.emergency    = a['emergency'] ?? null;
   if (a['metadata'] !== undefined)     out.metadata     = a['metadata'] ?? null;
@@ -628,88 +802,70 @@ export function activityToDb(a: Partial<any>, tenantId: string): any {
 // never stored). user_id is NULL until the invitee signs up (handle_new_user). status:
 // invited | in_progress | submitted | approved | rejected.
 
-export function transformOnboarding(dbRow: Row<"onboardings">): any {
+export function transformOnboarding(dbRow: OnboardingMigrationRow): Onboarding {
   return {
-    id:                  dbRow['id'],
-    tenantId:            dbRow['tenant_id'],
-    userId:              dbRow['user_id'],
-    createdBy:            dbRow['created_by'],
-    employeeId:          dbRow['employee_id'],
-    jobTitle:            dbRow['job_title'],
-    department:          dbRow['department'],
-    startDate:           dbRow['start_date'],
-    status:              dbRow['status'],
-    tokenHash:           dbRow['token_hash'],
-    tokenExpiresAt:      dbRow['token_expires_at'],
-    tokenRevoked:        dbRow['token_revoked'],
-    usedAt:              dbRow['used_at'],
-    step:                dbRow['step'],
-    data:                (dbRow['data'] ?? {}) as Record<string, string>,
-    correctionNote:      dbRow['correction_note'] ?? undefined,
-    submitterEmail:      dbRow['submitter_email'] ?? undefined,
-    guarantorStatus:     dbRow['guarantor_status'],
-    guarantorToken:      dbRow['guarantor_token'],
-    guarantorResponse:   dbRow['guarantor_response'] as any,
-    guarantorDecision:   dbRow['guarantor_decision'] ?? undefined,
+    id: dbRow['id'],
+    tenantId: dbRow['tenant_id'],
+    userId: dbRow['user_id'] ?? "",
+    employeeId: dbRow['employee_id'],
+    jobTitle: dbRow['job_title'],
+    department: dbRow['department'],
+    startDate: dbRow['start_date'],
+    status: dbRow['status'],
+    token: "",
+    tokenExpiresAt: dbRow['token_expires_at'],
+    tokenRevoked: dbRow['token_revoked'],
+    tokenUsed: dbRow['used_at'] !== null,
+    step: dbRow['step'],
+    data: (dbRow['data'] ?? {}) as EmployeeData,
+    photo: null,
+    credentials: [],
+    passwordSet: dbRow['user_id'] !== null,
+    correctionNote: dbRow['correction_note'] ?? undefined,
+    guarantorStatus: dbRow['guarantor_status'],
+    guarantorToken: dbRow['guarantor_token'],
+    guarantorResponse: dbRow['guarantor_response'] as Onboarding["guarantorResponse"],
+    guarantorDecision: dbRow['guarantor_decision'] ?? undefined,
     guarantorDecisionReason: dbRow['guarantor_decision_reason'] ?? undefined,
-    guarantorDecidedAt:  dbRow['guarantor_decided_at'] ?? undefined,
-    reviewedBy:           dbRow['reviewed_by'] ?? undefined,
-    reviewedAt:           dbRow['reviewed_at'] ?? undefined,
-    rejectionReason:     dbRow['rejection_reason'] ?? undefined,
-    assignedRole:         dbRow['assigned_role'] ?? undefined,
-    assignedBranchId:    dbRow['assigned_branch_id'] ?? undefined,
-    submittedAt:          dbRow['submitted_at'] ?? undefined,
-    activatedAt:         dbRow['activated_at'] ?? undefined,
-    createdAt:           dbRow['created_at'],
-    updatedAt:           dbRow['updated_at'],
+    guarantorDecidedAt: dbRow['guarantor_decided_at'] ?? undefined,
+    createdAt: dbRow['created_at'],
+    ...(dbRow['submitted_at'] ? { submittedAt: dbRow['submitted_at'] } : {}),
+    ...(dbRow['activated_at'] ? { activatedAt: dbRow['activated_at'] } : {}),
   };
 }
 
-export function onboardingToDb(o: Partial<any>, tenantId: string): any {
+export function onboardingToDb(o: Partial<Onboarding>, tenantId: string): Record<string, unknown> {
   const out: any = { tenant_id: tenantId };
   if (o['id'])                         out.id               = o['id'];
   if (o['userId'] !== undefined)        out.user_id          = o['userId'] ?? null;
-  if (o['createdBy'] !== undefined)     out.created_by       = o['createdBy'] ?? null;
   if (o['employeeId'])                  out.employee_id      = o['employeeId'];
-  if (o['jobTitle'] !== undefined)       out.jobTitle         = o['jobTitle'];
+  if (o['jobTitle'] !== undefined)       out.job_title        = o['jobTitle'];
   if (o['department'] !== undefined)     out.department       = o['department'];
   if (o['startDate'] !== undefined)      out.start_date       = o['startDate'];
   if (o['status'])                       out.status           = o['status'];
-  if (o['tokenHash'])                   out.token_hash       = o['tokenHash'];
   if (o['tokenExpiresAt'])              out.token_expires_at = o['tokenExpiresAt'];
   if (o['tokenRevoked'] !== undefined)   out.token_revoked    = o['tokenRevoked'];
-  if (o['usedAt'] !== undefined)         out.used_at          = o['usedAt'] ?? null;
   if (o['step'] !== undefined)           out.step             = o['step'];
   if (o['data'] !== undefined)           out.data             = o['data'];
   if (o['correctionNote'] !== undefined) out.correction_note = o['correctionNote'] ?? null;
-  if (o['submitterEmail'] !== undefined) out.submitter_email = o['submitterEmail'] ?? null;
   if (o['guarantorStatus'])              out.guarantor_status = o['guarantorStatus'];
   if (o['guarantorToken'] !== undefined) out.guarantor_token = o['guarantorToken'] ?? null;
   if (o['guarantorResponse'] !== undefined) out.guarantor_response = o['guarantorResponse'] ?? null;
   if (o['guarantorDecision'] !== undefined) out.guarantor_decision = o['guarantorDecision'] ?? null;
   if (o['guarantorDecisionReason'] !== undefined) out.guarantor_decision_reason = o['guarantorDecisionReason'] ?? null;
   if (o['guarantorDecidedAt'] !== undefined) out.guarantor_decided_at = o['guarantorDecidedAt'] ?? null;
-  if (o['reviewedBy'] !== undefined)     out.reviewed_by      = o['reviewedBy'] ?? null;
-  if (o['reviewedAt'] !== undefined)     out.reviewed_at     = o['reviewedAt'] ?? null;
-  if (o['rejectionReason'] !== undefined) out.rejection_reason = o['rejectionReason'] ?? null;
-  if (o['assignedRole'] !== undefined)   out.assigned_role   = o['assignedRole'] ?? null;
-  if (o['assignedBranchId'] !== undefined) out.assigned_branch_id = o['assignedBranchId'] ?? null;
   if (o['submittedAt'] !== undefined)    out.submitted_at    = o['submittedAt'] ?? null;
   if (o['activatedAt'] !== undefined)    out.activated_at    = o['activatedAt'] ?? null;
   return out;
 }
 
-export function transformOnboardingFile(dbRow: Row<"onboarding_files">): any {
+export function transformOnboardingFile(dbRow: Row<"onboarding_files">): StoredFile {
   return {
     id:           dbRow['id'],
-    onboardingId: dbRow['onboarding_id'],
-    fileType:     dbRow['file_type'],
-    fileName:     dbRow['file_name'],
-    // storage path is stored in both cloudinary_* columns; use cloudinary_url as the path
-    storagePath:  dbRow['cloudinary_url'],
-    fileUrl:      dbRow['cloudinary_url'],
-    fileSize:     dbRow['file_size'],
-    mimeType:     dbRow['mime_type'],
-    uploadedAt:   dbRow['uploaded_at'],
+    name:         dbRow['file_name'],
+    type:         dbRow['mime_type'],
+    size:         dbRow['file_size'],
+    dataUrl:      dbRow['cloudinary_url'],
+    path:         dbRow['cloudinary_url'],
   };
 }

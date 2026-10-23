@@ -42,8 +42,9 @@ import {
 
 const payeeLabels: Record<OwnerRemittancePayeeType, string> = {
   supplier: "Supplier",
-  service_provider: "Service provider",
-  external_payee: "External payee",
+  landlord: "Landlord",
+  utility: "Utility",
+  contractor: "Contractor",
   other: "Other",
 };
 const defaultForm = (date: string): OwnerRemittanceInput => ({
@@ -355,6 +356,7 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
                 <SelectContent>
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="transfer">Transfer</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
                 </SelectContent>
               </Select>
               {errors.paymentMethod && <FieldError message={errors.paymentMethod} />}

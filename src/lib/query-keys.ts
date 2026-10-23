@@ -175,8 +175,6 @@ export const queryKeys = {
         : (["approvals", tenantId, "pending"] as const),
     byType: (tenantId: string, type: string) =>
       ["approvals", tenantId, "type", type] as const,
-    byReference: (referenceId: string) =>
-      ["approvals", "ref", referenceId] as const,
   },
 
   // Notifications (scoped per user, not tenant)

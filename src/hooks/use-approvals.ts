@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { queryKeys } from '@/lib/query-keys';
 import { handleSupabaseError } from '@/lib/supabase-helpers';
 import type { Database } from '@/types/database.types';
+import { transformApprovalRequest, type ApprovalRequestMigrationRow } from '@/lib/type-adapters';
 
 type ApprovalRequestRow = Database['public']['Tables']['approval_requests']['Row'];
 type ApprovalRequestInsert = Database['public']['Tables']['approval_requests']['Insert'];
@@ -45,10 +46,10 @@ export function useApprovalRequests(
         query = query.eq('branch_id', filters.branchId);
       }
       if (filters.requesterId) {
-        query = query.eq('requester_id', filters.requesterId);
+        query = query.eq('requested_by', filters.requesterId);
       }
       if (filters.requestType) {
-        query = query.eq('request_type', filters.requestType);
+        query = query.eq('type', filters.requestType);
       }
       if (filters.status) {
         query = query.eq('status', filters.status);
@@ -56,7 +57,7 @@ export function useApprovalRequests(
 
       const { data, error } = await query;
       if (error) throw handleSupabaseError(error);
-      return data as ApprovalRequestRow[];
+      return (data ?? []).map((row: unknown) => transformApprovalRequest(row as ApprovalRequestMigrationRow));
     },
     enabled: !!tenantId,
   });
@@ -82,7 +83,7 @@ export function usePendingApprovals(tenantId: string, branchId?: string) {
 
       const { data, error } = await query;
       if (error) throw handleSupabaseError(error);
-      return data as ApprovalRequestRow[];
+      return (data ?? []).map((row: unknown) => transformApprovalRequest(row as ApprovalRequestMigrationRow));
     },
     enabled: !!tenantId,
   });
@@ -101,29 +102,9 @@ export function useApprovalRequest(id: string) {
         .single();
 
       if (error) throw handleSupabaseError(error);
-      return data as ApprovalRequestRow;
+      return transformApprovalRequest(data as ApprovalRequestMigrationRow);
     },
     enabled: !!id,
-  });
-}
-
-/**
- * Fetch approval requests by reference ID
- * Useful to check if an approval already exists for a specific entity
- */
-export function useApprovalsByReference(referenceId: string) {
-  return useQuery({
-    queryKey: queryKeys.approvals.byReference(referenceId),
-    queryFn: async () => {
-      const { data, error } = await (supabase as any).from('approval_requests')
-        .select('*')
-        .eq('reference_id', referenceId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw handleSupabaseError(error);
-      return data as ApprovalRequestRow[];
-    },
-    enabled: !!referenceId,
   });
 }
 
@@ -194,9 +175,6 @@ export function useApproveRequest() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.approvals.pending(data.tenant_id),
       });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals.byReference(data.reference_id),
-      });
     },
   });
 }
@@ -242,9 +220,6 @@ export function useRejectRequest() {
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.approvals.pending(data.tenant_id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals.byReference(data.reference_id),
       });
     },
   });
