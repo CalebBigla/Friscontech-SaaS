@@ -14,7 +14,7 @@ import {
 } from "@/data/onboarding";
 import { formatDate } from "@/lib/format";
 import { guarantorUrl, isMarried, needsSecondContact, onboardingLinkState, ONBOARDING_STEPS, validateStep, type StepErrors } from "@/lib/onboarding";
-import { onboardingService } from "@/services/services";
+import { onboardingService } from "@/services/onboarding-service";
 
 export function PublicFrame({ children, title, subtitle }: { children: ReactNode; title: string; subtitle?: string }) {
   return (

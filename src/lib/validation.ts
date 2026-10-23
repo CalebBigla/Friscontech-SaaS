@@ -4,7 +4,7 @@
  * Same rules and messages the app has always shown. The database (RPCs and
  * CHECK constraints) enforces them again; this only gives faster feedback.
  */
-import type { ApprovalRequest, Customer, CustomerPayment, CustomerPaymentMethod, Db, Expense, ExpenseCategory, InventoryRecord, ManagerRemittance, Payment, Product, ProductStatus, Role, StockRequest, Target, User, UserStatus } from "@/data/mock-db";
+import type { ApprovalRequest, Branch, BranchStatus, Customer, CustomerPayment, CustomerPaymentMethod, Db, Expense, ExpenseCategory, InventoryRecord, ManagerRemittance, Payment, Product, ProductStatus, Role, StockRequest, Target, User, UserStatus } from "@/data/mock-db";
 import { assignableRoles, canEditMember, roleNeedsBranch } from "@/lib/team";
 import type { OwnerRemittancePayeeType, OwnerRemittancePaymentMethod } from "@/data/remittances";
 import {
@@ -680,4 +680,35 @@ export function validateMemberStatus(scope: AccessScope, member: User): FieldErr
 export function splitName(name: string): { firstName: string; lastName: string } {
   const [firstName = "", ...rest] = name.trim().split(/\s+/);
   return { firstName, lastName: rest.join(" ") };
+}
+
+// ---------- branches ----------
+
+export type BranchInput = {
+  name: string;
+  code: string;
+  location: string;
+  address: string;
+  phone: string;
+  email: string;
+  managerId: string;
+  status: BranchStatus;
+};
+
+/** Branch codes are unique; a manager runs at most one active branch. */
+export function validateBranch(branches: Branch[], users: User[], input: BranchInput, editingId?: string): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!input.name.trim()) errors.name = "Branch name is required";
+  if (!input.code.trim()) errors.code = "Branch code is required";
+  else if (branches.some((b) => b.id !== editingId && b.code.toLowerCase() === input.code.trim().toLowerCase()))
+    errors.code = "This branch code is already in use";
+  if (!input.location.trim()) errors.location = "Location is required";
+  if (input.email && !/^\S+@\S+\.\S+$/.test(input.email)) errors.email = "Enter a valid email";
+  if (input.managerId) {
+    const manager = users.find((x) => x.id === input.managerId);
+    if (!manager || manager.role !== "manager" || manager.status !== "active") errors.managerId = "Select an active manager";
+    else if (branches.some((b) => b.id !== editingId && b.managerId === manager.id && b.status === "active"))
+      errors.managerId = "This manager already runs another active branch";
+  }
+  return errors;
 }

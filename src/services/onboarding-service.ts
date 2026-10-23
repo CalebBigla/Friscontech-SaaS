@@ -18,7 +18,7 @@
  *   5. The owner reviews, assigns role + branch, and calls approve_onboarding (atomic)
  *      or reject_onboarding.
  *
- * No mock-store. No mock-auth. All reads/writes are Supabase.
+ * All reads/writes are Supabase.
  */
 import { supabase } from "@/lib/supabase";
 import {

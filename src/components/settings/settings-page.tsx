@@ -265,7 +265,7 @@ function SecuritySection() {
           <DetailItem label="Role">{roleLabel[user.role]}</DetailItem><DetailItem label="Branch">{branch?.name ?? "All branches"}</DetailItem>
         </div>
       </Panel>
-      <Panel title="Change password" subtitle="Demo mode: sign-in accounts are not connected yet, so no password is stored.">
+      <Panel title="Change password" subtitle="Changes your sign-in password. Your current password is checked first.">
         <form onSubmit={submit} noValidate>
           <div className="grid gap-4 p-5 sm:grid-cols-3">{pw("current", "pw-cur", "Current password", "current-password")}{pw("next", "pw-new", "New password", "new-password")}{pw("confirm", "pw-conf", "Confirm new password", "new-password")}</div>
           <FormActions dirty={Object.values(form).some(Boolean)} saving={saving} onCancel={() => { setForm(empty); setErrors({}); }} />

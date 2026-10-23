@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { ManagerRemittance, RemittanceStatus } from "@/data/mock-db";
+import type { Db, ManagerRemittance, RemittanceStatus } from "@/data/mock-db";
 import { formatDate, formatMonth, formatNaira, formatTime } from "@/lib/format";
 import {
   getManagerExpenseTotal,
@@ -637,7 +637,7 @@ function RemittanceTable({
   onResubmit,
 }: {
   rows: ManagerRemittance[];
-  db: ReturnType<typeof import("@/services/mock-store").getDb>;
+  db: Db;
   managerMode: boolean;
   onView: (row: ManagerRemittance) => void;
   onConfirm?: ((row: ManagerRemittance) => void) | undefined;
@@ -751,7 +751,7 @@ function RemittanceRow({
   onResubmit,
 }: {
   row: ManagerRemittance;
-  db: ReturnType<typeof import("@/services/mock-store").getDb>;
+  db: Db;
   managerMode: boolean;
   onView: (row: ManagerRemittance) => void;
   onConfirm?: ((row: ManagerRemittance) => void) | undefined;
@@ -847,7 +847,7 @@ function ManagerRemittanceSummary({
   db,
 }: {
   row: ManagerRemittance;
-  db: ReturnType<typeof import("@/services/mock-store").getDb>;
+  db: Db;
 }) {
   return (
     <div>
@@ -882,7 +882,7 @@ function RemittanceDetails({
   onClose,
 }: {
   remittance: ManagerRemittance | null;
-  db: ReturnType<typeof import("@/services/mock-store").getDb>;
+  db: Db;
   onClose: () => void;
 }) {
   const manager = remittance ? db.users.find((user) => user.id === remittance.managerId) : null;

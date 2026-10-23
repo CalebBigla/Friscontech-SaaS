@@ -2,7 +2,7 @@
  * Branches React Query Hooks
  * 
  * Data fetching and mutations for branch management
- * Replaces useDb().branches with real Supabase queries
+ * Branches are read from and written to Supabase
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

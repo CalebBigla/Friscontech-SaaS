@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { FieldError, FilterSelect } from "@/components/shared";
 import type { Db } from "@/data/mock-db";
 import { useBulkCreateSales } from "@/hooks/use-sales";
-import type { FieldErrors } from "@/services/services";
+import type { FieldErrors } from "@/lib/validation";
 import type { AccessScope } from "@/lib/session";
 import { formatNaira, formatUnits } from "@/lib/format";
 import { getAvailableStock } from "@/lib/inventory-calculations";

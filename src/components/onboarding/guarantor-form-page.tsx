@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FieldError } from "@/components/shared";
 import { InvalidLink, PublicFrame } from "@/components/onboarding/onboarding-form-page";
 import { GUARANTOR_INTRO } from "@/data/onboarding";
-import { onboardingService } from "@/services/services";
+import { onboardingService } from "@/services/onboarding-service";
 import { supabase } from "@/lib/supabase";
 
 type GuarantorInfo = {

@@ -8,15 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FieldError, FilterSelect } from "@/components/shared";
 import type { Branch } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
 import { useBranches, useCreateBranch, useUpdateBranch } from "@/hooks/use-branches";
 import { useUsers } from "@/hooks/use-users";
-import { validateBranch, type BranchInput, type FieldErrors } from "@/services/services";
+import { validateBranch, type BranchInput, type FieldErrors } from "@/lib/validation";
 
 const empty: BranchInput = { name: "", code: "", location: "", address: "", phone: "", email: "", managerId: "", status: "active" };
 
 export function BranchFormDialog({ open, onOpenChange, branch }: { open: boolean; onOpenChange: (o: boolean) => void; branch?: Branch | null; actorId: string }) {
-  const db = useDb();
   const { data: branches = [], isLoading: branchesLoading } = useBranches();
   const { data: users = [], isLoading: usersLoading } = useUsers();
   const [form, setForm] = useState<BranchInput>(empty);
@@ -39,8 +37,7 @@ export function BranchFormDialog({ open, onOpenChange, branch }: { open: boolean
     e.preventDefault();
     setErrors({});
     
-    // Branches and users are loaded from Supabase; the demo store is intentionally empty.
-    const validationErrors = validateBranch({ ...db, users, branches }, form, branch?.id);
+    const validationErrors = validateBranch(branches, users, form, branch?.id);
     if (Object.keys(validationErrors).length) {
       setErrors(validationErrors);
       toast.error("Please fix the highlighted fields");

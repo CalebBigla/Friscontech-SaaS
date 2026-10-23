@@ -1,7 +1,7 @@
 /**
  * Centralized audit log dataset (PRD AuditLogs: id, tenant_id, user_id, action, entity, entity_id, timestamp).
  * Field mapping on Activity: actorId = user_id, createdAt = timestamp, subject = human description.
- * Every module appends to this ONE dataset (db.activities) through services.createAuditLog.
+ * Rows are written server-side (RPCs, triggers, create_audit_log) into public.activities.
  * Never put passwords, tokens, keys or credentials in an entry.
  */
 import type { AuditEntity } from "./mock-db";
