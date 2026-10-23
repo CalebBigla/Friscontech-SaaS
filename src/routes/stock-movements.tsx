@@ -2,10 +2,10 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { AppShell, RoleGate } from "@/components/app-shell";
-import { ALL, FilterSelect, Panel } from "@/components/shared";
+import { ALL, DataGate, FilterSelect, Panel } from "@/components/shared";
 import { MovementList } from "@/components/inventory/movement-list";
 import type { MovementType } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getInventoryMovements, movementTypeLabel } from "@/lib/inventory-calculations";
 
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/stock-movements")({
 });
 
 function MovementsPage() {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace({ movements: true });
   const scope = getAccessScope(db, useCurrentUserId());
   const [type, setType] = useState(ALL);
   const [limit, setLimit] = useState(50);
@@ -34,7 +34,9 @@ function MovementsPage() {
     <AppShell title="Stock Movements" subtitle="Traceable inventory history">
       <div className="mb-5"><h1 className="text-xl font-bold">Stock Movements</h1><p className="mt-1 text-xs text-muted-foreground">Every change to on-hand stock, newest first.</p></div>
       <Panel title="Movements" subtitle={`${list.length} movements`} action={<FilterSelect label="Movement type" value={type} onChange={(v) => { setType(v); setLimit(50); }} options={[{ value: ALL, label: "All types" }, ...Object.entries(movementTypeLabel).filter(([k]) => !hideSales || k !== "sale").map(([value, label]) => ({ value, label }))]} />}>
+        <DataGate isLoading={isLoading} error={error}>
         <MovementList db={db} movements={list.slice(0, limit)} showItem />
+        </DataGate>
         {list.length > limit && <div className="border-t border-border p-3 text-center"><button className="text-xs font-semibold text-primary" onClick={() => setLimit((l) => l + 50)}>Show more</button></div>}
       </Panel>
     </AppShell>

@@ -61,59 +61,8 @@ import {
   validateRemittanceReconciliation,
 } from "@/lib/remittance-calculations";
 
-export type FieldErrors = Partial<
-  Record<
-    | "expiryDate"
-    | "name"
-    | "code"
-    | "location"
-    | "email"
-    | "address"
-    | "phone"
-    | "managerId"
-    | "form"
-    | "branchId"
-    | "salesRepId"
-    | "productId"
-    | "quantity"
-    | "unitPrice"
-    | "saleDate"
-    | "expenseDate"
-    | "note"
-    | "sku"
-    | "category"
-    | "unit"
-    | "unitCost"
-    | "threshold"
-    | "description"
-    | "repId"
-    | "month"
-    | "amount"
-    | "role"
-    | "status"
-    | "items"
-    | "emergencyReason"
-    | "cashAmount"
-    | "transferAmount"
-    | "transferReference"
-    | "period"
-    | "reason"
-    | "payeeName"
-    | "purpose"
-    | "paymentMethod"
-    | "remittanceDate"
-    | "reference"
-    | "payeeType"
-    | "customerId"
-    | "walkInName"
-    | "contactPerson"
-    | "creditLimit"
-    | "method"
-    | "paymentDate"
-    | "proof",
-    string
-  >
-> & { itemErrors?: Record<number, Partial<Record<"productId" | "quantity", string>>> };
+import type { FieldErrors } from "@/lib/validation";
+export type { FieldErrors } from "@/lib/validation";
 export type Result<T> = { ok: true; data: T } | { ok: false; errors: FieldErrors };
 export type BranchInput = {
   name: string;
@@ -595,144 +544,6 @@ const labels = (d: Db, branchId: string, productId: string) =>
 const nextApprovalId = (d: Db) =>
   `APR-${Math.max(2000, ...d.approvals.map((a) => Number(a.id.split("-")[1]) || 0)) + 1}`;
 
-export const mockInventoryService = {
-  /**
-   * Storekeeper stock additions need Manager approval before they count.
-   * Emergency additions are applied immediately and queued for Manager review afterwards.
-   */
-  async addStock(input: AddStockInput, actorId: string): Promise<Result<ApprovalRequest>> {
-    await latency();
-    const current = getDb();
-    const scope = getAccessScope(current, actorId);
-    const errors: FieldErrors = {};
-    if (!scope.canManageStock)
-      return { ok: false, errors: { form: "Only storekeepers can add stock" } };
-    const branch = current.branches.find((b) => b.id === input.branchId);
-    if (!branch) errors.branchId = "Select a branch";
-    else if (branch.status !== "active")
-      errors.branchId = "Stock can only be added to active branches";
-    else if (scope.branchIds && !scope.branchIds.includes(branch.id))
-      errors.branchId = "You can only add stock to your branch";
-    const product = current.products.find((p) => p.id === input.productId);
-    if (!product) errors.productId = "Select a product";
-    else if (product.status !== "active")
-      errors.productId = "This product is inactive — reactivate it before adding stock";
-    if (!Number.isInteger(input.quantity) || input.quantity <= 0)
-      errors.quantity = "Enter a whole number greater than zero";
-    if (input.expiryDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.expiryDate)) errors.expiryDate = "Enter a valid date";
-    if (input.batchNumber?.trim() && !input.expiryDate) errors.expiryDate = "Add the batch's expiry date";
-    if (input.emergency && (input.emergencyReason ?? "").trim().length < 5)
-      errors.emergencyReason = "Explain why this addition can't wait for approval";
-    if (Object.keys(errors).length) return { ok: false, errors };
-    const at = nowOnReferenceDay(current);
-    const approval: ApprovalRequest = {
-      id: nextApprovalId(current),
-      tenantId: current.tenant.id,
-      type: "stock_addition",
-      status: "pending",
-      branchId: input.branchId,
-      requestedBy: actorId,
-      requestedAt: at,
-      productId: input.productId,
-      quantity: input.quantity,
-      ...(input.expiryDate ? { batchNumber: input.batchNumber?.trim() ?? "", expiryDate: input.expiryDate } : {}),
-      ...(input.note.trim() ? { note: input.note.trim() } : {}),
-      ...(input.emergency
-        ? { emergency: true, emergencyReason: input.emergencyReason!.trim(), appliedAt: at }
-        : {}),
-    };
-    setDb((d) => {
-      const base = input.emergency
-        ? applyInventoryChange(d, {
-            branchId: input.branchId,
-            productId: input.productId,
-            delta: input.quantity,
-            type: "stock_added",
-            referenceType: "manual",
-            referenceId: approval.id,
-            performedBy: actorId,
-            at,
-            batch: approval.expiryDate ? { batchNumber: approval.batchNumber ?? "", expiryDate: approval.expiryDate } : undefined,
-            note: `EMERGENCY: ${approval.emergencyReason}`,
-          })
-        : d;
-      const log = input.emergency
-        ? activity(
-            d,
-            actorId,
-            "Emergency stock added",
-            `${approval.id} · ${labels(d, input.branchId, input.productId)} · +${input.quantity} · ${approval.emergencyReason}`,
-            {
-              entityId: approval.id,
-              branchId: input.branchId,
-              productId: input.productId,
-              emergency: true,
-            },
-          )
-        : activity(
-            d,
-            actorId,
-            "Stock addition submitted",
-            `${approval.id} · ${labels(d, input.branchId, input.productId)} · +${input.quantity} awaiting manager approval`,
-            { entityId: approval.id, branchId: input.branchId, productId: input.productId },
-          );
-      return { ...base, approvals: [approval, ...d.approvals], activities: [log, ...d.activities] };
-    });
-    return { ok: true, data: approval };
-  },
-  /** Stock count correction: sets on-hand to the counted quantity and records the delta. */
-  async adjustStock(
-    inventoryId: string,
-    countedQuantity: number,
-    reason: string,
-    actorId: string,
-  ): Promise<Result<InventoryRecord>> {
-    await latency();
-    const current = getDb();
-    const scope = getAccessScope(current, actorId);
-    const inv = current.inventory.find((i) => i.id === inventoryId);
-    if (
-      !scope.canManageStock ||
-      !inv ||
-      (scope.branchIds && !scope.branchIds.includes(inv.branchId))
-    )
-      return { ok: false, errors: { form: "You cannot adjust this stock record" } };
-    if (!Number.isInteger(countedQuantity) || countedQuantity < 0)
-      return { ok: false, errors: { quantity: "Enter a whole number of zero or more" } };
-    if (countedQuantity < inv.quantityReserved)
-      return {
-        ok: false,
-        errors: { quantity: `Cannot go below the ${inv.quantityReserved} reserved units` },
-      };
-    if (countedQuantity === inv.quantityOnHand)
-      return { ok: false, errors: { quantity: "Counted quantity matches current stock" } };
-    if (!reason.trim())
-      return { ok: false, errors: { reason: "Give a reason for the adjustment" } };
-    const at = nowOnReferenceDay(current);
-    setDb((d) => ({
-      ...applyInventoryChange(d, {
-        branchId: inv.branchId,
-        productId: inv.productId,
-        delta: countedQuantity - inv.quantityOnHand,
-        type: "adjustment",
-        referenceType: "manual",
-        performedBy: actorId,
-        at,
-        note: reason.trim(),
-      }),
-      activities: [
-        activity(
-          d,
-          actorId,
-          "Stock adjusted",
-          `${labels(d, inv.branchId, inv.productId)} · ${inv.quantityOnHand} → ${countedQuantity}`,
-        ),
-        ...d.activities,
-      ],
-    }));
-    return { ok: true, data: getDb().inventory.find((i) => i.id === inventoryId)! };
-  },
-};
 
 // ---------- stock requests ----------
 export type StockRequestInput = {
@@ -3165,7 +2976,6 @@ export const productService = mockProductService;
 export const branchService = mockBranchService;
 export const salesService = mockSalesService;
 export const stockRequestService = mockStockRequestService;
-export const inventoryService = mockInventoryService;
 export const paymentService = mockPaymentService;
 export const expenseService = mockExpenseService;
 export const remittanceService = mockRemittanceService;

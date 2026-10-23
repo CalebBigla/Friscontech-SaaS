@@ -46,6 +46,8 @@ export const queryKeys = {
 
   // Inventory records, movements, batches
   inventory: {
+    /** Prefix of every inventory query (lists, details, movements, lots). */
+    root: () => ["inventory"] as const,
     all: (tenantId: string) => ["inventory", tenantId] as const,
     list: (tenantId: string, filters?: object) =>
       ["inventory", tenantId, "list", filters] as const,

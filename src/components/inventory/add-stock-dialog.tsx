@@ -8,17 +8,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldError, FilterSelect, StockStatusBadge } from "@/components/shared";
-import { useDb } from "@/services/mock-store";
-import { inventoryService, type FieldErrors } from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useAddStock } from "@/hooks/use-inventory";
+import { fieldErrorsFrom } from "@/lib/supabase-helpers";
+import { FIELD_NAMES, validateAddStock, type AddStockInput, type FieldErrors } from "@/lib/validation";
 import type { AccessScope } from "@/lib/session";
 import { findInventory, getAvailable, getInventoryStatus } from "@/lib/inventory-calculations";
 import { formatUnits } from "@/lib/format";
 
 export function AddStockDialog({ open, onOpenChange, scope, defaults }: { open: boolean; onOpenChange: (o: boolean) => void; scope: AccessScope; defaults?: { branchId?: string | undefined; productId?: string | undefined } | undefined }) {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
+  const addStock = useAddStock();
   const [form, setForm] = useState({ branchId: "", productId: "", quantity: "", note: "", emergency: false, emergencyReason: "", batchNumber: "", expiryDate: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [saving, setSaving] = useState(false);
+  const saving = addStock.isPending;
   const branches = db.branches.filter((b) => b.status === "active" && (!scope.branchIds || scope.branchIds.includes(b.id)));
 
   useEffect(() => {
@@ -34,13 +37,28 @@ export function AddStockDialog({ open, onOpenChange, scope, defaults }: { open: 
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
-    const r = await inventoryService.addStock({ branchId: form.branchId, productId: form.productId, quantity: qty, note: form.note, emergency: form.emergency, emergencyReason: form.emergencyReason, batchNumber: form.batchNumber, expiryDate: form.expiryDate }, scope.user.id);
-    setSaving(false);
-    if (!r.ok) { setErrors(r.errors); toast.error(r.errors.form ?? "Please fix the highlighted fields"); return; }
-    if (r.data.emergency) toast.success("Emergency stock added.", { description: `${product?.name} · +${formatUnits(qty)} · your manager will review it (${r.data.id})` });
-    else toast.success("Sent for manager approval.", { description: `${product?.name} · +${formatUnits(qty)} · stock counts once approved (${r.data.id})` });
-    onOpenChange(false);
+    const input: AddStockInput = { branchId: form.branchId, productId: form.productId, quantity: qty, note: form.note, emergency: form.emergency, emergencyReason: form.emergencyReason, batchNumber: form.batchNumber, expiryDate: form.expiryDate };
+    const invalid = validateAddStock(db, scope, input);
+    if (invalid) { setErrors(invalid); toast.error(invalid.form ?? "Please fix the highlighted fields"); return; }
+    try {
+      const approval = await addStock.mutateAsync({
+        p_branch_id: input.branchId,
+        p_product_id: input.productId,
+        p_quantity: input.quantity,
+        p_note: input.note.trim() || null,
+        p_batch_number: input.expiryDate ? input.batchNumber?.trim() ?? "" : null,
+        p_expiry_date: input.expiryDate || null,
+        p_emergency: !!input.emergency,
+        p_emergency_reason: input.emergency ? input.emergencyReason?.trim() ?? null : null,
+      });
+      if (approval.emergency) toast.success("Emergency stock added.", { description: `${product?.name} · +${formatUnits(qty)} · your manager will review it` });
+      else toast.success("Sent for manager approval.", { description: `${product?.name} · +${formatUnits(qty)} · stock counts once approved` });
+      onOpenChange(false);
+    } catch (error) {
+      const failed = fieldErrorsFrom(error, FIELD_NAMES);
+      setErrors(failed);
+      toast.error(failed.form ?? "Please fix the highlighted fields");
+    }
   }
 
   return (

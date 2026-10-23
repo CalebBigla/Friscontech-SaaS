@@ -4,13 +4,14 @@
  * Data fetching and mutations for inventory records, movements, and batches
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/auth-context";
 import { queryKeys } from "@/lib/query-keys";
-import { transformInventoryRecord, transformInventoryMovement, transformStockBatch, inventoryRecordToDb, inventoryMovementToDb, stockBatchToDb } from "@/lib/type-adapters";
+import { transformApprovalRequest, transformInventoryRecord, transformInventoryMovement, transformStockBatch, type ApprovalRequestMigrationRow, type InventoryRecordMigrationRow } from "@/lib/type-adapters";
+import { callRpc, type PlannedRpcs } from "@/lib/rpc";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
-import type { InventoryRecord, InventoryMovement, StockBatch } from "@/data/mock-db";
+import type { ApprovalRequest, InventoryRecord, InventoryMovement, StockBatch } from "@/data/mock-db";
 
 /**
  * Fetch all inventory records for tenant
@@ -183,101 +184,40 @@ export function useStockBatches(productId: string | undefined, branchId: string 
   });
 }
 
-/**
- * Update inventory record (quantity changes)
- */
-export function useUpdateInventory() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<InventoryRecord> }) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = inventoryRecordToDb(updates, user.tenantId);
-      
-      const { data, error } = await (supabase as any).from('inventory_records')
-        .update(dbData)
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformInventoryRecord(data);
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.inventory.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.inventory.byBranch(data.branchId) 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.inventory.detail(data.id) 
-      });
-    },
-  });
+/** A stock change touches inventory, lots, movements, approvals and the audit log. */
+export function invalidateStock(queryClient: QueryClient, tenantId: string) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.inventory.root() });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.approvals.all(tenantId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all(tenantId) });
 }
 
 /**
- * Create inventory movement (stock change)
+ * Storekeeper stock addition (RPC add_stock). Creates a pending approval request;
+ * an emergency addition is also applied immediately.
  */
-export function useCreateInventoryMovement() {
+export function useAddStock() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (input: Partial<InventoryMovement>) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = inventoryMovementToDb(input, user.tenantId);
-      
-      const { data, error } = await (supabase as any).from('inventory_movements')
-        .insert(dbData)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformInventoryMovement(data);
+    mutationFn: async (args: PlannedRpcs["add_stock"]): Promise<ApprovalRequest> => {
+      const row = await callRpc("add_stock", args);
+      return transformApprovalRequest(row as ApprovalRequestMigrationRow);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.inventory.all(user?.tenantId || '') 
-      });
-    },
+    onSuccess: () => invalidateStock(queryClient, user?.tenantId ?? ""),
   });
 }
 
-/**
- * Create stock batch
- */
-export function useCreateStockBatch() {
+/** Stock count correction (RPC adjust_stock). */
+export function useAdjustStock() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (input: Partial<StockBatch>) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = stockBatchToDb(input, user.tenantId);
-      
-      const { data, error } = await (supabase as any).from('stock_batches')
-        .insert(dbData)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformStockBatch(data);
+    mutationFn: async (args: PlannedRpcs["adjust_stock"]): Promise<InventoryRecord> => {
+      const row = await callRpc("adjust_stock", args);
+      return transformInventoryRecord(row as InventoryRecordMigrationRow);
     },
-    onSuccess: (data) => {
-      if (data.productId && data.branchId) {
-        queryClient.invalidateQueries({ 
-          queryKey: queryKeys.inventory.batches(data.productId, data.branchId) 
-        });
-      }
-    },
+    onSuccess: () => invalidateStock(queryClient, user?.tenantId ?? ""),
   });
 }

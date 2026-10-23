@@ -6,12 +6,12 @@ import { NearestExpiryBadge } from "@/components/expiry/expiry-widgets";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ALL, EmptyState, FilterSelect, MetricCard, Panel, SearchBox, StockStatusBadge } from "@/components/shared";
+import { ALL, DataGate, EmptyState, FilterSelect, MetricCard, Panel, SearchBox, StockStatusBadge } from "@/components/shared";
 import { AddStockDialog } from "@/components/inventory/add-stock-dialog";
 import { AdjustStockDialog } from "@/components/inventory/adjust-stock-dialog";
 import { MovementsSheet } from "@/components/inventory/movements-sheet";
 import type { InventoryRecord } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getInventoryRows, getInventorySummary, type InventoryRow, type InventoryStatus } from "@/lib/inventory-calculations";
 import { formatCompactNaira, formatDayTime, formatNaira, formatNumber } from "@/lib/format";
@@ -21,7 +21,7 @@ const statusRank: Record<InventoryStatus, number> = { out_of_stock: 0, low_stock
 const PAGE = 25;
 
 export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?: string | undefined; initialStatus?: InventoryStatus | undefined }) {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace({ batches: true });
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const navigate = useNavigate();
@@ -88,6 +88,7 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
       </div>}>
       <div className="mb-5"><h1 className="text-xl font-bold">{simple ? "Available Products" : "Inventory"}</h1><p className="mt-1 text-xs text-muted-foreground">{simple ? "Products available to you and how much stock is on hand" : "Monitor stock levels, availability, and inventory movement across your branches"}{activeBranch !== ALL ? ` · ${db.branches.find((b) => b.id === activeBranch)?.name}` : scope.branchIds ? ` · ${branches[0]?.name ?? ""}` : " · All branches"}</p></div>
 
+      <DataGate isLoading={isLoading} error={error}>
       <section className={`grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 ${simple ? "xl:grid-cols-4" : "xl:grid-cols-5"}`}>
         <MetricCard icon={Package} tone="brand" label="Total products" value={formatNumber(summary.products)} detail="Represented in inventory" />
         <MetricCard icon={Layers} tone="violet" label="Total units" value={formatNumber(summary.units)} detail="On hand in this selection" />
@@ -153,9 +154,10 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
           <div className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next</Button></div>
         </div>}
       </Panel>
+      </DataGate>
 
       <AddStockDialog open={addOpen} onOpenChange={setAddOpen} scope={scope} defaults={addDefaults} />
-      <AdjustStockDialog record={adjusting?.record ?? null} productName={adjusting?.product.name ?? ""} onClose={() => setAdjusting(null)} actorId={userId} />
+      <AdjustStockDialog record={adjusting?.record ?? null} productName={adjusting?.product.name ?? ""} onClose={() => setAdjusting(null)} />
       {!simple && <MovementsSheet open={movesOpen} onOpenChange={setMovesOpen} branchIds={scope.branchIds} branchId={activeBranch === ALL ? undefined : activeBranch} />}
     </AppShell>
   );
