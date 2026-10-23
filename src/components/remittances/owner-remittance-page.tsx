@@ -4,7 +4,7 @@ import { ArrowLeft, Banknote, CircleDollarSign, Eye, Landmark, Plus, Search } fr
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/app-shell";
-import { EmptyState, FieldError, MetricCard, Panel } from "@/components/shared";
+import { DataGate, EmptyState, FieldError, MetricCard, Panel } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,12 +33,9 @@ import type { Db } from "@/data/mock-db";
 import { formatDate, formatNaira, formatTime } from "@/lib/format";
 import { getOwnerRemittanceSummary, getOwnerRemittances } from "@/lib/remittance-calculations";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
-import { useDb } from "@/services/mock-store";
-import {
-  ownerRemittanceService,
-  type FieldErrors,
-  type OwnerRemittanceInput,
-} from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useCreateOwnerRemittance } from "@/hooks/use-remittances";
+import { runWrite, validateOwnerRemittance, type FieldErrors, type OwnerRemittanceInput } from "@/lib/validation";
 
 const payeeLabels: Record<OwnerRemittancePayeeType, string> = {
   supplier: "Supplier",
@@ -59,7 +56,8 @@ const defaultForm = (date: string): OwnerRemittanceInput => ({
 });
 
 export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string }) {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
+  const createRemittance = useCreateOwnerRemittance();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const month = db.tenant.referenceDate.slice(0, 7);
@@ -98,7 +96,20 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
     setForm((current) => ({ ...current, [key]: value }));
   const record = async () => {
     setBusy(true);
-    const result = await ownerRemittanceService.create(form, userId);
+    const result = await runWrite(validateOwnerRemittance(db, scope, form), () =>
+      createRemittance.mutateAsync({
+        p_payee_type: form.payeeType,
+        p_payee_name: form.payeeName.trim(),
+        p_amount: form.amount,
+        // The validator allows only cash or transfer.
+        p_payment_method: form.paymentMethod === "transfer" ? "transfer" : "cash",
+        p_reference: form.reference?.trim() || null,
+        p_remittance_date: form.remittanceDate,
+        p_purpose: form.purpose.trim(),
+        p_note: form.note?.trim() || null,
+        p_branch_id: form.branchId ?? null,
+      }),
+    );
     setBusy(false);
     if (!result.ok) {
       setErrors(result.errors);
@@ -108,9 +119,16 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
     toast.success("Remittance recorded");
   };
 
+  if (isLoading || error)
+    return (
+      <AppShell title="Remittance">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
+
   if (remittanceId)
     return selected ? (
-      <RemittanceDetail row={selected} />
+      <RemittanceDetail db={db} row={selected} />
     ) : (
       <AppShell title="Remittance">
         <EmptyState
@@ -356,7 +374,6 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
                 <SelectContent>
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="transfer">Transfer</SelectItem>
-                  <SelectItem value="cheque">Cheque</SelectItem>
                 </SelectContent>
               </Select>
               {errors.paymentMethod && <FieldError message={errors.paymentMethod} />}
@@ -509,8 +526,7 @@ function Field({
     </div>
   );
 }
-function RemittanceDetail({ row }: { row: OwnerRemittance }) {
-  const db = useDb();
+function RemittanceDetail({ db, row }: { db: Db; row: OwnerRemittance }) {
   const owner = db.users.find((user) => user.id === row.ownerId);
   const branch = row.branchId ? db.branches.find((item) => item.id === row.branchId) : null;
   const values: [string, string][] = [

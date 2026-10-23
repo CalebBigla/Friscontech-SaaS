@@ -94,6 +94,8 @@ export interface OwnerRemittanceMigrationRow {
   id: string; tenant_id: string; payee_type: OwnerRemittance["payeeType"]; payee_name: string; amount: number;
   payment_method: OwnerRemittance["paymentMethod"]; reference: string | null; purpose: string; remittance_date: string;
   note: string | null; created_by: string; created_at: string; updated_at: string;
+  /** Not in the schema yet; planned as a new nullable column (see create_owner_remittance in src/lib/rpc.ts). */
+  branch_id?: string | null;
 }
 /** Column shape follows 20260114160000_create_financial_workflows.sql. */
 export interface ExpenseMigrationRow {
@@ -641,6 +643,7 @@ export function transformOwnerRemittance(dbRow: OwnerRemittanceMigrationRow): Ow
     purpose:         dbRow.purpose,
     remittanceDate:  dbRow.remittance_date,
     ...(dbRow.note ? { note: dbRow.note } : {}),
+    ...(dbRow.branch_id ? { branchId: dbRow.branch_id } : {}),
     ownerId:         dbRow.created_by,
     createdAt:       dbRow.created_at,
     updatedAt:       dbRow.updated_at,

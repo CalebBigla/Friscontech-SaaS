@@ -6,6 +6,8 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/auth-context';
+import { callRpc, type PlannedRpcs } from '@/lib/rpc';
 import { supabase } from '@/lib/supabase';
 import { queryKeys } from '@/lib/query-keys';
 import { handleSupabaseError } from '@/lib/supabase-helpers';
@@ -17,13 +19,7 @@ import {
   type OwnerRemittanceMigrationRow,
 } from '@/lib/type-adapters';
 
-type ManagerRemittanceRow = Database['public']['Tables']['manager_remittances']['Row'];
-type ManagerRemittanceInsert = Database['public']['Tables']['manager_remittances']['Insert'];
-type ManagerRemittanceUpdate = Database['public']['Tables']['manager_remittances']['Update'];
 
-type OwnerRemittanceRow = Database['public']['Tables']['owner_remittances']['Row'];
-type OwnerRemittanceInsert = Database['public']['Tables']['owner_remittances']['Insert'];
-type OwnerRemittanceUpdate = Database['public']['Tables']['owner_remittances']['Update'];
 
 // ======================
 // MANAGER REMITTANCES
@@ -89,114 +85,6 @@ export function useManagerRemittance(id: string) {
       return transformManagerRemittance(data as ManagerRemittanceMigrationRow);
     },
     enabled: !!id,
-  });
-}
-
-/**
- * Submit a new manager remittance
- */
-export function useSubmitManagerRemittance() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: ManagerRemittanceInsert) => {
-      const { data, error } = await (supabase as any).from('manager_remittances')
-        .insert(input)
-        .select()
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-      return data as ManagerRemittanceRow;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.remittances.manager.all(data.tenant_id),
-      });
-    },
-  });
-}
-
-/**
- * Approve a manager remittance (owner action)
- */
-export function useApproveManagerRemittance() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      id,
-      reviewerId,
-    }: {
-      id: string;
-      reviewerId: string;
-    }) => {
-      const now = new Date().toISOString();
-      
-      const { data, error } = await (supabase as any).from('manager_remittances')
-        .update({
-          status: 'approved',
-          reviewed_by: reviewerId,
-          reviewed_at: now,
-          reject_reason: null,
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-      return data as ManagerRemittanceRow;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.remittances.manager.all(data.tenant_id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.remittances.manager.detail(data.id),
-      });
-    },
-  });
-}
-
-/**
- * Reject a manager remittance (owner action)
- */
-export function useRejectManagerRemittance() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      id,
-      reviewerId,
-      reason,
-    }: {
-      id: string;
-      reviewerId: string;
-      reason: string;
-    }) => {
-      const now = new Date().toISOString();
-      
-      const { data, error } = await (supabase as any).from('manager_remittances')
-        .update({
-          status: 'rejected',
-          reviewed_by: reviewerId,
-          reviewed_at: now,
-          reject_reason: reason,
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-      return data as ManagerRemittanceRow;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.remittances.manager.all(data.tenant_id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.remittances.manager.detail(data.id),
-      });
-    },
   });
 }
 
@@ -267,84 +155,36 @@ export function useOwnerRemittance(id: string) {
   });
 }
 
-/**
- * Create a new owner remittance
- */
-export function useCreateOwnerRemittance() {
+// ======================
+// WRITES (planned RPCs)
+// ======================
+
+/** Remittance steps change remittances, payment/expense views and the audit log. */
+function useRemittanceMutation<R, N extends keyof PlannedRpcs>(name: N, transform: (row: unknown) => R) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: OwnerRemittanceInsert) => {
-      const { data, error } = await (supabase as any).from('owner_remittances')
-        .insert(input)
-        .select()
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-      return data as OwnerRemittanceRow;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.remittances.owner.all(data.tenant_id),
-      });
+    mutationFn: async (args: PlannedRpcs[N]): Promise<R> => transform(await callRpc(name, args)),
+    onSuccess: () => {
+      const tenantId = user?.tenantId ?? '';
+      void queryClient.invalidateQueries({ queryKey: queryKeys.remittances.manager.all(tenantId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.remittances.owner.all(tenantId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.payments.root() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.expenses.root() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all(tenantId) });
     },
   });
 }
 
-/**
- * Update an existing owner remittance
- */
-export function useUpdateOwnerRemittance() {
-  const queryClient = useQueryClient();
+const toManager = (row: unknown) => transformManagerRemittance(row as ManagerRemittanceMigrationRow);
 
-  return useMutation({
-    mutationFn: async ({
-      id,
-      updates,
-    }: {
-      id: string;
-      updates: OwnerRemittanceUpdate;
-    }) => {
-      const { data, error } = await (supabase as any).from('owner_remittances')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-      return data as OwnerRemittanceRow;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.remittances.owner.all(data.tenant_id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.remittances.owner.detail(data.id),
-      });
-    },
-  });
-}
-
-/**
- * Delete an owner remittance
- */
-export function useDeleteOwnerRemittance() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from('owner_remittances')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw handleSupabaseError(error);
-      return { id };
-    },
-    onSuccess: (_, id) => {
-      // Invalidate all owner remittances queries since we don't have tenantId here
-      queryClient.invalidateQueries({
-        queryKey: ["remittances", "owner"],
-      });
-    },
-  });
-}
+/** Branch manager remits a month (RPC submit_manager_remittance). */
+export const useSubmitManagerRemittance = () => useRemittanceMutation('submit_manager_remittance', toManager);
+/** Owner confirms (RPC confirm_manager_remittance). */
+export const useConfirmManagerRemittance = () => useRemittanceMutation('confirm_manager_remittance', toManager);
+/** Owner declines (RPC decline_manager_remittance). */
+export const useDeclineManagerRemittance = () => useRemittanceMutation('decline_manager_remittance', toManager);
+/** Owner records an external payment (RPC create_owner_remittance). */
+export const useCreateOwnerRemittance = () =>
+  useRemittanceMutation('create_owner_remittance', (row) => transformOwnerRemittance(row as OwnerRemittanceMigrationRow));

@@ -215,6 +215,46 @@ export type PlannedRpcs = {
     p_expense_id: string;
     p_reason: string;
   };
+  /**
+   * Branch manager remits a month. The server computes total_received (the
+   * manager's acknowledged rep payments), expense_amount, net_remittance_due,
+   * outstanding_amount, payment_ids and expense_ids; cash + transfer + outstanding
+   * must reconcile to net due. One submitted remittance per manager and period.
+   * Returns the manager_remittances row.
+   */
+  submit_manager_remittance: {
+    p_period: string;
+    p_cash_amount: number;
+    p_transfer_amount: number;
+    p_transfer_reference: string | null;
+    p_note: string | null;
+  };
+  /** Owner confirms a submitted manager remittance. */
+  confirm_manager_remittance: {
+    p_remittance_id: string;
+  };
+  /** Owner declines a submitted manager remittance with a reason. */
+  decline_manager_remittance: {
+    p_remittance_id: string;
+    p_reason: string;
+  };
+  /**
+   * Owner records a payment to an external payee (cash or transfer). Generates the
+   * text id (owner_remittances.id has no default). p_branch_id needs a new nullable
+   * owner_remittances.branch_id column (Phase 2 migration): the form lets the owner
+   * tag a branch but the table cannot store it yet. Returns the owner_remittances row.
+   */
+  create_owner_remittance: {
+    p_payee_type: "supplier" | "landlord" | "utility" | "contractor" | "other";
+    p_payee_name: string;
+    p_amount: number;
+    p_payment_method: "cash" | "transfer";
+    p_reference: string | null;
+    p_remittance_date: string;
+    p_purpose: string;
+    p_note: string | null;
+    p_branch_id: string | null;
+  };
 };
 
 export async function callRpc<N extends keyof PlannedRpcs>(name: N, args: PlannedRpcs[N]): Promise<unknown> {

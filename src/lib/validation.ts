@@ -4,8 +4,14 @@
  * Same rules and messages the app has always shown. The database (RPCs and
  * CHECK constraints) enforces them again; this only gives faster feedback.
  */
-import type { ApprovalRequest, Customer, CustomerPayment, CustomerPaymentMethod, Db, Expense, ExpenseCategory, InventoryRecord, Payment, StockRequest, User } from "@/data/mock-db";
-import { expenseCategories } from "@/lib/remittance-calculations";
+import type { ApprovalRequest, Customer, CustomerPayment, CustomerPaymentMethod, Db, Expense, ExpenseCategory, InventoryRecord, ManagerRemittance, Payment, StockRequest, User } from "@/data/mock-db";
+import type { OwnerRemittancePayeeType, OwnerRemittancePaymentMethod } from "@/data/remittances";
+import {
+  expenseCategories,
+  getManagerEligiblePayments,
+  getManagerNetRemittanceDue,
+  validateRemittanceReconciliation,
+} from "@/lib/remittance-calculations";
 import { getRepTotalSales, isValidPaymentPeriod } from "@/lib/payment-calculations";
 import { fieldErrorsFrom } from "@/lib/supabase-helpers";
 import { canReviewApproval } from "@/lib/approvals";
@@ -442,4 +448,88 @@ export function validateExpenseVoid(db: Db, scope: AccessScope, expense: Expense
   if (expense.status !== "recorded") return { form: "This expense is already voided" };
   if (!reason.trim()) return { reason: "A void reason is required" };
   return null;
+}
+
+// ---------- remittances ----------
+
+export type RemittanceInput = {
+  period: string;
+  cashAmount: number;
+  transferAmount: number;
+  transferReference?: string;
+  note?: string;
+};
+
+/** Branch manager remits a month's acknowledged collections minus expenses. */
+export function validateRemittanceSubmit(db: Db, scope: AccessScope, input: RemittanceInput): FieldErrors | null {
+  const manager = scope.user;
+  if (!managedBranch(db, manager)) return { form: "Only an active branch manager can submit remittance" };
+  const errors: FieldErrors = {};
+  if (!isValidPaymentPeriod(input.period) || input.period > db.tenant.referenceDate.slice(0, 7)) errors.period = "Choose a valid current or past month";
+  if (!Number.isFinite(input.cashAmount) || input.cashAmount < 0) errors.cashAmount = "Cash cannot be negative";
+  if (!Number.isFinite(input.transferAmount) || input.transferAmount < 0) errors.transferAmount = "Transfer cannot be negative";
+  if (input.transferAmount > 0 && !input.transferReference?.trim())
+    errors.transferReference = "A transfer reference is required when transfer is greater than zero";
+  if (db.remittances.some((r) => r.tenantId === manager.tenantId && r.managerId === manager.id && r.period === input.period && r.status === "submitted"))
+    errors.form = "A remittance for this period is already awaiting Owner review";
+  if (hasErrors(errors)) return errors;
+  if (!getManagerEligiblePayments(db, manager.id, input.period).length) return { form: "There are no acknowledged Sales Rep payments for this period" };
+  const netRemittanceDue = getManagerNetRemittanceDue(db, manager.id, input.period);
+  const reconciliation = validateRemittanceReconciliation(netRemittanceDue, input);
+  if (netRemittanceDue < 0) errors.form = "Recorded expenses exceed the eligible payment position for this period";
+  else if (!reconciliation.balanced) errors.form = "Cash, transfer and outstanding must reconcile to net remittance due";
+  if (reconciliation.outstanding < 0) errors.transferAmount = "Cash and transfer cannot exceed net remittance due";
+  return hasErrors(errors) ? errors : null;
+}
+
+function remittanceOwnerError(db: Db, scope: AccessScope, remittance: ManagerRemittance): string | null {
+  if (!activeOwner(db, scope.user) || remittance.tenantId !== db.tenant.id) return "Only the active business owner can review this remittance";
+  if (!db.branches.some((b) => b.id === remittance.branchId && b.tenantId === remittance.tenantId && b.managerId === remittance.managerId))
+    return "This remittance is not linked to a valid branch manager";
+  return null;
+}
+
+export function validateRemittanceConfirm(db: Db, scope: AccessScope, remittance: ManagerRemittance): FieldErrors | null {
+  const denied = remittanceOwnerError(db, scope, remittance);
+  if (denied) return { form: denied };
+  if (remittance.status !== "submitted") return { form: "Only submitted remittances can be confirmed" };
+  return null;
+}
+
+export function validateRemittanceDecline(db: Db, scope: AccessScope, remittance: ManagerRemittance, reason: string): FieldErrors | null {
+  const denied = remittanceOwnerError(db, scope, remittance);
+  if (denied) return { form: denied };
+  if (remittance.status !== "submitted") return { form: "Only submitted remittances can be declined" };
+  if (!reason.trim()) return { reason: "A decline reason is required" };
+  return null;
+}
+
+export type OwnerRemittanceInput = {
+  payeeType: OwnerRemittancePayeeType;
+  payeeName: string;
+  amount: number;
+  paymentMethod: OwnerRemittancePaymentMethod;
+  reference?: string;
+  remittanceDate: string;
+  purpose: string;
+  note?: string;
+  branchId?: string;
+};
+
+const ownerPayeeTypes: OwnerRemittancePayeeType[] = ["supplier", "landlord", "utility", "contractor", "other"];
+
+/** Owner records money paid out to an external payee. */
+export function validateOwnerRemittance(db: Db, scope: AccessScope, input: OwnerRemittanceInput): FieldErrors | null {
+  if (!activeOwner(db, scope.user)) return { form: "Only the active business owner can create remittances" };
+  const errors: FieldErrors = {};
+  if (!ownerPayeeTypes.includes(input.payeeType)) errors.payeeType = "Choose a payee type";
+  if (!input.payeeName.trim()) errors.payeeName = "Payee name is required";
+  if (!Number.isFinite(input.amount) || input.amount <= 0) errors.amount = "Amount must be greater than zero";
+  if (input.paymentMethod !== "cash" && input.paymentMethod !== "transfer") errors.paymentMethod = "Choose a payment method";
+  if (!isValidDate(input.remittanceDate)) errors.remittanceDate = "Enter a valid remittance date";
+  else if (input.remittanceDate > db.tenant.referenceDate) errors.remittanceDate = "Date cannot be in the future";
+  if (!input.purpose.trim()) errors.purpose = "Purpose is required";
+  if (input.paymentMethod === "transfer" && !input.reference?.trim()) errors.reference = "A transfer reference is required";
+  if (input.branchId && !db.branches.some((b) => b.id === input.branchId && b.tenantId === db.tenant.id)) errors.branchId = "Choose a valid branch";
+  return hasErrors(errors) ? errors : null;
 }

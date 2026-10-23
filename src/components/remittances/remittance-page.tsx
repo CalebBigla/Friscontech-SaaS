@@ -3,7 +3,7 @@ import { ArrowDownRight, Banknote, Check, Eye, Landmark, Receipt } from "lucide-
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/app-shell";
-import { EmptyState, FieldError, FilterSelect, MetricCard, Panel } from "@/components/shared";
+import { DataGate, EmptyState, FieldError, FilterSelect, MetricCard, Panel } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,8 +29,15 @@ import {
   validateRemittanceReconciliation,
 } from "@/lib/remittance-calculations";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
-import { useDb } from "@/services/mock-store";
-import { remittanceService, type FieldErrors } from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useConfirmManagerRemittance, useDeclineManagerRemittance, useSubmitManagerRemittance } from "@/hooks/use-remittances";
+import {
+  runWrite,
+  validateRemittanceConfirm,
+  validateRemittanceDecline,
+  validateRemittanceSubmit,
+  type FieldErrors,
+} from "@/lib/validation";
 
 const currentPeriod = (date: string) => date.slice(0, 7);
 const remittanceLabel: Record<RemittanceStatus, string> = {
@@ -55,7 +62,10 @@ function RemittanceBadge({ status }: { status: RemittanceStatus }) {
 }
 
 export function RemittancePage() {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
+  const submitRemittance = useSubmitManagerRemittance();
+  const confirmRemittance = useConfirmManagerRemittance();
+  const declineRemittance = useDeclineManagerRemittance();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const managerMode = scope.user.role === "manager";
@@ -134,15 +144,15 @@ export function RemittancePage() {
   };
   const submit = async () => {
     setBusy(true);
-    const result = await remittanceService.submit(
-      {
-        period,
-        cashAmount: numericCash,
-        transferAmount: numericTransfer,
-        transferReference: reference,
-        note,
-      },
-      userId,
+    const input = { period, cashAmount: numericCash, transferAmount: numericTransfer, transferReference: reference, note };
+    const result = await runWrite(validateRemittanceSubmit(db, scope, input), () =>
+      submitRemittance.mutateAsync({
+        p_period: period,
+        p_cash_amount: numericCash,
+        p_transfer_amount: numericTransfer,
+        p_transfer_reference: reference.trim() || null,
+        p_note: note.trim() || null,
+      }),
     );
     setBusy(false);
     if (!result.ok) {
@@ -157,8 +167,10 @@ export function RemittancePage() {
     setBusy(true);
     const result =
       kind === "confirm"
-        ? await remittanceService.confirm(actionRow.id, userId)
-        : await remittanceService.decline(actionRow.id, declineReason, userId);
+        ? await runWrite(validateRemittanceConfirm(db, scope, actionRow), () =>
+            confirmRemittance.mutateAsync({ p_remittance_id: actionRow.id }))
+        : await runWrite(validateRemittanceDecline(db, scope, actionRow, declineReason), () =>
+            declineRemittance.mutateAsync({ p_remittance_id: actionRow.id, p_reason: declineReason.trim() }));
     setBusy(false);
     if (!result.ok) {
       setErrors(result.errors);
@@ -167,6 +179,14 @@ export function RemittancePage() {
     toast.success(kind === "confirm" ? "Remittance confirmed" : "Remittance declined");
     setDialog(null);
   };
+
+  if (isLoading || error) {
+    return (
+      <AppShell title="Remittance">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
+  }
 
   if (managerMode) {
     return (
