@@ -555,25 +555,6 @@ import { canReviewApproval } from "@/lib/approvals";
 // ---------- customers (accounts) and customer payments ----------
 
 
-/** Read state of the signed-in user's own notifications. Supabase-backed. */
-export const notificationService = {
-  async markRead(id: string, _actorId: string) {
-    const { error } = await (supabase as any)
-      .from("notifications")
-      .update({ read_at: new Date().toISOString() })
-      .eq("id", id)
-      .is("read_at", null);
-    if (error) console.error("markRead failed", error);
-  },
-  async markAllRead(actorId: string) {
-    const { error } = await (supabase as any)
-      .from("notifications")
-      .update({ read_at: new Date().toISOString() })
-      .eq("recipient_id", actorId)
-      .is("read_at", null);
-    if (error) console.error("markAllRead failed", error);
-  },
-};
 
 export { onboardingService } from "@/services/onboarding-service";
 export const branchService = mockBranchService;

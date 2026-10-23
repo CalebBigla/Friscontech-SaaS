@@ -82,12 +82,12 @@ export function useMarkNotificationRead() {
         .eq("id", id)
         .is("read_at", null)
         .select()
-        .single();
+        .maybeSingle();
       if (error) throw handleSupabaseError(error);
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.root() });
     },
   });
 }
@@ -106,7 +106,7 @@ export function useMarkAllNotificationsRead() {
       return { userId };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.root() });
     },
   });
 }

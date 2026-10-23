@@ -4,12 +4,14 @@ import { Bell, CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/contexts/auth-context";
-import { useNotifications } from "@/hooks/use-notifications";
-import { notificationService } from "@/services/services";
+import { toast } from "sonner";
+import { useMarkAllNotificationsRead, useMarkNotificationRead, useNotifications } from "@/hooks/use-notifications";
+import { errorMessage } from "@/components/shared";
+import type { AppNotification } from "@/data/mock-db";
 import { formatDayTime } from "@/lib/format";
 
 /** Where a notification leads; every target page re-checks the role itself. */
-function target(n: any) {
+function target(n: AppNotification) {
   if (n.entityType === "stock_request")
     return { to: "/stock-requests/$requestId" as const, params: { requestId: n.entityId } };
   if (n.entityType === "onboarding") return { to: "/team" as const };
@@ -19,9 +21,12 @@ function target(n: any) {
 export function NotificationBell() {
   const { user } = useAuth();
   const userId = user?.id ?? "";
-  const { data: mine = [] } = useNotifications(userId);
-  const sorted = [...mine].sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt));
-  const unread = sorted.filter((n: any) => !n.readAt).length;
+  const { data: mine = [], error } = useNotifications(userId);
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
+  const failed = (failure: unknown) => toast.error("Could not update notifications", { description: errorMessage(failure) });
+  const sorted = [...mine].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const unread = sorted.filter((n) => !n.readAt).length;
   const referenceDate = new Date().toISOString().slice(0, 10);
 
   return (
@@ -52,20 +57,25 @@ export function NotificationBell() {
               variant="ghost"
               size="sm"
               className="text-xs"
-              onClick={() => notificationService.markAllRead(userId)}
+              onClick={() => markAllRead.mutate(userId, { onError: failed })}
             >
               <CheckCheck className="size-3.5" />
               Mark all read
             </Button>
           )}
         </div>
-        {sorted.length ? (
+        {error ? (
+          <div role="alert" className="px-4 py-10 text-center">
+            <p className="text-sm font-semibold text-destructive">Could not load notifications</p>
+            <p className="mt-1 text-xs text-muted-foreground">{errorMessage(error)}</p>
+          </div>
+        ) : sorted.length ? (
           <div className="max-h-96 divide-y divide-border overflow-y-auto">
-            {sorted.slice(0, 30).map((n: any) => (
+            {sorted.slice(0, 30).map((n) => (
               <Link
                 key={n.id}
                 {...target(n)}
-                onClick={() => notificationService.markRead(n.id, userId)}
+                onClick={() => { if (!n.readAt) markRead.mutate(n.id, { onError: failed }); }}
                 className={`flex min-h-14 gap-3 px-4 py-3 hover:bg-muted/40 ${n.readAt ? "" : "bg-primary/5"}`}
               >
                 <span
