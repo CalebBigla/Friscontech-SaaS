@@ -20,7 +20,7 @@ export function useSales() {
   
   return useQuery({
     queryKey: queryKeys.sales.all(user?.tenantId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<Sale[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
       const { data, error } = await (supabase as any).from('sales')

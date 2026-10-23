@@ -20,13 +20,14 @@ export function useUsers() {
   
   return useQuery({
     queryKey: queryKeys.users.all(user?.tenantId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<User[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
       const { data, error } = await (supabase as any).from('users')
         .select('*')
         .eq('tenant_id', user.tenantId)
-        .eq('status', 'active')
+        // All statuses: deactivated staff stay visible (soft-deactivation).
+        // Profiles without a role are pending onboarding and listed separately.
         .not('role', 'is', null)
         .order('first_name');
       

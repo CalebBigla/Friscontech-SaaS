@@ -46,6 +46,21 @@ export function Panel({ title, subtitle, action, children, className = "" }: { t
 export function EmptyState({ title, detail }: { title: string; detail?: string }) {
   return <div className="p-10 text-center"><p className="text-sm font-bold">{title}</p>{detail && <p className="mt-1 text-xs text-muted-foreground">{detail}</p>}</div>;
 }
+export function errorMessage(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : "The database request failed.";
+}
+export function LoadingState({ label = "Loading data…" }: { label?: string }) {
+  return <div role="status" aria-live="polite" className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">{label}</div>;
+}
+export function ErrorState({ title = "Could not load data", error }: { title?: string; error: unknown }) {
+  return <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-5 text-sm"><p className="font-bold text-destructive">{title}</p><p className="mt-1 text-xs text-muted-foreground">{errorMessage(error)}</p></div>;
+}
+/** Renders children only once data has loaded, so a failed request never looks like an empty list. */
+export function DataGate({ isLoading, error, children }: { isLoading: boolean; error: unknown; children: ReactNode }) {
+  if (error) return <ErrorState error={error} />;
+  if (isLoading) return <LoadingState />;
+  return <>{children}</>;
+}
 export function FieldError({ message }: { message?: string | undefined }) {
   return message ? <p className="mt-1 text-[11px] font-medium text-destructive">{message}</p> : null;
 }

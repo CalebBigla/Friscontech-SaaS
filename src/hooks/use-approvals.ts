@@ -11,6 +11,7 @@ import { queryKeys } from '@/lib/query-keys';
 import { handleSupabaseError } from '@/lib/supabase-helpers';
 import type { Database } from '@/types/database.types';
 import { transformApprovalRequest, type ApprovalRequestMigrationRow } from '@/lib/type-adapters';
+import type { ApprovalRequest } from '@/data/mock-db';
 
 type ApprovalRequestRow = Database['public']['Tables']['approval_requests']['Row'];
 type ApprovalRequestInsert = Database['public']['Tables']['approval_requests']['Insert'];
@@ -35,7 +36,7 @@ export function useApprovalRequests(
 ) {
   return useQuery({
     queryKey: queryKeys.approvals.list(tenantId, filters),
-    queryFn: async () => {
+    queryFn: async (): Promise<ApprovalRequest[]> => {
       let query = supabase
         .from('approval_requests')
         .select('*')
@@ -69,7 +70,7 @@ export function useApprovalRequests(
 export function usePendingApprovals(tenantId: string, branchId?: string) {
   return useQuery({
     queryKey: queryKeys.approvals.pending(tenantId, branchId),
-    queryFn: async () => {
+    queryFn: async (): Promise<ApprovalRequest[]> => {
       let query = supabase
         .from('approval_requests')
         .select('*')
@@ -95,7 +96,7 @@ export function usePendingApprovals(tenantId: string, branchId?: string) {
 export function useApprovalRequest(id: string) {
   return useQuery({
     queryKey: queryKeys.approvals.detail(id),
-    queryFn: async () => {
+    queryFn: async (): Promise<ApprovalRequest> => {
       const { data, error } = await (supabase as any).from('approval_requests')
         .select('*')
         .eq('id', id)

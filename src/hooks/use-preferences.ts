@@ -20,28 +20,18 @@ export function usePreferences() {
   
   return useQuery({
     queryKey: queryKeys.preferences.byUser(user?.id || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<UserPreference | null> => {
       if (!user?.id) throw new Error('Not authenticated');
-      
+
       const { data, error } = await (supabase as any).from('user_preferences')
         .select('*')
         .eq('user_id', user.id)
-        .single();
-      
-      // If no preferences exist, return defaults
-      if (error && error.code === 'PGRST116') {
-        return {
-          userId: user.id,
-          dateFormat: 'DD/MM/YYYY' as const,
-          reportPeriod: 'current_month' as const,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-      }
-      
+        .maybeSingle();
+
       if (error) handleSupabaseError(error);
-      
-      return transformPreference(data);
+
+      // No row yet: callers use defaultPreferences(), which mirrors the column defaults.
+      return data ? transformPreference(data) : null;
     },
     enabled: !!user?.id,
   });

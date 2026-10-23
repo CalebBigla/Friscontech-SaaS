@@ -13,12 +13,36 @@ import { handleSupabaseError } from "@/lib/supabase-helpers";
 import type { CustomerPayment } from "@/data/mock-db";
 
 /**
+ * Fetch all customer payments for tenant (balances, ledgers, payment chain)
+ */
+export function useAllCustomerPayments() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: queryKeys.customerPayments.all(user?.tenantId || ''),
+    queryFn: async (): Promise<CustomerPayment[]> => {
+      if (!user?.tenantId) throw new Error('Not authenticated');
+
+      const { data, error } = await (supabase as any).from('customer_payments')
+        .select('*')
+        .eq('tenant_id', user.tenantId)
+        .order('submitted_at', { ascending: false });
+
+      if (error) handleSupabaseError(error);
+
+      return (data || []).map(transformCustomerPayment);
+    },
+    enabled: !!user?.tenantId,
+  });
+}
+
+/**
  * Fetch customer payments by customer
  */
 export function useCustomerPayments(customerId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.customers.payments(customerId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<CustomerPayment[]> => {
       if (!customerId) throw new Error('Customer ID required');
       
       const { data, error } = await (supabase as any).from('customer_payments')

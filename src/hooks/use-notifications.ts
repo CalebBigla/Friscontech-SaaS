@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { queryKeys } from "@/lib/query-keys";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
 import { transformNotification } from "@/lib/type-adapters";
+import type { AppNotification } from "@/data/mock-db";
 
 interface NotificationFilters {
   read?: boolean;
@@ -18,7 +19,7 @@ interface NotificationFilters {
 export function useNotifications(userId: string, filters: NotificationFilters = {}) {
   return useQuery({
     queryKey: queryKeys.notifications.list(userId, filters as any),
-    queryFn: async () => {
+    queryFn: async (): Promise<AppNotification[]> => {
       let q = (supabase as any)
         .from("notifications")
         .select("*")

@@ -49,11 +49,6 @@ const periodKey: Record<Period, PeriodKey> = {
 };
 const metricIcons = [CircleDollarSign, Users, Target] as const;
 
-function minutesAgo(iso: string, now: string) {
-  const diff = Math.max(0, Math.round((Date.parse(`${now}:00`) - Date.parse(iso)) / 60000));
-  return diff < 60 ? `${diff}m` : `${Math.round(diff / 60)}h`;
-}
-
 export function OwnerDashboard() {
   const { db } = useLiveWorkspace();
   const userId = useCurrentUserId();
@@ -61,7 +56,6 @@ export function OwnerDashboard() {
   const [period, setPeriod] = useState<Period>("Week");
 
   const today = db.tenant.referenceDate;
-  const nowIso = `${today}T${db.tenant.lastSyncTime}`;
   const pendingRemittances = getManagerRemittances(db, scope, { status: "submitted" });
   const pendingApprovals = getApprovals(db, scope).filter(
     (item) => item.status === "pending" && canReviewApproval(db, userId, item),
@@ -122,7 +116,6 @@ export function OwnerDashboard() {
     .map((branch) => branch.id);
   const requests = getStockRequests(db, { branchIds: scope.branchIds ?? tenantBranchIds });
   const pending = requests.filter((request) => request.status === "pending").length;
-  const openEscalations = db.escalations.filter((e) => e.status === "open");
   const nameOf = (id: string) => db.branches.find((b) => b.id === id)?.name ?? "—";
   const productOf = (id: string) => db.products.find((p) => p.id === id)?.name ?? "—";
 
@@ -281,7 +274,7 @@ export function OwnerDashboard() {
         </div>
       </Panel>
 
-      <section className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr_0.9fr]">
+      <section className="mt-4 grid gap-4 xl:grid-cols-2">
         <Panel
           title="Stock requests"
           subtitle={`${requests.length} requests · ${pending} pending`}
@@ -361,26 +354,6 @@ export function OwnerDashboard() {
                   </span>
                 </div>
               ))}
-          </div>
-        </article>
-        <article className="rounded-lg border border-border bg-card p-5 shadow-panel">
-          <div className="flex items-center justify-between">
-            <h2 className="panel-title">Escalations</h2>
-            <span className="status status-danger">{openEscalations.length} open</span>
-          </div>
-          <div className="mt-4 space-y-2">
-            {openEscalations.map((alert) => (
-              <div key={alert.id} className={`alert alert-${alert.tone}`}>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase">{alert.type}</span>
-                  <span className="text-[9px]">{minutesAgo(alert.createdAt, nowIso)} ago</span>
-                </div>
-                <p className="mt-1 text-xs font-bold">{nameOf(alert.branchId)}</p>
-                <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-                  {alert.detail}
-                </p>
-              </div>
-            ))}
           </div>
         </article>
       </section>

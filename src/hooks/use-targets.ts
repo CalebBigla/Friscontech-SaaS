@@ -11,6 +11,7 @@ import { queryKeys } from '@/lib/query-keys';
 import { handleSupabaseError } from '@/lib/supabase-helpers';
 import { useAuth } from '@/contexts/auth-context';
 import type { Database } from '@/types/database.types';
+import { transformTarget } from '@/lib/type-adapters';
 
 type TargetRow = Database['public']['Tables']['targets']['Row'];
 type TargetInsert = Database['public']['Tables']['targets']['Insert'];
@@ -19,7 +20,6 @@ type TargetUpdate = Database['public']['Tables']['targets']['Update'];
 interface TargetFilters {
   branchId?: string;
   userId?: string;
-  productId?: string;
   month?: string;
 }
 
@@ -43,16 +43,13 @@ export function useTargets(tenantId: string, filters: TargetFilters = {}) {
       if (filters.userId) {
         query = query.eq('user_id', filters.userId);
       }
-      if (filters.productId) {
-        query = query.eq('product_id', filters.productId);
-      }
       if (filters.month) {
         query = query.eq('month', filters.month);
       }
 
       const { data, error } = await query;
       if (error) throw handleSupabaseError(error);
-      return data as TargetRow[];
+      return ((data ?? []) as TargetRow[]).map(transformTarget);
     },
     enabled: !!tenantId,
   });
@@ -71,7 +68,7 @@ export function useTarget(id: string) {
         .single();
 
       if (error) throw handleSupabaseError(error);
-      return data as TargetRow;
+      return transformTarget(data as TargetRow);
     },
     enabled: !!id,
   });
@@ -91,7 +88,7 @@ export function useRepTargets(userId: string, month: string) {
         .order('created_at', { ascending: false });
 
       if (error) throw handleSupabaseError(error);
-      return data as TargetRow[];
+      return ((data ?? []) as TargetRow[]).map(transformTarget);
     },
     enabled: !!userId && !!month,
   });
@@ -111,7 +108,7 @@ export function useBranchTargets(branchId: string, month: string) {
         .order('created_at', { ascending: false });
 
       if (error) throw handleSupabaseError(error);
-      return data as TargetRow[];
+      return ((data ?? []) as TargetRow[]).map(transformTarget);
     },
     enabled: !!branchId && !!month,
   });

@@ -20,7 +20,7 @@ export function useProducts() {
   
   return useQuery({
     queryKey: queryKeys.products.all(user?.tenantId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<Product[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
       const { data, error } = await (supabase as any).from('products')

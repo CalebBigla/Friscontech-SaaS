@@ -20,7 +20,7 @@ export function useStockRequests() {
   
   return useQuery({
     queryKey: queryKeys.stockRequests.all(user?.tenantId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<StockRequest[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
       const { data, error } = await (supabase as any).from('stock_requests')
@@ -86,7 +86,7 @@ export function useStockRequestsByRequester(requesterId: string | undefined) {
 export function useStockRequest(requestId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.stockRequests.detail(requestId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<StockRequest> => {
       if (!requestId) throw new Error('Request ID required');
       
       const { data, error } = await (supabase as any).from('stock_requests')

@@ -10,6 +10,12 @@ import { supabase } from '@/lib/supabase';
 import { queryKeys } from '@/lib/query-keys';
 import { handleSupabaseError } from '@/lib/supabase-helpers';
 import type { Database } from '@/types/database.types';
+import {
+  transformManagerRemittance,
+  transformOwnerRemittance,
+  type ManagerRemittanceMigrationRow,
+  type OwnerRemittanceMigrationRow,
+} from '@/lib/type-adapters';
 
 type ManagerRemittanceRow = Database['public']['Tables']['manager_remittances']['Row'];
 type ManagerRemittanceInsert = Database['public']['Tables']['manager_remittances']['Insert'];
@@ -27,7 +33,7 @@ interface ManagerRemittanceFilters {
   branchId?: string;
   managerId?: string;
   period?: string;
-  status?: 'submitted' | 'approved' | 'rejected';
+  status?: 'draft' | 'submitted' | 'confirmed' | 'declined';
 }
 
 /**
@@ -40,11 +46,11 @@ export function useManagerRemittances(
   return useQuery({
     queryKey: queryKeys.remittances.manager.list(tenantId, filters),
     queryFn: async () => {
-      let query = supabase
+      let query = (supabase as any)
         .from('manager_remittances')
         .select('*')
         .eq('tenant_id', tenantId)
-        .order('submitted_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (filters.branchId) {
         query = query.eq('branch_id', filters.branchId);
@@ -61,7 +67,7 @@ export function useManagerRemittances(
 
       const { data, error } = await query;
       if (error) throw handleSupabaseError(error);
-      return data as ManagerRemittanceRow[];
+      return ((data ?? []) as ManagerRemittanceMigrationRow[]).map(transformManagerRemittance);
     },
     enabled: !!tenantId,
   });
@@ -80,7 +86,7 @@ export function useManagerRemittance(id: string) {
         .single();
 
       if (error) throw handleSupabaseError(error);
-      return data as ManagerRemittanceRow;
+      return transformManagerRemittance(data as ManagerRemittanceMigrationRow);
     },
     enabled: !!id,
   });
@@ -199,8 +205,8 @@ export function useRejectManagerRemittance() {
 // ======================
 
 interface OwnerRemittanceFilters {
-  payeeType?: 'supplier' | 'employee' | 'utility' | 'tax' | 'other';
-  paymentMethod?: 'cash' | 'transfer' | 'check' | 'other';
+  payeeType?: 'supplier' | 'landlord' | 'utility' | 'contractor' | 'other';
+  paymentMethod?: 'cash' | 'transfer' | 'cheque';
   startDate?: string;
   endDate?: string;
 }
@@ -215,11 +221,11 @@ export function useOwnerRemittances(
   return useQuery({
     queryKey: queryKeys.remittances.owner.list(tenantId, filters),
     queryFn: async () => {
-      let query = supabase
+      let query = (supabase as any)
         .from('owner_remittances')
         .select('*')
         .eq('tenant_id', tenantId)
-        .order('payment_date', { ascending: false });
+        .order('remittance_date', { ascending: false });
 
       if (filters.payeeType) {
         query = query.eq('payee_type', filters.payeeType);
@@ -228,15 +234,15 @@ export function useOwnerRemittances(
         query = query.eq('payment_method', filters.paymentMethod);
       }
       if (filters.startDate) {
-        query = query.gte('payment_date', filters.startDate);
+        query = query.gte('remittance_date', filters.startDate);
       }
       if (filters.endDate) {
-        query = query.lte('payment_date', filters.endDate);
+        query = query.lte('remittance_date', filters.endDate);
       }
 
       const { data, error } = await query;
       if (error) throw handleSupabaseError(error);
-      return data as OwnerRemittanceRow[];
+      return ((data ?? []) as OwnerRemittanceMigrationRow[]).map(transformOwnerRemittance);
     },
     enabled: !!tenantId,
   });
@@ -255,7 +261,7 @@ export function useOwnerRemittance(id: string) {
         .single();
 
       if (error) throw handleSupabaseError(error);
-      return data as OwnerRemittanceRow;
+      return transformOwnerRemittance(data as OwnerRemittanceMigrationRow);
     },
     enabled: !!id,
   });

@@ -6,6 +6,11 @@
  */
 
 export const queryKeys = {
+  // Tenant (business profile)
+  tenant: {
+    detail: (tenantId: string) => ["tenant", tenantId] as const,
+  },
+
   // Branches
   branches: {
     all: (tenantId: string) => ["branches", tenantId] as const,

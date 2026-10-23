@@ -20,7 +20,7 @@ export function useCustomers() {
   
   return useQuery({
     queryKey: queryKeys.customers.all(user?.tenantId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<Customer[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
       const { data, error } = await (supabase as any).from('customers')
@@ -64,7 +64,7 @@ export function useCustomersByBranch(branchId: string | undefined) {
 export function useCustomer(customerId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.customers.detail(customerId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<Customer> => {
       if (!customerId) throw new Error('Customer ID required');
       
       const { data, error } = await (supabase as any).from('customers')

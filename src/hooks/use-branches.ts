@@ -21,7 +21,7 @@ export function useBranches() {
   
   return useQuery({
     queryKey: queryKeys.branches.all(user?.tenantId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<Branch[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
       const { data, error } = await (supabase as any).from('branches')
@@ -43,7 +43,7 @@ export function useBranches() {
 export function useBranch(branchId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.branches.detail(branchId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<Branch> => {
       if (!branchId) throw new Error('Branch ID required');
       
       const { data, error } = await (supabase as any).from('branches')

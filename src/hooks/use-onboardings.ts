@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { queryKeys } from "@/lib/query-keys";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
 import { transformOnboarding } from "@/lib/type-adapters";
+import type { Onboarding } from "@/data/onboarding";
 
 interface OnboardingFilters {
   status?: "invited" | "in_progress" | "submitted" | "approved" | "rejected";
@@ -18,7 +19,7 @@ interface OnboardingFilters {
 export function useOnboardings(tenantId: string, filters: OnboardingFilters = {}) {
   return useQuery({
     queryKey: queryKeys.onboardings.list(tenantId, filters as any),
-    queryFn: async () => {
+    queryFn: async (): Promise<Onboarding[]> => {
       let q = (supabase as any)
         .from("onboardings")
         .select("*")

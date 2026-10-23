@@ -20,7 +20,7 @@ export function usePayments() {
   
   return useQuery({
     queryKey: queryKeys.payments.all(user?.tenantId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<Payment[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
       const { data, error } = await (supabase as any).from('payments')

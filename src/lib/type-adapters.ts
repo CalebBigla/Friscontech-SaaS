@@ -10,13 +10,19 @@ import type { Row } from "@/lib/supabase-helpers";
 import type {
   Activity, ApprovalRequest, AppNotification, Branch, BranchStatus,
   Customer, CustomerPayment, Expense, InventoryMovement, InventoryRecord,
-  Payment, Product, ProductStatus, Sale, StockBatch, StockRequest, Target,
-  User, UserPreference,
+  ManagerRemittance, Payment, Product, ProductStatus, Sale, StockBatch, StockRequest,
+  Target, Tenant, User, UserPreference,
 } from "@/data/mock-db";
 import type { EmployeeData, Onboarding, StoredFile } from "@/data/onboarding";
 import type { OwnerRemittance } from "@/data/remittances";
 
-/** Local rows follow the migration schema where generated database.types.ts is stale. */
+/** Column shape follows 20260114120000_create_initial_schema.sql (database.types.ts lists only id/name). */
+export interface TenantMigrationRow {
+  id: string; name: string; legal_name: string; business_email: string; phone: string;
+  currency: Tenant["currency"]; timezone: string; plan: string; expiry_alert_months: number;
+  reference_date: string; created_at: string; updated_at: string;
+}
+/** Column shape follows 20260114140000_create_products_and_inventory.sql. */
 export interface InventoryRecordMigrationRow {
   id: string; tenant_id: string; branch_id: string; product_id: string;
   quantity_on_hand: number; quantity_reserved: number; low_stock_threshold: number;
@@ -78,7 +84,7 @@ export interface ManagerRemittanceMigrationRow {
   id: string; tenant_id: string; branch_id: string; manager_id: string; period: string;
   total_received: number; expense_amount: number; net_remittance_due: number; cash_amount: number;
   transfer_amount: number; outstanding_amount: number; transfer_reference: string | null;
-  status: import("@/data/mock-db").ManagerRemittance["status"]; submitted_at: string | null;
+  status: ManagerRemittance["status"]; submitted_at: string | null;
   confirmed_at: string | null; confirmed_by: string | null; declined_at: string | null;
   declined_by: string | null; decline_reason: string | null; note: string | null;
   payment_ids: string[]; expense_ids: string[]; created_at: string; updated_at: string;
@@ -122,6 +128,43 @@ export interface NotificationMigrationRow {
   id: string; tenant_id: string; recipient_id: string; type: AppNotification["type"];
   entity_type: AppNotification["entityType"]; entity_id: string; message: string;
   read_at: string | null; created_at: string;
+}
+
+// ─────────────────────────── TENANT ──────────────────────────────
+// reference_date is fixed when the tenant is created, so it is not used as "today".
+// The live business date is today's date in the tenant's timezone.
+
+export function todayInTimezone(timezone: string, now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
+export function transformTenant(dbRow: TenantMigrationRow, fetchedAt: Date = new Date()): Tenant {
+  return {
+    id:                dbRow.id,
+    name:              dbRow.name,
+    currency:          dbRow.currency,
+    referenceDate:     todayInTimezone(dbRow.timezone, fetchedAt),
+    lastSyncTime:      new Intl.DateTimeFormat("en-GB", { timeZone: dbRow.timezone, hour: "2-digit", minute: "2-digit" }).format(fetchedAt),
+    legalName:         dbRow.legal_name,
+    businessEmail:     dbRow.business_email,
+    phone:             dbRow.phone,
+    timezone:          dbRow.timezone,
+    plan:              dbRow.plan,
+    expiryAlertMonths: dbRow.expiry_alert_months,
+    createdAt:         dbRow.created_at,
+    updatedAt:         dbRow.updated_at,
+  };
+}
+
+export function tenantToDb(t: Partial<Tenant>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (t.name !== undefined)              out['name']                = t.name;
+  if (t.legalName !== undefined)         out['legal_name']          = t.legalName;
+  if (t.businessEmail !== undefined)     out['business_email']      = t.businessEmail;
+  if (t.phone !== undefined)             out['phone']               = t.phone;
+  if (t.timezone !== undefined)          out['timezone']            = t.timezone;
+  if (t.expiryAlertMonths !== undefined) out['expiry_alert_months'] = t.expiryAlertMonths;
+  return out;
 }
 
 // ─────────────────────────── BRANCHES ────────────────────────────
@@ -555,7 +598,7 @@ export function expenseToDb(e: Partial<Expense>, tenantId: string): Record<strin
 
 // ─────────────────────────── MANAGER REMITTANCES ─────────────────
 
-export function transformManagerRemittance(dbRow: ManagerRemittanceMigrationRow): import("@/data/mock-db").ManagerRemittance {
+export function transformManagerRemittance(dbRow: ManagerRemittanceMigrationRow): ManagerRemittance {
   return {
     id:                dbRow['id'],
     tenantId:          dbRow['tenant_id'],
@@ -597,6 +640,7 @@ export function transformOwnerRemittance(dbRow: OwnerRemittanceMigrationRow): Ow
     ...(dbRow.reference ? { reference: dbRow.reference } : {}),
     purpose:         dbRow.purpose,
     remittanceDate:  dbRow.remittance_date,
+    ...(dbRow.note ? { note: dbRow.note } : {}),
     ownerId:         dbRow.created_by,
     createdAt:       dbRow.created_at,
     updatedAt:       dbRow.updated_at,

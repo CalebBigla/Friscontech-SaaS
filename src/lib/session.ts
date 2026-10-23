@@ -110,7 +110,15 @@ export function setAuthUserRef(user: User | null) {
 }
 
 export function getAccessScope(db: Db, userId: string): AccessScope {
-  const s = baseScope(db, userId);
+  // Use the signed-in profile when db.users does not hold the user yet.
+  const user = db.users.find((x) => x.id === userId)
+    ?? (_authUser?.id === userId ? _authUser : null);
+  return getScopeForUser(user, userId);
+}
+
+/** Access scope from a profile alone (the shell and role gates need nothing else). */
+export function getScopeForUser(user: User | null, userId: string = user?.id ?? ""): AccessScope {
+  const s = baseScope(user, userId);
 
   // Do not let the convenience flags below restore permissions for a missing,
   // pending, or inactive profile. This includes flags derived from the
@@ -161,10 +169,7 @@ type Extra =
   | "canViewCustomers"
   | "canManageCustomers"
   | "canSetCreditLimit";
-function baseScope(db: Db, userId: string): Omit<AccessScope, Extra> {
-  // Use auth user as fallback when db.users is empty (Supabase migration)
-  const user = db.users.find((x) => x.id === userId)
-    ?? (_authUser?.id === userId ? _authUser : null);
+function baseScope(user: User | null, userId: string): Omit<AccessScope, Extra> {
 
   // If no user found through normal channels, return zero-permission scope to deny access
   // This should not happen in production with proper authentication

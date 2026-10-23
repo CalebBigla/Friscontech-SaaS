@@ -51,7 +51,6 @@ const emptyDb: Db = {
   notifications: [],
   onboardings: [],
   approvals: [],
-  escalations: [],
   preferences: [],
 };
 

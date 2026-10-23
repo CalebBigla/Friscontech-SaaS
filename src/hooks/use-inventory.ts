@@ -20,7 +20,7 @@ export function useInventory() {
   
   return useQuery({
     queryKey: queryKeys.inventory.all(user?.tenantId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<InventoryRecord[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
       const { data, error } = await (supabase as any).from('inventory_records')
@@ -64,7 +64,7 @@ export function useInventoryByBranch(branchId: string | undefined) {
 export function useInventoryRecord(recordId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.inventory.detail(recordId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<InventoryRecord> => {
       if (!recordId) throw new Error('Record ID required');
       
       const { data, error } = await (supabase as any).from('inventory_records')
@@ -86,7 +86,7 @@ export function useInventoryRecord(recordId: string | undefined) {
 export function useInventoryMovements(recordId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.inventory.movements(recordId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<InventoryMovement[]> => {
       if (!recordId) throw new Error('Record ID required');
 
       // Movements are keyed by branch + product, not by inventory record id.
@@ -112,12 +112,60 @@ export function useInventoryMovements(recordId: string | undefined) {
 }
 
 /**
+ * Fetch all inventory movements for tenant. Heavy: load only on screens that list movements.
+ */
+export function useAllInventoryMovements(enabled = true) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: queryKeys.inventory.allMovements(user?.tenantId || ''),
+    queryFn: async (): Promise<InventoryMovement[]> => {
+      if (!user?.tenantId) throw new Error('Not authenticated');
+
+      const { data, error } = await (supabase as any).from('inventory_movements')
+        .select('*')
+        .eq('tenant_id', user.tenantId)
+        .order('created_at', { ascending: false });
+
+      if (error) handleSupabaseError(error);
+
+      return (data || []).map(transformInventoryMovement);
+    },
+    enabled: enabled && !!user?.tenantId,
+  });
+}
+
+/**
+ * Fetch all stock batches (lots) for tenant, earliest expiry first (FEFO order).
+ */
+export function useAllStockBatches(enabled = true) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: queryKeys.inventory.allBatches(user?.tenantId || ''),
+    queryFn: async (): Promise<StockBatch[]> => {
+      if (!user?.tenantId) throw new Error('Not authenticated');
+
+      const { data, error } = await (supabase as any).from('stock_batches')
+        .select('*')
+        .eq('tenant_id', user.tenantId)
+        .order('expiry_date', { ascending: true });
+
+      if (error) handleSupabaseError(error);
+
+      return (data || []).map(transformStockBatch);
+    },
+    enabled: enabled && !!user?.tenantId,
+  });
+}
+
+/**
  * Fetch stock batches for a product at a branch
  */
 export function useStockBatches(productId: string | undefined, branchId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.inventory.batches(productId || '', branchId || ''),
-    queryFn: async () => {
+    queryFn: async (): Promise<StockBatch[]> => {
       if (!productId || !branchId) throw new Error('Product and branch required');
       
       const { data, error } = await (supabase as any).from('stock_batches')

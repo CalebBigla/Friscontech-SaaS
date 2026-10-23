@@ -37,11 +37,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useDb } from "@/services/mock-store";
 import { useAuth } from "@/contexts/auth-context";
+import { useBranches } from "@/hooks/use-branches";
+import { useTenant } from "@/hooks/use-tenant";
 import * as auth from "@/services/auth";
 import {
-  getAccessScope,
+  getScopeForUser,
   setCurrentUserId,
   useCurrentUserId,
   type AccessScope,
@@ -238,14 +239,13 @@ export function AppShell({
       // The sidebar remains usable if local storage is unavailable.
     }
   }, [sidebarCollapsed, sidebarPreferenceReady]);
-  const db = useDb();
   const { user: authUser } = useAuth();
   const legacyUserId = useCurrentUserId();
   const userId = authUser?.id ?? legacyUserId;
-  // Build a minimal db with the authenticated user so getAccessScope works with empty mock-store
-  const dbWithUser = authUser ? { ...db, users: [authUser] } : db;
-  const scope = getAccessScope(dbWithUser, userId);
-  const branch = db.branches.find((b) => b.id === scope.user.branchId);
+  const scope = getScopeForUser(authUser ?? null, userId);
+  const { data: branches = [] } = useBranches();
+  const { data: tenant } = useTenant();
+  const branch = branches.find((b) => b.id === scope.user.branchId);
   const tabs = mobileTabs[scope.user.role];
 
   return (
@@ -369,7 +369,7 @@ export function AppShell({
                 <div className={sidebarCollapsed ? "min-w-0 lg:hidden" : "min-w-0"}>
                   <p className="truncate text-xs font-bold">{scope.user.name ?? "—"}</p>
                   <p className="truncate text-[11px] text-muted-foreground">
-                    {roleLabel[scope.user.role]} · {branch?.name ?? db.tenant.name}
+                    {roleLabel[scope.user.role]} · {branch?.name ?? tenant?.name ?? ""}
                   </p>
                 </div>
               </button>
@@ -464,12 +464,10 @@ export function RoleGate({
   message: string;
   children: ReactNode;
 }) {
-  const db = useDb();
   const { user: authUser } = useAuth();
   const legacyUserId = useCurrentUserId();
   const userId = authUser?.id ?? legacyUserId;
-  const dbWithUser = authUser ? { ...db, users: [authUser] } : db;
-  const scope = getAccessScope(dbWithUser, userId);
+  const scope = getScopeForUser(authUser ?? null, userId);
   if (!allow(scope))
     return (
       <AppShell title={title}>

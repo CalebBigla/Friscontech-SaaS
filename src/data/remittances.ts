@@ -16,5 +16,3 @@ export type OwnerRemittance = {
   createdAt: string;
   updatedAt: string;
 };
-
-export const seedOwnerRemittances: OwnerRemittance[] = [];
