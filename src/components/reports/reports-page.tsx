@@ -32,6 +32,7 @@ import {
 } from "@/components/shared";
 import { TargetProgressBar, TargetStatusBadge } from "@/components/targets/target-shared";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { DataGate } from "@/components/shared";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getPreferences } from "@/lib/settings";
 import { getPeriodRange, type PeriodKey } from "@/lib/dates";
@@ -81,7 +82,19 @@ function downloadCsv(name: string, header: string[], rows: (string | number)[][]
   URL.revokeObjectURL(a.href);
 }
 
+/** Waits for Supabase data (real loading and error states), then renders the screen. */
 export function ReportsPage() {
+  const { isLoading, error } = useLiveWorkspace();
+  if (isLoading || error)
+    return (
+      <AppShell title="Reports">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
+  return <ReportsPageContent />;
+}
+
+function ReportsPageContent() {
   const { db } = useLiveWorkspace();
   const scope = getAccessScope(db, useCurrentUserId());
   const today = db.tenant.referenceDate;
@@ -112,11 +125,7 @@ export function ReportsPage() {
       toast.error("Choose a valid date range up to today.");
       return;
     }
-    setLoading(true);
-    setTimeout(() => {
-      setApplied(draft);
-      setLoading(false);
-    }, 300);
+    setApplied(draft);
   };
   const opt = (v: string) => (v === ALL ? undefined : v);
   const filters: ReportFilters = {

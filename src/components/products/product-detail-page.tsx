@@ -17,7 +17,7 @@ import { monthOf } from "@/lib/dates";
 import { formatCompactNaira, formatMonth, formatNaira, formatNumber } from "@/lib/format";
 
 export function ProductDetailPage({ productId }: { productId: string }) {
-  const { db, isLoading, error } = useLiveWorkspace();
+  const { db, isLoading, error } = useLiveWorkspace({ movements: true, batches: true });
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const [editing, setEditing] = useState(false);

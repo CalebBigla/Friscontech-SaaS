@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { EmptyState, MetricCard, Panel } from "@/components/shared";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { DataGate } from "@/components/shared";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getApprovals } from "@/lib/approvals";
 import {
@@ -19,8 +20,20 @@ import { getManagerPaymentSummary, getPaymentsForScope } from "@/lib/payment-cal
 import { canReviewApproval } from "@/lib/approvals";
 
 /** Branch-scoped Manager overview, derived from shared sales and payment records. */
+/** Waits for Supabase data (real loading and error states), then renders the screen. */
 export function ManagerDashboard() {
-  const { db } = useLiveWorkspace();
+  const { isLoading, error } = useLiveWorkspace({ batches: true });
+  if (isLoading || error)
+    return (
+      <AppShell title="Branch overview">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
+  return <ManagerDashboardContent />;
+}
+
+function ManagerDashboardContent() {
+  const { db } = useLiveWorkspace({ batches: true });
   const scope = getAccessScope(db, useCurrentUserId());
   const today = db.tenant.referenceDate;
   const month = monthOf(today);

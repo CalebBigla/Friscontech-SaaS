@@ -23,6 +23,7 @@ import {
 import { RecordSaleDialog } from "@/components/sales/record-sale-dialog";
 import { NewRequestDialog } from "@/components/stock-requests/new-request-dialog";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { DataGate } from "@/components/shared";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import {
   filterSales,
@@ -35,8 +36,20 @@ import { getRepPaymentSummary, getPaymentsForScope } from "@/lib/payment-calcula
 import { monthOf } from "@/lib/dates";
 import { formatDayTime, formatMonth, formatNaira, formatNumber, formatPercent } from "@/lib/format";
 
+/** Waits for Supabase data (real loading and error states), then renders the screen. */
 export function RepDashboard() {
-  const { db } = useLiveWorkspace();
+  const { isLoading, error } = useLiveWorkspace({ activities: true });
+  if (isLoading || error)
+    return (
+      <AppShell title="My dashboard">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
+  return <RepDashboardContent />;
+}
+
+function RepDashboardContent() {
+  const { db } = useLiveWorkspace({ activities: true });
   const scope = getAccessScope(db, useCurrentUserId());
   const [saleOpen, setSaleOpen] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);

@@ -21,6 +21,7 @@ import { AppShell, RestrictedNotice } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { EmptyState, MetricCard, Panel, RequestStatusBadge } from "@/components/shared";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { DataGate } from "@/components/shared";
 import {
   getInventorySummary,
 } from "@/lib/inventory-calculations";
@@ -49,8 +50,20 @@ const periodKey: Record<Period, PeriodKey> = {
 };
 const metricIcons = [CircleDollarSign, Users, Target] as const;
 
+/** Waits for Supabase data (real loading and error states), then renders the screen. */
 export function OwnerDashboard() {
-  const { db } = useLiveWorkspace();
+  const { isLoading, error } = useLiveWorkspace({ activities: true, batches: true });
+  if (isLoading || error)
+    return (
+      <AppShell title="Business health overview">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
+  return <OwnerDashboardContent />;
+}
+
+function OwnerDashboardContent() {
+  const { db } = useLiveWorkspace({ activities: true, batches: true });
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const [period, setPeriod] = useState<Period>("Week");
