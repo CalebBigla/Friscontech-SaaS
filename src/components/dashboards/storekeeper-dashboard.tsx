@@ -4,8 +4,8 @@ import { AlertTriangle, ArrowRight, ClipboardList, Layers, Package, PackageX } f
 
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { EmptyState, MetricCard, Panel, StockStatusBadge } from "@/components/shared";
-import { useDb } from "@/services/mock-store";
+import { DataGate, EmptyState, MetricCard, Panel, StockStatusBadge } from "@/components/shared";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { RepHoldingsPanel } from "@/components/dashboards/rep-holdings-panel";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getInventoryRows, getInventorySummary, getPendingStockRequests, getStockRequestAvailability } from "@/lib/inventory-calculations";
@@ -13,7 +13,8 @@ import { formatDayTime, formatNumber } from "@/lib/format";
 
 /** Stock situation + action queue for the storekeeper's operational branch. */
 export function StorekeeperDashboard() {
-  const db = useDb();
+  // Lots feed the expiry panel; movements feed the rep holdings panel.
+  const { db, isLoading, error } = useLiveWorkspace({ batches: true, movements: true });
   const scope = getAccessScope(db, useCurrentUserId());
   const today = db.tenant.referenceDate;
   const summary = getInventorySummary(db, { branchIds: scope.branchIds });
@@ -28,6 +29,7 @@ export function StorekeeperDashboard() {
     <AppShell title="Stock control" subtitle={branchName ? `Operational branch: ${branchName}` : undefined}>
       <div className="mb-5"><h1 className="text-xl font-bold">Stock situation</h1><p className="mt-1 text-xs text-muted-foreground">What needs your attention right now.</p></div>
 
+      <DataGate isLoading={isLoading} error={error}>
       <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
         <MetricCard icon={Package} tone="brand" label="Total products" value={formatNumber(summary.products)} detail="Managed at this branch" />
         <MetricCard icon={Layers} tone="violet" label="Total stock units" value={formatNumber(available)} detail="Available to issue" />
@@ -58,6 +60,7 @@ export function StorekeeperDashboard() {
       </Panel>
       <ExpiringSoonPanel db={db} branchIds={scope.branchIds} />
       <RepHoldingsPanel db={db} branchIds={scope.branchIds} />
+      </DataGate>
     </AppShell>
   );
 }
