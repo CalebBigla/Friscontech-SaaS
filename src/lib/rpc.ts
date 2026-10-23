@@ -92,6 +92,71 @@ export type PlannedRpcs = {
     p_request_id: string;
     p_reason: string;
   };
+  /**
+   * Sales rep adds a customer to their own branch (branch_id = caller's branch,
+   * created_by = caller). Phone must be unique in the tenant. Returns the customers row.
+   */
+  create_customer: {
+    p_name: string;
+    p_contact_person: string;
+    p_phone: string;
+    p_email: string | null;
+    p_address: string;
+  };
+  /** Sales rep edits a customer of their own branch. Returns the customers row. */
+  update_customer: {
+    p_customer_id: string;
+    p_name: string;
+    p_contact_person: string;
+    p_phone: string;
+    p_email: string | null;
+    p_address: string;
+  };
+  /** Soft (de)activation; customers are never deleted. Returns the customers row. */
+  set_customer_status: {
+    p_customer_id: string;
+    p_status: "active" | "inactive";
+  };
+  /** Owner sets or clears (null) a credit limit. Returns the customers row. */
+  set_customer_credit_limit: {
+    p_customer_id: string;
+    p_credit_limit: number | null;
+  };
+  /**
+   * Payment chain step 1: sales rep records a customer payment (status submitted,
+   * manager_id = the branch manager). Notifies the manager. Returns the
+   * customer_payments row.
+   */
+  record_customer_payment: {
+    p_customer_id: string;
+    p_amount: number;
+    p_method: "cash" | "transfer";
+    p_reference: string | null;
+    p_payment_date: string;
+    p_order_id: string | null;
+    p_note: string | null;
+  };
+  /**
+   * Payment chain step 2: the branch manager acknowledges a submitted payment
+   * (transfer needs a reference). Notifies the owners.
+   */
+  acknowledge_customer_payment: {
+    p_payment_id: string;
+    p_transfer_reference: string | null;
+    p_proof_name: string | null;
+  };
+  /** Payment chain step 3: owner confirms a submitted or acknowledged payment. Notifies the rep. */
+  confirm_customer_payment: {
+    p_payment_id: string;
+  };
+  /**
+   * Decline with a reason: a manager only while submitted, the owner while
+   * submitted or acknowledged. Notifies the rep.
+   */
+  decline_customer_payment: {
+    p_payment_id: string;
+    p_reason: string;
+  };
 };
 
 export async function callRpc<N extends keyof PlannedRpcs>(name: N, args: PlannedRpcs[N]): Promise<unknown> {

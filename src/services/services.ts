@@ -1993,33 +1993,6 @@ export const mockRemittanceService = {
 };
 
 // ---------- customers (accounts) and customer payments ----------
-export type CustomerInput = {
-  name: string;
-  contactPerson: string;
-  phone: string;
-  email: string;
-  address: string;
-};
-export function validateCustomer(db: Db, input: CustomerInput, editingId?: string) {
-  const errors: FieldErrors = {};
-  if (!input.name.trim()) errors.name = "Customer or business name is required";
-  if (!input.phone.trim()) errors.phone = "Phone number is required";
-  else if (!/^[+\d][\d\s-]{6,}$/.test(input.phone.trim()))
-    errors.phone = "Enter a valid phone number";
-  if (input.email.trim() && !/^\S+@\S+\.\S+$/.test(input.email.trim()))
-    errors.email = "Enter a valid email";
-  if (
-    !errors.phone &&
-    db.customers.some(
-      (c) =>
-        c.id !== editingId &&
-        c.tenantId === db.tenant.id &&
-        c.phone.replace(/\s/g, "") === input.phone.trim().replace(/\s/g, ""),
-    )
-  )
-    errors.phone = "A customer with this phone number already exists";
-  return errors;
-}
 function customerActor(db: Db, actorId: string) {
   const scope = getAccessScope(db, actorId);
   if (
@@ -2031,136 +2004,6 @@ function customerActor(db: Db, actorId: string) {
   return scope;
 }
 
-export const mockCustomerService = {
-  async create(input: CustomerInput, actorId: string): Promise<Result<Customer>> {
-    await latency();
-    const db = getDb();
-    const scope = customerActor(db, actorId);
-    if (!scope?.canManageCustomers)
-      return { ok: false, errors: { form: "Only sales representatives can add customers" } };
-    const errors = validateCustomer(db, input);
-    if (Object.keys(errors).length) return { ok: false, errors };
-    const at = nowOnReferenceDay(db);
-    const customer: Customer = {
-      id: `cust-${String(db.customers.length + 1).padStart(3, "0")}-${Math.random().toString(36).slice(2, 5)}`,
-      tenantId: db.tenant.id,
-      branchId: scope.user.branchId,
-      name: input.name.trim(),
-      contactPerson: input.contactPerson.trim(),
-      phone: input.phone.trim(),
-      email: input.email.trim(),
-      address: input.address.trim(),
-      status: "active",
-      createdBy: actorId,
-      createdAt: at,
-      updatedAt: at,
-    };
-    const log = activity(db, actorId, "Customer created", customer.name, {
-      entityId: customer.id,
-      branchId: customer.branchId,
-      metadata: { customerId: customer.id },
-    });
-    setDb((d) => ({
-      ...d,
-      customers: [...d.customers, customer],
-      activities: [log, ...d.activities],
-    }));
-    return { ok: true, data: customer };
-  },
-  async update(id: string, input: CustomerInput, actorId: string): Promise<Result<Customer>> {
-    await latency();
-    const db = getDb();
-    const scope = customerActor(db, actorId);
-    const existing = db.customers.find((c) => c.id === id && c.tenantId === db.tenant.id);
-    if (!existing) return { ok: false, errors: { form: "Customer not found" } };
-    if (
-      !scope?.canManageCustomers ||
-      (existing.branchId && !scope.branchIds?.includes(existing.branchId))
-    )
-      return { ok: false, errors: { form: "You cannot edit this customer" } };
-    const errors = validateCustomer(db, input, id);
-    if (Object.keys(errors).length) return { ok: false, errors };
-    const updated: Customer = {
-      ...existing,
-      name: input.name.trim(),
-      contactPerson: input.contactPerson.trim(),
-      phone: input.phone.trim(),
-      email: input.email.trim(),
-      address: input.address.trim(),
-      updatedAt: nowOnReferenceDay(db),
-    };
-    const log = activity(db, actorId, "Customer updated", updated.name, {
-      entityId: id,
-      branchId: updated.branchId,
-      metadata: { customerId: id },
-    });
-    setDb((d) => ({
-      ...d,
-      customers: d.customers.map((c) => (c.id === id ? updated : c)),
-      activities: [log, ...d.activities],
-    }));
-    return { ok: true, data: updated };
-  },
-  /** Soft (de)activation only — customers are never deleted. */
-  async setStatus(id: string, status: CustomerStatus, actorId: string): Promise<Result<Customer>> {
-    await latency();
-    const db = getDb();
-    const scope = customerActor(db, actorId);
-    const existing = db.customers.find((c) => c.id === id && c.tenantId === db.tenant.id);
-    if (!existing) return { ok: false, errors: { form: "Customer not found" } };
-    if (
-      !scope?.canManageCustomers ||
-      (existing.branchId && !scope.branchIds?.includes(existing.branchId))
-    )
-      return { ok: false, errors: { form: "You cannot change this customer" } };
-    const updated: Customer = { ...existing, status, updatedAt: nowOnReferenceDay(db) };
-    const log = activity(
-      db,
-      actorId,
-      status === "active" ? "Customer activated" : "Customer deactivated",
-      updated.name,
-      { entityId: id, branchId: updated.branchId, metadata: { customerId: id } },
-    );
-    setDb((d) => ({
-      ...d,
-      customers: d.customers.map((c) => (c.id === id ? updated : c)),
-      activities: [log, ...d.activities],
-    }));
-    return { ok: true, data: updated };
-  },
-  async setCreditLimit(
-    id: string,
-    limit: number | null,
-    actorId: string,
-  ): Promise<Result<Customer>> {
-    await latency();
-    const db = getDb();
-    const scope = customerActor(db, actorId);
-    const existing = db.customers.find((c) => c.id === id && c.tenantId === db.tenant.id);
-    if (!existing) return { ok: false, errors: { form: "Customer not found" } };
-    if (!scope?.canSetCreditLimit)
-      return { ok: false, errors: { form: "Only the owner can set credit limits" } };
-    if (limit !== null && (!Number.isFinite(limit) || limit < 0))
-      return { ok: false, errors: { creditLimit: "Enter a valid credit limit" } };
-    const { creditLimit: _old, ...rest } = existing;
-    const updated: Customer = {
-      ...rest,
-      ...(limit ? { creditLimit: limit } : {}),
-      updatedAt: nowOnReferenceDay(db),
-    };
-    const log = activity(db, actorId, "Customer credit limit updated", updated.name, {
-      entityId: id,
-      branchId: updated.branchId,
-      metadata: { customerId: id, ...(limit ? { creditLimit: limit } : {}) },
-    });
-    setDb((d) => ({
-      ...d,
-      customers: d.customers.map((c) => (c.id === id ? updated : c)),
-      activities: [log, ...d.activities],
-    }));
-    return { ok: true, data: updated };
-  },
-};
 
 export type CustomerPaymentInput = {
   customerId: string;
@@ -2438,7 +2281,6 @@ export const notificationService = {
     if (error) console.error("markAllRead failed", error);
   },
 };
-export const customerService = mockCustomerService;
 export const customerPaymentService = mockCustomerPaymentService;
 
 export const teamService = mockTeamService;

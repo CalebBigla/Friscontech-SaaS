@@ -8,7 +8,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/auth-context";
 import { queryKeys } from "@/lib/query-keys";
-import { transformCustomer, customerToDb } from "@/lib/type-adapters";
+import { transformCustomer, type CustomerMigrationRow } from "@/lib/type-adapters";
+import { callRpc, type PlannedRpcs } from "@/lib/rpc";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
 import type { Customer } from "@/data/mock-db";
 
@@ -80,104 +81,28 @@ export function useCustomer(customerId: string | undefined) {
   });
 }
 
-/**
- * Create a new customer
- */
-export function useCreateCustomer() {
+/** Customer writes change customer lists and the audit log. */
+function useCustomerMutation<N extends "create_customer" | "update_customer" | "set_customer_status" | "set_customer_credit_limit">(name: N) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (input: Partial<Customer>) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = customerToDb(input, user.tenantId);
-      
-      const { data, error } = await (supabase as any).from('customers')
-        .insert(dbData)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformCustomer(data);
+    mutationFn: async (args: PlannedRpcs[N]): Promise<Customer> => {
+      const row = await callRpc(name, args);
+      return transformCustomer(row as CustomerMigrationRow);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.customers.all(user?.tenantId || '') 
-      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.customers.root() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all(user?.tenantId ?? "") });
     },
   });
 }
 
-/**
- * Update an existing customer
- */
-export function useUpdateCustomer() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Customer> }) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = customerToDb(updates, user.tenantId);
-      
-      const { data, error } = await (supabase as any).from('customers')
-        .update(dbData)
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformCustomer(data);
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.customers.all(user?.tenantId || '') 
-      });
-      if (data.branchId) queryClient.invalidateQueries({
-        queryKey: queryKeys.customers.byBranch(data.branchId)
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.customers.detail(data.id) 
-      });
-    },
-  });
-}
-
-/**
- * Deactivate a customer (soft delete)
- */
-export function useDeactivateCustomer() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (customerId: string) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const { data, error } = await (supabase as any).from('customers')
-        .update({ 
-          status: 'inactive',
-          deactivated_at: new Date().toISOString(),
-        })
-        .eq('id', customerId)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformCustomer(data);
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.customers.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.customers.detail(data.id) 
-      });
-    },
-  });
-}
+/** Sales rep adds a customer (RPC create_customer). */
+export const useCreateCustomer = () => useCustomerMutation("create_customer");
+/** Sales rep edits a customer (RPC update_customer). */
+export const useUpdateCustomer = () => useCustomerMutation("update_customer");
+/** Soft (de)activation (RPC set_customer_status). */
+export const useSetCustomerStatus = () => useCustomerMutation("set_customer_status");
+/** Owner sets the credit limit (RPC set_customer_credit_limit). */
+export const useSetCustomerCreditLimit = () => useCustomerMutation("set_customer_credit_limit");

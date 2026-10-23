@@ -77,6 +77,8 @@ export const queryKeys = {
 
   // Customers
   customers: {
+    /** Prefix of every customer query. */
+    root: () => ["customers"] as const,
     all: (tenantId: string) => ["customers", tenantId] as const,
     list: (tenantId: string, filters?: object) =>
       ["customers", tenantId, "list", filters] as const,
@@ -89,6 +91,8 @@ export const queryKeys = {
 
   // Customer payments
   customerPayments: {
+    /** Prefix of every customer payment query. */
+    root: () => ["customerPayments"] as const,
     all: (tenantId: string) => ["customerPayments", tenantId] as const,
     byCustomer: (customerId: string) =>
       ["customerPayments", "customer", customerId] as const,

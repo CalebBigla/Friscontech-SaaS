@@ -12,7 +12,7 @@ import {
 } from "@/components/customers/customer-dialogs";
 import { PaymentStatusBadge } from "@/components/payments/payment-page";
 import { RecordSaleDialog } from "@/components/sales/record-sale-dialog";
-import { DetailItem, EmptyState, Panel, StatTile } from "@/components/shared";
+import { DataGate, DetailItem, EmptyState, Panel, StatTile } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { saleTotal } from "@/lib/calculations";
@@ -28,7 +28,12 @@ import {
 import { formatDate, formatNaira } from "@/lib/format";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
-import { customerService } from "@/services/services";
+import { useSetCustomerStatus } from "@/hooks/use-customers";
+import { runWrite, validateCustomerStatus } from "@/lib/validation";
+
+/** Customer data is user-entered; escape it before writing the printable statement. */
+const escapeHtml = (value: string) =>
+  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 const orderTone = {
   paid: "status-success",
@@ -37,12 +42,19 @@ const orderTone = {
 } as const;
 
 export function CustomerDetailPage({ customerId }: { customerId: string }) {
-  const { db } = useLiveWorkspace();
+  const { db, isLoading, error } = useLiveWorkspace();
+  const setStatus = useSetCustomerStatus();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const customer = db.customers.find((c) => c.id === customerId);
   const [dialog, setDialog] = useState<"edit" | "order" | "payment" | "limit" | null>(null);
 
+  if (isLoading || error)
+    return (
+      <AppShell title="Customer">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
   if (!customer || !canAccessCustomer(scope, customer))
     return (
       <AppShell title="Customer">
@@ -78,20 +90,21 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
       .reverse()
       .map(
         (r) =>
-          `<tr><td>${r.date}</td><td>${r.description}</td><td>${r.debit ? formatNaira(r.debit) : ""}</td><td>${r.credit ? formatNaira(r.credit) : ""}</td><td>${formatNaira(r.balance)}</td></tr>`,
+          `<tr><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.description)}</td><td>${r.debit ? formatNaira(r.debit) : ""}</td><td>${r.credit ? formatNaira(r.credit) : ""}</td><td>${formatNaira(r.balance)}</td></tr>`,
       )
       .join("");
     w.document.write(
-      `<html><head><title>Statement · ${customer.name}</title><style>body{font-family:system-ui,sans-serif;padding:32px;color:#111}h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:12px}td,th{border-bottom:1px solid #ddd;padding:6px;text-align:left}</style></head><body><h1>Friscontech · Customer statement</h1><p>${customer.name}<br/>${customer.phone} · ${customer.address}<br/>As of ${formatDate(db.tenant.referenceDate)} · Balance ${formatNaira(summary.balance)}</p><table><thead><tr><th>Date</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></body></html>`,
+      `<html><head><title>Statement · ${escapeHtml(customer.name)}</title><style>body{font-family:system-ui,sans-serif;padding:32px;color:#111}h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:12px}td,th{border-bottom:1px solid #ddd;padding:6px;text-align:left}</style></head><body><h1>Friscontech · Customer statement</h1><p>${escapeHtml(customer.name)}<br/>${escapeHtml(customer.phone)} · ${escapeHtml(customer.address)}<br/>As of ${formatDate(db.tenant.referenceDate)} · Balance ${formatNaira(summary.balance)}</p><table><thead><tr><th>Date</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></body></html>`,
     );
     w.document.close();
     w.print();
   };
   const toggleStatus = async () => {
-    const result = await customerService.setStatus(
-      customer.id,
-      customer.status === "active" ? "inactive" : "active",
-      userId,
+    const result = await runWrite(validateCustomerStatus(db, scope, customer), () =>
+      setStatus.mutateAsync({
+        p_customer_id: customer.id,
+        p_status: customer.status === "active" ? "inactive" : "active",
+      }),
     );
     if (result.ok)
       toast.success(

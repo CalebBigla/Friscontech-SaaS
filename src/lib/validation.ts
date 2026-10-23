@@ -4,7 +4,8 @@
  * Same rules and messages the app has always shown. The database (RPCs and
  * CHECK constraints) enforces them again; this only gives faster feedback.
  */
-import type { ApprovalRequest, Db, InventoryRecord, StockRequest } from "@/data/mock-db";
+import type { ApprovalRequest, Customer, CustomerPaymentMethod, Db, InventoryRecord, StockRequest } from "@/data/mock-db";
+import { fieldErrorsFrom } from "@/lib/supabase-helpers";
 import { canReviewApproval } from "@/lib/approvals";
 import { findInventory, getAvailable, getRequestOutstanding } from "@/lib/inventory-calculations";
 import type { AccessScope } from "@/lib/session";
@@ -64,8 +65,32 @@ export type FieldErrors = Partial<Record<FieldName, string>> & {
   itemErrors?: Record<number, Partial<Record<"productId" | "quantity", string>>>;
 };
 
+export type Result<T> = { ok: true; data: T } | { ok: false; errors: FieldErrors };
+
+/**
+ * Run a write: client checks first, then the Supabase call. Database errors come
+ * back as field errors (RPC HINT) or a form error, in the same Result shape the
+ * screens already handle.
+ */
+export async function runWrite<T>(invalid: FieldErrors | null, write: () => Promise<T>): Promise<Result<T>> {
+  if (invalid) return { ok: false, errors: invalid };
+  try {
+    return { ok: true, data: await write() };
+  } catch (error) {
+    return { ok: false, errors: fieldErrorsFrom(error, FIELD_NAMES) };
+  }
+}
+
 const isDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+/** A real calendar date in YYYY-MM-DD form. */
+export const isValidDate = (value: string) => {
+  if (!isDate(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+};
 const hasErrors = (errors: FieldErrors) => Object.keys(errors).length > 0;
+/** The acting profile must be active and in this tenant. */
+const isActiveActor = (db: Db, scope: AccessScope) => scope.user.status === "active" && scope.user.tenantId === db.tenant.id;
 
 // ---------- inventory ----------
 
@@ -207,4 +232,73 @@ export function validateRejectRequest(db: Db, actorId: string, a: ApprovalReques
   if (a.status !== "pending") return { form: "This request was already reviewed" };
   if (reason.trim().length < 3) return { reason: "A rejection reason is required" };
   return null;
+}
+
+// ---------- customers ----------
+
+export type CustomerInput = {
+  name: string;
+  contactPerson: string;
+  phone: string;
+  email: string;
+  address: string;
+};
+
+export function validateCustomer(db: Db, input: CustomerInput, editingId?: string): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!input.name.trim()) errors.name = "Customer or business name is required";
+  if (!input.phone.trim()) errors.phone = "Phone number is required";
+  else if (!/^[+\d][\d\s-]{6,}$/.test(input.phone.trim())) errors.phone = "Enter a valid phone number";
+  if (input.email.trim() && !/^\S+@\S+\.\S+$/.test(input.email.trim())) errors.email = "Enter a valid email";
+  if (!errors.phone && db.customers.some((c) => c.id !== editingId && c.tenantId === db.tenant.id
+    && c.phone.replace(/\s/g, "") === input.phone.trim().replace(/\s/g, "")))
+    errors.phone = "A customer with this phone number already exists";
+  return errors;
+}
+
+/** Sales reps create and edit customers of their own branch. */
+export function validateCustomerWrite(db: Db, scope: AccessScope, input: CustomerInput, existing?: Customer): FieldErrors | null {
+  if (!isActiveActor(db, scope) || !scope.canManageCustomers)
+    return { form: existing ? "You cannot edit this customer" : "Only sales representatives can add customers" };
+  if (existing?.branchId && !scope.branchIds?.includes(existing.branchId)) return { form: "You cannot edit this customer" };
+  const errors = validateCustomer(db, input, existing?.id);
+  return hasErrors(errors) ? errors : null;
+}
+
+/** Soft (de)activation only — customers are never deleted. */
+export function validateCustomerStatus(db: Db, scope: AccessScope, existing: Customer): FieldErrors | null {
+  if (!isActiveActor(db, scope) || !scope.canManageCustomers || (existing.branchId && !scope.branchIds?.includes(existing.branchId)))
+    return { form: "You cannot change this customer" };
+  return null;
+}
+
+export function validateCreditLimit(db: Db, scope: AccessScope, limit: number | null): FieldErrors | null {
+  if (!isActiveActor(db, scope) || !scope.canSetCreditLimit) return { form: "Only the owner can set credit limits" };
+  if (limit !== null && (!Number.isFinite(limit) || limit < 0)) return { creditLimit: "Enter a valid credit limit" };
+  return null;
+}
+
+export type CustomerPaymentInput = {
+  customerId: string;
+  amount: number;
+  method: CustomerPaymentMethod;
+  reference?: string;
+  paymentDate: string;
+  orderId?: string;
+  note?: string;
+};
+
+/** Sales rep records a customer payment; it goes to the branch manager to acknowledge. */
+export function validateCustomerPayment(db: Db, scope: AccessScope, input: CustomerPaymentInput): FieldErrors | null {
+  if (!isActiveActor(db, scope) || !scope.canManageCustomers || !scope.user.branchId)
+    return { form: "Only sales representatives can record customer payments" };
+  const errors: FieldErrors = {};
+  const customer = db.customers.find((c) => c.id === input.customerId && c.tenantId === db.tenant.id);
+  if (!customer || (customer.branchId && customer.branchId !== scope.user.branchId)) errors.customerId = "Choose a customer from your branch";
+  if (!Number.isFinite(input.amount) || input.amount <= 0) errors.amount = "Amount must be greater than zero";
+  if (input.method !== "cash" && input.method !== "transfer") errors.method = "Choose a method";
+  if (input.method === "transfer" && !input.reference?.trim()) errors.reference = "A transfer reference is required";
+  if (!isValidDate(input.paymentDate) || input.paymentDate > db.tenant.referenceDate) errors.paymentDate = "Enter a valid date (not in the future)";
+  if (!db.branches.find((b) => b.id === scope.user.branchId)?.managerId) errors.form = "A branch manager must be assigned first";
+  return hasErrors(errors) ? errors : null;
 }
