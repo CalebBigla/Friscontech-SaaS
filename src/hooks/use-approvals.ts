@@ -5,7 +5,10 @@
  * Managers request, owner approves/rejects.
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/auth-context';
+import { invalidateStock } from '@/hooks/use-inventory';
+import { callRpc, type PlannedRpcs } from '@/lib/rpc';
 import { supabase } from '@/lib/supabase';
 import { queryKeys } from '@/lib/query-keys';
 import { handleSupabaseError } from '@/lib/supabase-helpers';
@@ -14,8 +17,6 @@ import { transformApprovalRequest, type ApprovalRequestMigrationRow } from '@/li
 import type { ApprovalRequest } from '@/data/mock-db';
 
 type ApprovalRequestRow = Database['public']['Tables']['approval_requests']['Row'];
-type ApprovalRequestInsert = Database['public']['Tables']['approval_requests']['Insert'];
-type ApprovalRequestUpdate = Database['public']['Tables']['approval_requests']['Update'];
 
 type ApprovalRequestType = 'product_deactivation' | 'stock_addition' | 'team_member';
 type ApprovalStatus = 'pending' | 'approved' | 'rejected';
@@ -109,143 +110,37 @@ export function useApprovalRequest(id: string) {
   });
 }
 
-/**
- * Create a new approval request
- */
-export function useCreateApprovalRequest() {
+/** Approving applies stock or deactivates products, so it touches more than approvals. */
+function invalidateApprovals(queryClient: QueryClient, tenantId: string) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.approvals.all(tenantId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.products.all(tenantId) });
+  invalidateStock(queryClient, tenantId);
+}
+
+/** Approve one or more pending requests, all or nothing (RPC approve_requests). */
+export function useApproveRequests() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: ApprovalRequestInsert) => {
-      const { data, error } = await (supabase as any).from('approval_requests')
-        .insert(input)
-        .select()
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-      return data as ApprovalRequestRow;
+    mutationFn: async (args: PlannedRpcs['approve_requests']): Promise<ApprovalRequest[]> => {
+      const rows = await callRpc('approve_requests', args);
+      return ((rows ?? []) as ApprovalRequestMigrationRow[]).map(transformApprovalRequest);
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals.all(data.tenant_id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals.pending(data.tenant_id),
-      });
-    },
+    onSuccess: () => invalidateApprovals(queryClient, user?.tenantId ?? ''),
   });
 }
 
-/**
- * Approve an approval request
- */
-export function useApproveRequest() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      id,
-      reviewerId,
-    }: {
-      id: string;
-      reviewerId: string;
-    }) => {
-      const now = new Date().toISOString();
-      
-      const { data, error } = await (supabase as any).from('approval_requests')
-        .update({
-          status: 'approved',
-          reviewed_by: reviewerId,
-          reviewed_at: now,
-          rejection_reason: null,
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-      return data as ApprovalRequestRow;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals.all(data.tenant_id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals.detail(data.id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals.pending(data.tenant_id),
-      });
-    },
-  });
-}
-
-/**
- * Reject an approval request
- */
+/** Reject a pending request with a reason (RPC reject_request). */
 export function useRejectRequest() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      id,
-      reviewerId,
-      reason,
-    }: {
-      id: string;
-      reviewerId: string;
-      reason: string;
-    }) => {
-      const now = new Date().toISOString();
-      
-      const { data, error } = await (supabase as any).from('approval_requests')
-        .update({
-          status: 'rejected',
-          reviewed_by: reviewerId,
-          reviewed_at: now,
-          rejection_reason: reason,
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-      return data as ApprovalRequestRow;
+    mutationFn: async (args: PlannedRpcs['reject_request']): Promise<ApprovalRequest> => {
+      const row = await callRpc('reject_request', args);
+      return transformApprovalRequest(row as ApprovalRequestMigrationRow);
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals.all(data.tenant_id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals.detail(data.id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals.pending(data.tenant_id),
-      });
-    },
-  });
-}
-
-/**
- * Delete an approval request (if needed, e.g., if requester wants to cancel)
- */
-export function useDeleteApprovalRequest() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from('approval_requests')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw handleSupabaseError(error);
-      return { id };
-    },
-    onSuccess: () => {
-      // Invalidate all approval queries since we don't have tenantId here
-      queryClient.invalidateQueries({
-        queryKey: ["approvals"],
-      });
-    },
+    onSuccess: () => invalidateApprovals(queryClient, user?.tenantId ?? ''),
   });
 }

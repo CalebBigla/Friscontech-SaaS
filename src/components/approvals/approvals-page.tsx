@@ -14,10 +14,13 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ALL, EmptyState, FieldError, FilterSelect, MetricCard, Panel } from "@/components/shared";
+import { ALL, DataGate, EmptyState, FieldError, FilterSelect, MetricCard, Panel } from "@/components/shared";
 import type { ApprovalRequest } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
-import { approvalService, canReviewApproval } from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useApproveRequests, useRejectRequest } from "@/hooks/use-approvals";
+import { canReviewApproval } from "@/lib/approvals";
+import { fieldErrorsFrom } from "@/lib/supabase-helpers";
+import { FIELD_NAMES, validateApproveRequests, validateRejectRequest } from "@/lib/validation";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import {
   approvalTypeLabel,
@@ -34,7 +37,9 @@ const statusTone = {
 } as const;
 
 export function ApprovalsPage() {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
+  const approveRequests = useApproveRequests();
+  const rejectRequest = useRejectRequest();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const today = db.tenant.referenceDate;
@@ -66,45 +71,53 @@ export function ApprovalsPage() {
         : Object.entries(approvalTypeLabel).filter(([k]) => k !== "team_member");
 
   async function approve(a: ApprovalRequest) {
+    const invalid = validateApproveRequests(db, userId, [a]);
+    if (invalid) return void toast.error(invalid.form ?? "Could not approve");
     setBusy(a.id);
-    const r = await approvalService.approve(a.id, userId);
-    setBusy(null);
-    if (r.ok)
+    try {
+      await approveRequests.mutateAsync({ p_request_ids: [a.id] });
       toast.success(a.emergency ? "Emergency addition marked as reviewed." : "Request approved.", {
-        description: `${a.id} · ${describeApproval(db, a).title}`,
+        description: describeApproval(db, a).title,
       });
-    else toast.error(r.errors.form ?? "Could not approve");
+    } catch (failure) {
+      toast.error(fieldErrorsFrom(failure, FIELD_NAMES).form ?? "Could not approve");
+    } finally {
+      setBusy(null);
+    }
   }
   async function reject() {
     if (!rejecting) return;
+    const invalid = validateRejectRequest(db, userId, rejecting, reason);
+    if (invalid) return void setReasonErr(invalid.reason ?? invalid.form);
     setBusy(rejecting.id);
-    const r = await approvalService.reject(rejecting.id, reason, userId);
-    setBusy(null);
-    if (!r.ok) {
-      setReasonErr(
-        (r.errors.reason as string | undefined) ?? (r.errors.form as string | undefined),
-      );
-      return;
+    try {
+      await rejectRequest.mutateAsync({ p_request_id: rejecting.id, p_reason: reason.trim() });
+      toast.success("Request rejected.", { description: describeApproval(db, rejecting).title });
+      setRejecting(null);
+    } catch (failure) {
+      const failed = fieldErrorsFrom(failure, FIELD_NAMES);
+      setReasonErr(failed.reason ?? failed.form);
+    } finally {
+      setBusy(null);
     }
-    toast.success("Request rejected.", { description: rejecting.id });
-    setRejecting(null);
   }
   async function approveSelected() {
-    setBusy("bulk");
-    const result = await approvalService.approveMany(
-      selectedVisible.map((item) => item.id),
-      userId,
-    );
-    setBusy(null);
-    setBulkConfirm(false);
-    if (!result.ok) {
-      toast.error(result.errors.form ?? "Could not approve selected requests");
-      return;
+    const invalid = validateApproveRequests(db, userId, selectedVisible);
+    if (invalid) {
+      setBulkConfirm(false);
+      return void toast.error(invalid.form ?? "Could not approve selected requests");
     }
-    setSelectedIds((ids) => ids.filter((id) => !selectedVisible.some((item) => item.id === id)));
-    toast.success(
-      String(result.data.length) + " request" + (result.data.length === 1 ? "" : "s") + " approved",
-    );
+    setBusy("bulk");
+    try {
+      const approved = await approveRequests.mutateAsync({ p_request_ids: selectedVisible.map((item) => item.id) });
+      setSelectedIds((ids) => ids.filter((id) => !selectedVisible.some((item) => item.id === id)));
+      toast.success(String(approved.length) + " request" + (approved.length === 1 ? "" : "s") + " approved");
+    } catch (failure) {
+      toast.error(fieldErrorsFrom(failure, FIELD_NAMES).form ?? "Could not approve selected requests");
+    } finally {
+      setBusy(null);
+      setBulkConfirm(false);
+    }
   }
   const toggleSelected = (id: string, checked: boolean) =>
     setSelectedIds((ids) =>
@@ -160,6 +173,7 @@ export function ApprovalsPage() {
         </p>
       </div>
 
+      <DataGate isLoading={isLoading} error={error}>
       <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <MetricCard
           icon={Clock}
@@ -311,6 +325,7 @@ export function ApprovalsPage() {
           </div>
         )}
       </Panel>
+      </DataGate>
 
       <Dialog open={!!rejecting} onOpenChange={(o) => !o && setRejecting(null)}>
         <DialogContent className="sm:max-w-md">

@@ -38,7 +38,7 @@ import {
 import { getPeriodRange, isoWeek, previousRange, type PeriodKey } from "@/lib/dates";
 import { formatCompactNaira, formatDate, formatNumber, formatPercent, formatTime } from "@/lib/format";
 import { getManagerRemittances } from "@/lib/remittance-calculations";
-import { canReviewApproval } from "@/services/services";
+import { canReviewApproval } from "@/lib/approvals";
 
 type Period = "Day" | "Week" | "Month" | "Quarter";
 const periodKey: Record<Period, PeriodKey> = {

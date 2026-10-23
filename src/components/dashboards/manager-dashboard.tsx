@@ -16,7 +16,7 @@ import {
 import { monthOf } from "@/lib/dates";
 import { formatCompactNaira, formatPercent } from "@/lib/format";
 import { getManagerPaymentSummary, getPaymentsForScope } from "@/lib/payment-calculations";
-import { canReviewApproval } from "@/services/services";
+import { canReviewApproval } from "@/lib/approvals";
 
 /** Branch-scoped Manager overview, derived from shared sales and payment records. */
 export function ManagerDashboard() {

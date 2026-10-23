@@ -4,7 +4,8 @@
  * Same rules and messages the app has always shown. The database (RPCs and
  * CHECK constraints) enforces them again; this only gives faster feedback.
  */
-import type { Db, InventoryRecord, StockRequest } from "@/data/mock-db";
+import type { ApprovalRequest, Db, InventoryRecord, StockRequest } from "@/data/mock-db";
+import { canReviewApproval } from "@/lib/approvals";
 import { findInventory, getAvailable, getRequestOutstanding } from "@/lib/inventory-calculations";
 import type { AccessScope } from "@/lib/session";
 
@@ -175,5 +176,35 @@ export function validateAcknowledgeStockRequest(scope: AccessScope, req: StockRe
   if (!scope.canAcknowledgeStock || req.repId !== scope.user.id) return { form: "Only the requesting sales rep can acknowledge receipt" };
   if (req.status !== "fulfilled") return { form: "Only fulfilled requests can be acknowledged" };
   if (req.acknowledgedAt) return { form: "Receipt was already acknowledged" };
+  return null;
+}
+
+// ---------- approvals ----------
+
+/** Why a pending request can't be approved right now, or null. */
+function approvalBlocker(db: Db, actorId: string, a: ApprovalRequest): string | null {
+  if (a.status !== "pending" || !canReviewApproval(db, actorId, a)) return "is no longer eligible for approval";
+  const product = db.products.find((p) => p.id === a.productId);
+  if (a.type === "product_deactivation" && product?.status !== "active") return "product is already inactive";
+  if (a.type === "team_member" && db.users.some((u) => u.email.toLowerCase() === a.member?.email.toLowerCase()))
+    return "email is already in use";
+  if (a.type === "stock_addition" && !a.emergency && product?.status !== "active") return "product is inactive";
+  return null;
+}
+
+/** All-or-nothing: every selected request must be approvable. */
+export function validateApproveRequests(db: Db, actorId: string, requests: ApprovalRequest[]): FieldErrors | null {
+  if (!requests.length) return { form: "Select at least one pending approval" };
+  for (const a of requests) {
+    const blocker = approvalBlocker(db, actorId, a);
+    if (blocker) return { form: requests.length === 1 ? `This request ${blocker}` : `${a.id}: ${blocker}` };
+  }
+  return null;
+}
+
+export function validateRejectRequest(db: Db, actorId: string, a: ApprovalRequest, reason: string): FieldErrors | null {
+  if (!canReviewApproval(db, actorId, a)) return { form: "You can't review this request" };
+  if (a.status !== "pending") return { form: "This request was already reviewed" };
+  if (reason.trim().length < 3) return { reason: "A rejection reason is required" };
   return null;
 }

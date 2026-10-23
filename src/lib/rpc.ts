@@ -75,6 +75,23 @@ export type PlannedRpcs = {
   acknowledge_stock_request: {
     p_request_id: string;
   };
+  /**
+   * Approve one or more pending approval requests, all or nothing: every request
+   * is checked (pending, caller may review it, not their own) before any is applied.
+   * stock_addition (non-emergency): applies the stock like add_stock's emergency path.
+   * product_deactivation: sets the product inactive (soft-deactivation).
+   * team_member: records the decision only; the member joins through an onboarding
+   * invite, because users.id must be an auth account.
+   * Writes one audit row per request. Returns the approval_requests rows.
+   */
+  approve_requests: {
+    p_request_ids: string[];
+  };
+  /** Reject a pending approval request with a reason (at least 3 characters). */
+  reject_request: {
+    p_request_id: string;
+    p_reason: string;
+  };
 };
 
 export async function callRpc<N extends keyof PlannedRpcs>(name: N, args: PlannedRpcs[N]): Promise<unknown> {
