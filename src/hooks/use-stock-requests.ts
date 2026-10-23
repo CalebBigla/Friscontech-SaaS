@@ -4,11 +4,13 @@
  * Data fetching and mutations for stock request workflow
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/auth-context";
 import { queryKeys } from "@/lib/query-keys";
-import { transformStockRequest, stockRequestToDb } from "@/lib/type-adapters";
+import { transformStockRequest, type StockRequestMigrationRow } from "@/lib/type-adapters";
+import { callRpc, type PlannedRpcs } from "@/lib/rpc";
+import { invalidateStock } from "@/hooks/use-inventory";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
 import type { StockRequest } from "@/data/mock-db";
 
@@ -102,69 +104,46 @@ export function useStockRequest(requestId: string | undefined) {
   });
 }
 
-/**
- * Create a new stock request
- */
-export function useCreateStockRequest() {
+function useStockRequestMutation<N extends "approve_stock_request" | "reject_stock_request" | "fulfil_stock_request" | "acknowledge_stock_request">(name: N) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (input: Partial<StockRequest>) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = stockRequestToDb(input, user.tenantId);
-      
-      const { data, error } = await (supabase as any).from('stock_requests')
-        .insert(dbData)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformStockRequest(data);
+    mutationFn: async (args: PlannedRpcs[N]): Promise<StockRequest> => {
+      const row = await callRpc(name, args);
+      return transformStockRequest(row as StockRequestMigrationRow);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.stockRequests.all(user?.tenantId || '') 
-      });
-    },
+    onSuccess: () => invalidateStockRequests(queryClient, user?.tenantId ?? "", name === "fulfil_stock_request"),
   });
 }
 
-/**
- * Update stock request (approve, reject, fulfill, cancel)
- */
-export function useUpdateStockRequest() {
+/** Requests change the queue, notifications and audit log; fulfilment also moves stock. */
+function invalidateStockRequests(queryClient: QueryClient, tenantId: string, stockMoved: boolean) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.stockRequests.root() });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.root() });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all(tenantId) });
+  if (stockMoved) invalidateStock(queryClient, tenantId);
+}
+
+/** Sales rep submits one or more products for their branch (RPC create_stock_requests). */
+export function useCreateStockRequests() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<StockRequest> }) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = stockRequestToDb(updates, user.tenantId);
-      
-      const { data, error } = await (supabase as any).from('stock_requests')
-        .update(dbData)
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformStockRequest(data);
+    mutationFn: async (args: PlannedRpcs["create_stock_requests"]): Promise<StockRequest[]> => {
+      const rows = await callRpc("create_stock_requests", args);
+      return ((rows ?? []) as StockRequestMigrationRow[]).map(transformStockRequest);
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.stockRequests.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.stockRequests.detail(data.id) 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.stockRequests.byBranch(data.branchId) 
-      });
-    },
+    onSuccess: () => invalidateStockRequests(queryClient, user?.tenantId ?? "", false),
   });
 }
+
+/** Storekeeper: pending → approved (RPC approve_stock_request). */
+export const useApproveStockRequest = () => useStockRequestMutation("approve_stock_request");
+/** Storekeeper: pending → rejected (RPC reject_stock_request). */
+export const useRejectStockRequest = () => useStockRequestMutation("reject_stock_request");
+/** Storekeeper: issue stock against an approved request (RPC fulfil_stock_request). */
+export const useFulfilStockRequest = () => useStockRequestMutation("fulfil_stock_request");
+/** Sales rep: confirm receipt of fulfilled stock (RPC acknowledge_stock_request). */
+export const useAcknowledgeStockRequest = () => useStockRequestMutation("acknowledge_stock_request");

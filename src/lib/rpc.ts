@@ -41,6 +41,40 @@ export type PlannedRpcs = {
     p_counted_quantity: number;
     p_reason: string;
   };
+  /**
+   * Sales rep stock request for their own branch. One row per product, sharing a
+   * batch_id when several products are requested together. Generates the text ids
+   * (stock_requests.id has no default), notifies every active storekeeper of the
+   * branch, writes one audit row per request. Returns the stock_requests rows.
+   */
+  create_stock_requests: {
+    p_branch_id: string;
+    p_items: { product_id: string; quantity: number }[];
+    p_note: string | null;
+  };
+  /** Pending → approved (quantity_approved = quantity_requested). Never touches stock. */
+  approve_stock_request: {
+    p_request_id: string;
+  };
+  /** Pending → rejected with a reason. The row is kept for history. */
+  reject_stock_request: {
+    p_request_id: string;
+    p_reason: string;
+  };
+  /**
+   * Approved / partially fulfilled → (partially) fulfilled. The only step that
+   * deducts stock: inventory, stock_issued movement, lots drained FEFO, rep
+   * notified, audit row. Must replace the existing stock_request_fulfillment
+   * trigger, which skips repeat partial issues and decrements quantity_reserved.
+   */
+  fulfil_stock_request: {
+    p_request_id: string;
+    p_quantity: number;
+  };
+  /** The requesting rep confirms receipt of a fulfilled request. */
+  acknowledge_stock_request: {
+    p_request_id: string;
+  };
 };
 
 export async function callRpc<N extends keyof PlannedRpcs>(name: N, args: PlannedRpcs[N]): Promise<unknown> {

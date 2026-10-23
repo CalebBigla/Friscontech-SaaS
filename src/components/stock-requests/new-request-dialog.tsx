@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldError, FilterSelect, StockStatusBadge } from "@/components/shared";
-import { useDb } from "@/services/mock-store";
-import { stockRequestService, type FieldErrors } from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useCreateStockRequests } from "@/hooks/use-stock-requests";
+import { fieldErrorsFrom } from "@/lib/supabase-helpers";
+import { FIELD_NAMES, validateStockRequests, type FieldErrors } from "@/lib/validation";
 import type { AccessScope } from "@/lib/session";
 import { findInventory, getAvailable, getInventoryStatus } from "@/lib/inventory-calculations";
 import { formatUnits } from "@/lib/format";
@@ -20,14 +22,15 @@ const blank = (): Line => ({ key: ++seq, productId: "", quantity: "" });
 
 /** One request, several products. Each line is validated on its own; a product can appear only once. */
 export function NewRequestDialog({ open, onOpenChange, scope }: { open: boolean; onOpenChange: (o: boolean) => void; scope: AccessScope }) {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
+  const createRequests = useCreateStockRequests();
   const branchId = scope.user.branchId ?? "";
   const branch = db.branches.find((b) => b.id === branchId);
   const [lines, setLines] = useState<Line[]>([blank()]);
   const [note, setNote] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [review, setReview] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const saving = createRequests.isPending;
   useEffect(() => { if (open) { setLines([blank()]); setNote(""); setErrors({}); setReview(false); } }, [open]);
 
   const stocked = db.products.filter((p) => p.status === "active" && findInventory(db, branchId, p.id));
@@ -50,12 +53,21 @@ export function NewRequestDialog({ open, onOpenChange, scope }: { open: boolean;
   }
 
   async function submit() {
-    setSaving(true);
-    const r = await stockRequestService.createBatch({ branchId, note, items: lines.map((l) => ({ productId: l.productId, quantity: Number(l.quantity) })) }, scope.user.id);
-    setSaving(false);
-    if (!r.ok) { setErrors(r.errors); setReview(false); toast.error(r.errors.form ?? (r.errors.items as string | undefined) ?? "Please fix the highlighted fields"); return; }
-    toast.success(r.data.length > 1 ? `${r.data.length} products requested.` : "Stock request submitted.", { description: `${r.data.map((x) => x.id).join(", ")} pending storekeeper review` });
-    onOpenChange(false);
+    const items = lines.map((l) => ({ productId: l.productId, quantity: Number(l.quantity) }));
+    const fail = (e: FieldErrors) => { setErrors(e); setReview(false); toast.error(e.form ?? e.items ?? "Please fix the highlighted fields"); };
+    const invalid = validateStockRequests(db, scope, { branchId, items });
+    if (invalid) return fail(invalid);
+    try {
+      const created = await createRequests.mutateAsync({
+        p_branch_id: branchId,
+        p_items: items.map((it) => ({ product_id: it.productId, quantity: it.quantity })),
+        p_note: note.trim() || null,
+      });
+      toast.success(created.length > 1 ? `${created.length} products requested.` : "Stock request submitted.", { description: `${created.map((x) => x.id).join(", ")} pending storekeeper review` });
+      onOpenChange(false);
+    } catch (error) {
+      fail(fieldErrorsFrom(error, FIELD_NAMES));
+    }
   }
 
   const itemErr = (i: number) => errors.itemErrors?.[i];

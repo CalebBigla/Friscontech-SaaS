@@ -5,12 +5,12 @@ import { Check, CheckCheck, ClipboardList, Clock, Eye, MoreHorizontal, PackageCh
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ALL, EmptyState, FilterSelect, MetricCard, Panel, RequestStatusBadge, SearchBox, StockStatusBadge } from "@/components/shared";
+import { ALL, DataGate, EmptyState, FilterSelect, MetricCard, Panel, RequestStatusBadge, SearchBox, StockStatusBadge } from "@/components/shared";
 import { NewRequestDialog } from "@/components/stock-requests/new-request-dialog";
 import { AcknowledgeDialog } from "@/components/stock-requests/acknowledge-dialog";
 import { RequestActionDialog, type RequestAction } from "@/components/stock-requests/request-action-dialogs";
 import type { StockRequest, StockRequestStatus } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getRepIssuedStock, getRequestDisplayStatus, getStockRequestAvailability, getStockRequests, getStockRequestSummary, needsAcknowledgement, requestDisplayLabel, withinDays } from "@/lib/inventory-calculations";
 import { monthOf } from "@/lib/dates";
@@ -19,7 +19,8 @@ import { formatDayTime, formatNumber, formatShortDate } from "@/lib/format";
 const PAGE = 20;
 
 export function StockRequestsPage({ initialStatus }: { initialStatus?: StockRequestStatus | undefined }) {
-  const db = useDb();
+  // Movements give a rep the total units issued to them.
+  const { db, isLoading, error } = useLiveWorkspace({ movements: true });
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const navigate = useNavigate();
@@ -93,6 +94,7 @@ export function StockRequestsPage({ initialStatus }: { initialStatus?: StockRequ
       actions={scope.canCreateRequests && <Button onClick={() => setNewOpen(true)}><Plus className="size-4" /><span className="hidden sm:inline">New Request</span></Button>}>
       <div className="mb-5"><h1 className="text-xl font-bold">{scope.repId ? "My Stock Requests" : "Stock Requests"}</h1><p className="mt-1 text-xs text-muted-foreground">{scope.repId ? "Request stock from your branch storekeeper and track each request's status." : "Review, approve, and fulfill product requests from sales representatives."}</p></div>
 
+      <DataGate isLoading={isLoading} error={error}>
       <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
         <MetricCard icon={ClipboardList} tone="brand" label="Total requests" value={formatNumber(summary.total)} detail={scope.repId ? `${formatNumber(getRepIssuedStock(db, scope.repId))} units issued to you` : "All request history"} />
         <MetricCard icon={Clock} tone="warning" label="Pending" value={formatNumber(summary.pending)} detail="Awaiting review" badge={summary.pending ? "Action" : undefined} />
@@ -157,6 +159,7 @@ export function StockRequestsPage({ initialStatus }: { initialStatus?: StockRequ
           <div className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next</Button></div>
         </div>}
       </Panel>
+      </DataGate>
 
       <NewRequestDialog open={newOpen} onOpenChange={setNewOpen} scope={scope} />
       <RequestActionDialog action={action} onClose={() => setAction(null)} actorId={userId} />

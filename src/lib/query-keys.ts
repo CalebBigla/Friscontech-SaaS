@@ -121,6 +121,8 @@ export const queryKeys = {
 
   // Stock Requests
   stockRequests: {
+    /** Prefix of every stock request query (lists, details, per branch/rep). */
+    root: () => ["stockRequests"] as const,
     all: (tenantId: string) => ["stockRequests", tenantId] as const,
     list: (tenantId: string, filters?: object) =>
       ["stockRequests", tenantId, "list", filters] as const,
@@ -186,6 +188,8 @@ export const queryKeys = {
 
   // Notifications (scoped per user, not tenant)
   notifications: {
+    /** Prefix of every notification query; RPCs notify other users too. */
+    root: () => ["notifications"] as const,
     all: (userId: string) => ["notifications", userId] as const,
     list: (userId: string, filters?: object) =>
       ["notifications", userId, "list", filters] as const,
