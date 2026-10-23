@@ -158,17 +158,6 @@ export function transformTenant(dbRow: TenantMigrationRow, fetchedAt: Date = new
   };
 }
 
-export function tenantToDb(t: Partial<Tenant>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  if (t.name !== undefined)              out['name']                = t.name;
-  if (t.legalName !== undefined)         out['legal_name']          = t.legalName;
-  if (t.businessEmail !== undefined)     out['business_email']      = t.businessEmail;
-  if (t.phone !== undefined)             out['phone']               = t.phone;
-  if (t.timezone !== undefined)          out['timezone']            = t.timezone;
-  if (t.expiryAlertMonths !== undefined) out['expiry_alert_months'] = t.expiryAlertMonths;
-  return out;
-}
-
 // ─────────────────────────── BRANCHES ────────────────────────────
 
 export function transformBranch(dbRow: { id: string; tenant_id: string; name: string; code: string; location: string; address: string; phone: string; email: string; status: BranchStatus; manager_id: string | null; created_at: string }): Branch {

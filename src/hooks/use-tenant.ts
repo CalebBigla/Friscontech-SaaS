@@ -8,7 +8,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { supabase } from "@/lib/supabase";
 import { queryKeys } from "@/lib/query-keys";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
-import { tenantToDb, transformTenant, type TenantMigrationRow } from "@/lib/type-adapters";
+import { transformTenant, type TenantMigrationRow } from "@/lib/type-adapters";
+import { callRpc, type PlannedRpcs } from "@/lib/rpc";
 import type { Tenant } from "@/data/mock-db";
 
 export function useTenantId(): string {
@@ -49,28 +50,20 @@ export function useTenant() {
   });
 }
 
-/** Owner only: update business profile fields on the tenant row. */
-export function useUpdateTenant() {
+/** Owner only: business profile and expiry alerts (RPC update_tenant_settings). */
+export function useUpdateTenantSettings() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const tenantId = user?.tenantId ?? "";
 
   return useMutation({
-    mutationFn: async (updates: Partial<Tenant>) => {
-      if (!tenantId) throw new Error("Not authenticated");
-
-      const { data, error } = await (supabase as any).from("tenants")
-        .update(tenantToDb(updates))
-        .eq("id", tenantId)
-        .select()
-        .single();
-
-      if (error) handleSupabaseError(error);
-
-      return transformTenant(data as TenantMigrationRow);
+    mutationFn: async (args: PlannedRpcs["update_tenant_settings"]): Promise<Tenant> => {
+      const row = await callRpc("update_tenant_settings", args);
+      return transformTenant(row as TenantMigrationRow);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tenant.detail(tenantId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all(tenantId) });
     },
   });
 }

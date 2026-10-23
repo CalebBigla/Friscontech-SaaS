@@ -241,6 +241,35 @@ export async function resetPassword(newPassword: string): Promise<AuthResult> {
   }
 }
 
+/**
+ * Signed-in password change. The current password is re-checked with Supabase
+ * Auth first; the new password is then set on the auth account (never stored in
+ * app tables) and an audit row is written.
+ */
+export async function changePassword(
+  input: { current: string; next: string },
+  profile: { id: string; email: string; tenantId: string },
+): Promise<AuthResult> {
+  try {
+    const { error: checkError } = await supabase.auth.signInWithPassword({ email: profile.email, password: input.current });
+    if (checkError) return { ok: false, error: "Your current password is incorrect." };
+    const { error } = await supabase.auth.updateUser({ password: input.next });
+    if (error) return { ok: false, error: error.message };
+    await writeAuditBestEffort("Password changed", {
+      p_tenant_id: profile.tenantId,
+      p_actor_id: profile.id,
+      p_action: "Password changed",
+      p_subject: "Changed account password",
+      p_entity: "session",
+      p_entity_id: profile.id,
+    });
+    return { ok: true, data: true };
+  } catch (err) {
+    console.error("Password change error", err);
+    return { ok: false, error: err instanceof Error ? err.message : "Password change failed" };
+  }
+}
+
 export async function getCurrentUser() {
   const { data: { user } } = await supabase.auth.getUser();
   return user;

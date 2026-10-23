@@ -33,7 +33,7 @@ import {
 import { TargetProgressBar, TargetStatusBadge } from "@/components/targets/target-shared";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
-import { getPreferences } from "@/services/services";
+import { getPreferences } from "@/lib/settings";
 import { getPeriodRange, type PeriodKey } from "@/lib/dates";
 import { saleTotal } from "@/lib/calculations";
 import { formatDate, formatMonth, formatNaira, formatNumber, formatPercent } from "@/lib/format";

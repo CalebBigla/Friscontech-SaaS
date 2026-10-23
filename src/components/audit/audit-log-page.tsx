@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { AUDIT_LOG_LIMIT } from "@/hooks/use-audit-logs";
-import { getPreferences } from "@/services/services";
+import { getPreferences } from "@/lib/settings";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { filterByRange, formatPrefDate, getActivityOverview, getAuditLogs, getAuditSummary, type AuditRow } from "@/lib/audit";
 import { canAccessMember } from "@/lib/team";

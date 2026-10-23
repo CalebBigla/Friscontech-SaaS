@@ -373,6 +373,25 @@ export type PlannedRpcs = {
     p_user_id: string;
     p_status: "active" | "inactive";
   };
+  /**
+   * Owner updates the business profile. Null means "leave unchanged"; one audit
+   * row lists the changed fields. Returns the tenants row.
+   * The app allows 1–24 expiry alert months, but tenants.expiry_alert_months has
+   * CHECK 1–12 (Phase 2 decision: widen the CHECK or narrow the app rule).
+   */
+  update_tenant_settings: {
+    p_name: string | null;
+    p_business_email: string | null;
+    p_phone: string | null;
+    p_timezone: string | null;
+    p_legal_name: string | null;
+    p_expiry_alert_months: number | null;
+  };
+  /** The caller's own display preferences (upsert) plus the audit row. Returns the user_preferences row. */
+  update_preferences: {
+    p_date_format: "MMM D, YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD";
+    p_default_report_period: "today" | "week" | "month" | "quarter";
+  };
 };
 
 export async function callRpc<N extends keyof PlannedRpcs>(name: N, args: PlannedRpcs[N]): Promise<unknown> {

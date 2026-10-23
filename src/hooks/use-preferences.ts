@@ -8,7 +8,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/auth-context";
 import { queryKeys } from "@/lib/query-keys";
-import { transformPreference, preferenceToDb } from "@/lib/type-adapters";
+import { transformPreference, type UserPreferenceMigrationRow } from "@/lib/type-adapters";
+import { callRpc, type PlannedRpcs } from "@/lib/rpc";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
 import type { UserPreference } from "@/data/mock-db";
 
@@ -37,32 +38,19 @@ export function usePreferences() {
   });
 }
 
-/**
- * Update user preferences (upsert)
- */
+/** Save the caller's own preferences (RPC update_preferences). */
 export function useUpdatePreferences() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (updates: Partial<UserPreference>) => {
-      if (!user?.id) throw new Error('Not authenticated');
-      
-      const dbData = preferenceToDb(updates, user.id);
-      
-      const { data, error } = await (supabase as any).from('user_preferences')
-        .upsert(dbData, { onConflict: 'user_id' })
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformPreference(data);
+    mutationFn: async (args: PlannedRpcs['update_preferences']): Promise<UserPreference> => {
+      const row = await callRpc('update_preferences', args);
+      return transformPreference(row as UserPreferenceMigrationRow);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.preferences.byUser(user?.id || '') 
-      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.preferences.byUser(user?.id || '') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all(user?.tenantId || '') });
     },
   });
 }

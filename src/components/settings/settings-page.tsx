@@ -3,13 +3,26 @@ import { Building2, Lock, SlidersHorizontal, Store } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/app-shell";
-import { DetailItem, FieldError, FilterSelect, Panel } from "@/components/shared";
+import { DataGate, DetailItem, FieldError, FilterSelect, Panel } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDb } from "@/services/mock-store";
-import { getPreferences, settingsService, timezones, type SettingsErrors } from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useUpdateTenantSettings } from "@/hooks/use-tenant";
+import { useUpdatePreferences } from "@/hooks/use-preferences";
+import { changePassword } from "@/services/auth";
+import {
+  changedGeneralFields,
+  getPreferences,
+  runSettingsWrite,
+  timezones,
+  validateExpiryAlertMonths,
+  validateGeneralSettings,
+  validateOrganization,
+  validatePassword,
+  type SettingsErrors,
+} from "@/lib/settings";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { formatPrefDate } from "@/lib/audit";
 import { roleLabel } from "@/lib/format";
@@ -24,12 +37,10 @@ const sectionMeta: Record<Section, { label: string; detail: string; Icon: typeof
 };
 
 export function SettingsPage() {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
   const scope = getAccessScope(db, useCurrentUserId());
   const sections: Section[] = scope.canViewOrganizationSettings ? ["general", "organization", "preferences", "security"] : ["preferences", "security"];
   const [active, setActive] = useState<Section>(sections[0]!);
-  const [ready, setReady] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setReady(true), 250); return () => clearTimeout(t); }, []);
   const current = sections.includes(active) ? active : sections[0]!;
 
   return (
@@ -44,7 +55,8 @@ export function SettingsPage() {
             </button>); })}
         </nav>
         <div className="min-w-0">
-          {!ready ? <div className="space-y-3 rounded-lg border border-border bg-card p-5"><Skeleton className="h-5 w-40" />{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
+          {error ? <DataGate isLoading={false} error={error}>{null}</DataGate>
+            : isLoading ? <div className="space-y-3 rounded-lg border border-border bg-card p-5"><Skeleton className="h-5 w-40" />{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
             : current === "general" ? <GeneralSection key={db.tenant.updatedAt} />
             : current === "organization" ? <div className="space-y-4"><OrganizationSection key={db.tenant.updatedAt} /><ExpiryAlertSection key={`exp-${db.tenant.expiryAlertMonths}`} /></div>
             : current === "preferences" ? <PreferencesSection />
@@ -67,7 +79,8 @@ function FormActions({ dirty, saving, onCancel }: { dirty: boolean; saving: bool
 function ReadOnlyNote() { return <p className="mx-5 mt-5 rounded-md bg-muted px-3 py-2 text-[11px] text-muted-foreground">Only the business owner can change these details.</p>; }
 
 function GeneralSection() {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
+  const updateTenant = useUpdateTenantSettings();
   const actorId = useCurrentUserId();
   const scope = getAccessScope(db, actorId);
   const init = { name: db.tenant.name, businessEmail: db.tenant.businessEmail, phone: db.tenant.phone, timezone: db.tenant.timezone };
@@ -78,9 +91,20 @@ function GeneralSection() {
   const dirty = (Object.keys(init) as (keyof typeof init)[]).some((k) => form[k] !== init[k]);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
-    const r = await settingsService.updateGeneral(form, actorId).catch(() => null);
+    const changed = changedGeneralFields(db.tenant, form);
+    const r = await runSettingsWrite(validateGeneralSettings(edit, form), async () => {
+      if (!changed.length) return form;
+      await updateTenant.mutateAsync({
+        p_name: form.name.trim(),
+        p_business_email: form.businessEmail.trim(),
+        p_phone: form.phone.trim(),
+        p_timezone: form.timezone,
+        p_legal_name: null,
+        p_expiry_alert_months: null,
+      });
+      return form;
+    });
     setSaving(false);
-    if (!r) { toast.error("Unable to save settings. Please try again."); return; }
     if (!r.ok) { setErrors(r.errors); toast.error(r.errors.form ?? "Please fix the highlighted fields."); return; }
     setErrors({}); toast.success("Settings saved.");
   };
@@ -102,7 +126,8 @@ function GeneralSection() {
 }
 
 function OrganizationSection() {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
+  const updateTenant = useUpdateTenantSettings();
   const actorId = useCurrentUserId();
   const scope = getAccessScope(db, actorId);
   const fmt = getPreferences(db, actorId).dateFormat;
@@ -112,9 +137,12 @@ function OrganizationSection() {
   const edit = scope.canManageSettings;
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
-    const r = await settingsService.updateOrganization({ legalName }, actorId).catch(() => null);
+    const r = await runSettingsWrite(validateOrganization(edit, { legalName }), async () => {
+      if (legalName.trim() === db.tenant.legalName) return legalName;
+      await updateTenant.mutateAsync({ p_name: null, p_business_email: null, p_phone: null, p_timezone: null, p_legal_name: legalName.trim(), p_expiry_alert_months: null });
+      return legalName;
+    });
     setSaving(false);
-    if (!r) { toast.error("Unable to save settings. Please try again."); return; }
     if (!r.ok) { setErrors(r.errors); toast.error(r.errors.form ?? "Please fix the highlighted fields."); return; }
     setErrors({}); toast.success("Organization details saved.");
   };
@@ -137,7 +165,8 @@ function OrganizationSection() {
 }
 
 function ExpiryAlertSection() {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
+  const updateTenant = useUpdateTenantSettings();
   const actorId = useCurrentUserId();
   const scope = getAccessScope(db, actorId);
   const [months, setMonths] = useState(String(db.tenant.expiryAlertMonths));
@@ -146,7 +175,9 @@ function ExpiryAlertSection() {
   const edit = scope.canManageSettings;
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
-    const r = await settingsService.updateExpiryAlertMonths(Number(months), actorId);
+    const value = Number(months);
+    const r = await runSettingsWrite(validateExpiryAlertMonths(edit, value), () =>
+      updateTenant.mutateAsync({ p_name: null, p_business_email: null, p_phone: null, p_timezone: null, p_legal_name: null, p_expiry_alert_months: value }));
     setSaving(false);
     if (!r.ok) { setError(r.errors.form ?? "Couldn't save"); return; }
     setError(""); toast.success("Expiry alert setting saved.");
@@ -169,7 +200,8 @@ const dateFormats: DateFormatPref[] = ["MMM D, YYYY", "DD/MM/YYYY", "YYYY-MM-DD"
 const reportPeriods: { value: ReportPeriodPref; label: string }[] = [{ value: "today", label: "Today" }, { value: "week", label: "Last 7 days" }, { value: "month", label: "This month" }, { value: "quarter", label: "This quarter" }];
 
 function PreferencesSection() {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
+  const updatePreferences = useUpdatePreferences();
   const actorId = useCurrentUserId();
   const saved = getPreferences(db, actorId);
   const scope = getAccessScope(db, actorId);
@@ -179,9 +211,10 @@ function PreferencesSection() {
   const dirty = form.dateFormat !== saved.dateFormat || form.defaultReportPeriod !== saved.defaultReportPeriod;
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
-    const r = await settingsService.updatePreferences(form, actorId).catch(() => null);
+    const r = await runSettingsWrite(null, () =>
+      updatePreferences.mutateAsync({ p_date_format: form.dateFormat, p_default_report_period: form.defaultReportPeriod }));
     setSaving(false);
-    if (!r?.ok) { toast.error("Unable to save preferences. Please try again."); return; }
+    if (!r.ok) { toast.error(r.errors.form ?? "Unable to save preferences. Please try again."); return; }
     toast.success("Preferences saved.");
   };
   return (
@@ -202,7 +235,7 @@ function PreferencesSection() {
 }
 
 function SecuritySection() {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
   const actorId = useCurrentUserId();
   const { user } = getAccessScope(db, actorId);
   const empty = { current: "", next: "", confirm: "" };
@@ -212,10 +245,11 @@ function SecuritySection() {
   const branch = db.branches.find((b) => b.id === user.branchId);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
-    const r = await settingsService.changePassword(form, actorId).catch(() => null);
+    const invalid = validatePassword(form);
+    if (invalid) { setSaving(false); setErrors(invalid); return; }
+    const r = await changePassword({ current: form.current, next: form.next }, { id: user.id, email: user.email, tenantId: user.tenantId });
     setSaving(false);
-    if (!r) { toast.error("Unable to update password. Please try again."); return; }
-    if (!r.ok) { setErrors(r.errors); return; }
+    if (!r.ok) { setErrors(r.error === "Your current password is incorrect." ? { current: r.error } : { form: r.error }); toast.error(r.error); return; }
     setErrors({}); setForm(empty); toast.success("Password updated successfully.");
   };
   const pw = (k: keyof typeof empty, id: string, label: string, auto: string) => (
