@@ -10,7 +10,7 @@ import type { Db } from "@/data/mock-db";
 import { IMPORT_COLUMNS, IMPORT_EXAMPLE, importErrorsCsv, validateImportRows, type ImportRow } from "@/lib/product-import";
 import type { AccessScope } from "@/lib/session";
 import { formatNaira, formatNumber } from "@/lib/format";
-import { productService, type ImportSummary } from "@/services/services";
+import { useImportProducts, type ImportSummary } from "@/hooks/use-products";
 
 function download(name: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
@@ -31,6 +31,7 @@ export async function downloadImportTemplate() {
 
 export function ImportProductsDialog({ open, onOpenChange, db, scope }: { open: boolean; onOpenChange: (o: boolean) => void; db: Db; scope: AccessScope }) {
   const branches = db.branches.filter((b) => b.status === "active" && (!scope.branchIds || scope.branchIds.includes(b.id)));
+  const importProducts = useImportProducts();
   const [file, setFile] = useState("");
   const [rows, setRows] = useState<ImportRow[] | null>(null);
   const [skipInvalid, setSkipInvalid] = useState(true);
@@ -71,12 +72,44 @@ export function ImportProductsDialog({ open, onOpenChange, db, scope }: { open: 
     if (!rows) return;
     if (!skipInvalid && invalid.length) return setError("Fix the invalid rows or choose to skip them.");
     if (needsBranch && !branchId) return setError("Choose the branch that receives opening stock.");
+    if (!scope.canManageProducts) return setError("You cannot import products");
+    // Rows that failed the file checks never reach the server; they count as failed.
+    const failedLocally = rows.filter((r) => r.errors.length);
     setBusy(true);
-    const r = await productService.importProducts(rows, mode, branchId, scope.user.id);
-    setBusy(false);
-    if (!r.ok) return setError(r.errors.form ?? "Import failed");
-    setSummary(r.data);
-    toast.success(`Import finished: ${r.data.created} created, ${r.data.updated} updated`);
+    try {
+      const result = await importProducts.mutateAsync({
+        p_rows: rows.filter((r) => !r.errors.length).map((r) => ({
+          row_number: r.rowNumber,
+          name: r.name,
+          sku: r.sku,
+          category: r.category,
+          unit: r.unit,
+          unit_price: r.unitPrice,
+          unit_cost: r.unitCost,
+          low_stock_threshold: r.lowStockThreshold,
+          description: r.description || null,
+          opening_quantity: r.openingQuantity,
+          batch_number: r.batchNumber || null,
+          expiry_date: r.expiryDate || null,
+        })),
+        p_mode: mode,
+        p_branch_id: branchId || null,
+      });
+      const merged: ImportSummary = {
+        ...result,
+        failed: result.failed + failedLocally.length,
+        failures: [
+          ...failedLocally.map((r) => ({ rowNumber: r.rowNumber, sku: r.sku, name: r.name, reason: r.errors.join("; ") })),
+          ...result.failures,
+        ],
+      };
+      setSummary(merged);
+      toast.success(`Import finished: ${merged.created} created, ${merged.updated} updated`);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Import failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

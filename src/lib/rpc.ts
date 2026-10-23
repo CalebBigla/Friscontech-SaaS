@@ -269,6 +269,77 @@ export type PlannedRpcs = {
     p_target_id: string;
     p_amount: number;
   };
+  /**
+   * Add a catalogue product (SKU upper-cased, unique per tenant) and open
+   * zero-stock inventory records in the caller's branches (all active branches
+   * for the owner), threshold = product threshold, reorder level = 2 × threshold.
+   * Returns the products row.
+   */
+  create_product: {
+    p_name: string;
+    p_sku: string;
+    p_category: string;
+    p_unit: string;
+    p_unit_price: number;
+    p_unit_cost: number;
+    p_low_stock_threshold: number;
+    p_description: string | null;
+  };
+  /**
+   * Edit catalogue fields. Branch thresholds still equal to the old product
+   * threshold follow the new one. Returns the products row.
+   */
+  update_product: {
+    p_product_id: string;
+    p_name: string;
+    p_sku: string;
+    p_category: string;
+    p_unit: string;
+    p_unit_price: number;
+    p_unit_cost: number;
+    p_low_stock_threshold: number;
+    p_description: string | null;
+  };
+  /**
+   * EXISTS (20261020130000_reconcile_core_table_rls.sql) but is manager-only and
+   * writes no audit row. Phase 2 must widen it in a new migration (same signature):
+   * owner or manager may deactivate; owner, manager or storekeeper may reactivate;
+   * write the audit row. Returns the products row.
+   */
+  set_product_status: {
+    p_product_id: string;
+    p_status: "active" | "inactive";
+  };
+  /** Storekeeper asks their manager to deactivate (pending product_deactivation approval). */
+  request_product_deactivation: {
+    p_product_id: string;
+    p_reason: string;
+  };
+  /**
+   * Bulk import, one transaction. Each row creates or (p_mode = update) updates a
+   * product by SKU, or is skipped (p_mode = skip). New products get inventory
+   * records like create_product. Opening quantity is added to p_branch_id with the
+   * row's batch/expiry (lot opened or extended). Returns
+   * { created, updated, skipped, failed, failures: [{ row_number, sku, name, reason }] }.
+   */
+  import_products: {
+    p_rows: {
+      row_number: number;
+      name: string;
+      sku: string;
+      category: string;
+      unit: string;
+      unit_price: number;
+      unit_cost: number;
+      low_stock_threshold: number;
+      description: string | null;
+      opening_quantity: number;
+      batch_number: string | null;
+      expiry_date: string | null;
+    }[];
+    p_mode: "update" | "skip";
+    p_branch_id: string | null;
+  };
 };
 
 export async function callRpc<N extends keyof PlannedRpcs>(name: N, args: PlannedRpcs[N]): Promise<unknown> {

@@ -4,7 +4,7 @@
  * Same rules and messages the app has always shown. The database (RPCs and
  * CHECK constraints) enforces them again; this only gives faster feedback.
  */
-import type { ApprovalRequest, Customer, CustomerPayment, CustomerPaymentMethod, Db, Expense, ExpenseCategory, InventoryRecord, ManagerRemittance, Payment, StockRequest, Target, User } from "@/data/mock-db";
+import type { ApprovalRequest, Customer, CustomerPayment, CustomerPaymentMethod, Db, Expense, ExpenseCategory, InventoryRecord, ManagerRemittance, Payment, Product, ProductStatus, StockRequest, Target, User } from "@/data/mock-db";
 import type { OwnerRemittancePayeeType, OwnerRemittancePaymentMethod } from "@/data/remittances";
 import {
   expenseCategories,
@@ -565,4 +565,56 @@ export function validateTargetUpdate(db: Db, scope: AccessScope, target: Target,
   if (!scope.canManageTargets) return { form: "You cannot edit targets" };
   const errors = validateTarget(db, scope, { repId: target.userId ?? "", month: target.month, amount }, target.id);
   return hasErrors(errors) ? errors : null;
+}
+
+// ---------- products ----------
+
+export type ProductInput = {
+  name: string;
+  sku: string;
+  category: string;
+  unit: string;
+  unitPrice: number;
+  unitCost: number;
+  lowStockThreshold: number;
+  description?: string;
+};
+
+export function validateProduct(db: Db, input: ProductInput, editingId?: string): FieldErrors {
+  const errors: FieldErrors = {};
+  const sku = input.sku.trim().toUpperCase();
+  if (!input.name.trim()) errors.name = "Enter a product name";
+  if (!sku) errors.sku = "Enter a SKU";
+  else if (db.products.some((p) => p.id !== editingId && p.tenantId === db.tenant.id && p.sku.toUpperCase() === sku))
+    errors.sku = "This SKU is already used by another product";
+  if (!input.category.trim()) errors.category = "Enter a category";
+  if (!input.unit.trim()) errors.unit = "Select a unit";
+  if (!Number.isFinite(input.unitPrice) || input.unitPrice <= 0) errors.unitPrice = "Enter a selling price above zero";
+  if (!Number.isFinite(input.unitCost) || input.unitCost < 0) errors.unitCost = "Enter a unit cost of zero or more";
+  else if (input.unitCost > input.unitPrice) errors.unitCost = "Unit cost cannot exceed selling price";
+  if (!Number.isInteger(input.lowStockThreshold) || input.lowStockThreshold < 0) errors.threshold = "Enter a whole number of zero or more";
+  return errors;
+}
+
+export function validateProductWrite(db: Db, scope: AccessScope, input: ProductInput, existing?: Product): FieldErrors | null {
+  if (!scope.canManageProducts) return { form: existing ? "You cannot edit products" : "You cannot add products" };
+  const errors = validateProduct(db, input, existing?.id);
+  return hasErrors(errors) ? errors : null;
+}
+
+/** Owners and managers deactivate; reactivation is also open to storekeepers. */
+export function validateProductStatus(scope: AccessScope, status: ProductStatus): FieldErrors | null {
+  const allowed = status === "inactive" ? scope.canDeactivateProducts : scope.canDeactivateProducts || scope.canManageProducts;
+  if (allowed) return null;
+  return { form: scope.canManageProducts ? "Deactivation needs a manager's approval — send a request instead" : "You cannot change product status" };
+}
+
+/** Storekeeper asks their manager to deactivate a product. */
+export function validateDeactivationRequest(db: Db, scope: AccessScope, product: Product, reason: string): FieldErrors | null {
+  if (!scope.canManageProducts || scope.canDeactivateProducts) return { form: "You cannot request product deactivation" };
+  if (product.status !== "active") return { form: "This product is already inactive" };
+  if (db.approvals.some((a) => a.type === "product_deactivation" && a.status === "pending" && a.productId === product.id))
+    return { form: "A deactivation request for this product is already pending" };
+  if (reason.trim().length < 3) return { reason: "Give a reason for the manager" };
+  return null;
 }

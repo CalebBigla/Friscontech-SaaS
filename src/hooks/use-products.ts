@@ -4,13 +4,15 @@
  * Data fetching and mutations for product catalog management
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { invalidateStock } from "@/hooks/use-inventory";
+import { callRpc, type PlannedRpcs } from "@/lib/rpc";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/auth-context";
 import { queryKeys } from "@/lib/query-keys";
-import { transformProduct, productToDb } from "@/lib/type-adapters";
+import { transformApprovalRequest, transformProduct, type ApprovalRequestMigrationRow } from "@/lib/type-adapters";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
-import type { Product } from "@/data/mock-db";
+import type { ApprovalRequest, Product } from "@/data/mock-db";
 
 /**
  * Fetch all products for the current tenant
@@ -83,196 +85,72 @@ export function useProduct(productId: string | undefined) {
   });
 }
 
-/**
- * Create a new product
- */
-export function useCreateProduct() {
+/** Product changes touch the catalogue, inventory records, approvals and the audit log. */
+function invalidateProducts(queryClient: QueryClient, tenantId: string) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.products.all(tenantId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.products.root() });
+  invalidateStock(queryClient, tenantId);
+}
+
+function useProductMutation<N extends "create_product" | "update_product" | "set_product_status">(name: N) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (input: Partial<Product>) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = productToDb(input, user.tenantId);
-      
-      const { data, error } = await (supabase as any).from('products')
-        .insert(dbData)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformProduct(data);
+    mutationFn: async (args: PlannedRpcs[N]): Promise<Product> => {
+      const row = await callRpc(name, args);
+      return transformProduct(row as Parameters<typeof transformProduct>[0]);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.products.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.products.active(user?.tenantId || '') 
-      });
-    },
+    onSuccess: () => invalidateProducts(queryClient, user?.tenantId ?? ''),
   });
 }
 
-/**
- * Update an existing product
- */
-export function useUpdateProduct() {
+/** Add a catalogue product (RPC create_product). */
+export const useCreateProduct = () => useProductMutation('create_product');
+/** Edit a catalogue product (RPC update_product). */
+export const useUpdateProduct = () => useProductMutation('update_product');
+/** Soft (de)activation (RPC set_product_status). */
+export const useSetProductStatus = () => useProductMutation('set_product_status');
+
+/** Storekeeper's deactivation request (RPC request_product_deactivation). */
+export function useRequestProductDeactivation() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Product> }) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = productToDb(updates, user.tenantId);
-      
-      const { data, error } = await (supabase as any).from('products')
-        .update(dbData)
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformProduct(data);
+    mutationFn: async (args: PlannedRpcs['request_product_deactivation']): Promise<ApprovalRequest> => {
+      const row = await callRpc('request_product_deactivation', args);
+      return transformApprovalRequest(row as ApprovalRequestMigrationRow);
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.products.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.products.active(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.products.detail(data.id) 
-      });
-    },
+    onSuccess: () => invalidateProducts(queryClient, user?.tenantId ?? ''),
   });
 }
 
-/**
- * Deactivate a product (soft delete)
- */
-export function useDeactivateProduct() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (productId: string) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
+export type ImportSummary = {
+  created: number; updated: number; skipped: number; failed: number;
+  failures: { rowNumber: number; sku: string; name: string; reason: string }[];
+};
+type ImportSummaryRow = {
+  created: number; updated: number; skipped: number; failed: number;
+  failures: { row_number: number; sku: string; name: string; reason: string }[];
+};
 
-      if (user.role === 'manager') {
-        const { data, error } = await (supabase as any).rpc('set_product_status', {
-          p_product_id: productId,
-          p_status: 'inactive',
-        });
-        if (error) handleSupabaseError(error);
-        return transformProduct(data);
-      }
-      
-      const { data, error } = await (supabase as any).from('products')
-        .update({ 
-          status: 'inactive',
-        })
-        .eq('id', productId)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformProduct(data);
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.products.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.products.active(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.products.detail(data.id) 
-      });
-    },
-  });
-}
-
-/**
- * Reactivate a deactivated product
- */
-export function useReactivateProduct() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (productId: string) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-
-      if (user.role === 'manager') {
-        const { data, error } = await (supabase as any).rpc('set_product_status', {
-          p_product_id: productId,
-          p_status: 'active',
-        });
-        if (error) handleSupabaseError(error);
-        return transformProduct(data);
-      }
-      
-      const { data, error } = await (supabase as any).from('products')
-        .update({ 
-          status: 'active',
-        })
-        .eq('id', productId)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformProduct(data);
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.products.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.products.active(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.products.detail(data.id) 
-      });
-    },
-  });
-}
-
-/**
- * Bulk import products
- */
+/** Bulk import in one transaction (RPC import_products). */
 export function useImportProducts() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (products: Partial<Product>[]) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = products.map(p => productToDb(p, user.tenantId));
-      
-      const { data, error } = await (supabase as any).from('products')
-        .insert(dbData)
-        .select();
-      
-      if (error) handleSupabaseError(error);
-      
-      return (data || []).map(transformProduct);
+    mutationFn: async (args: PlannedRpcs['import_products']): Promise<ImportSummary> => {
+      const row = (await callRpc('import_products', args)) as ImportSummaryRow;
+      return {
+        created: row.created,
+        updated: row.updated,
+        skipped: row.skipped,
+        failed: row.failed,
+        failures: (row.failures ?? []).map((f) => ({ rowNumber: f.row_number, sku: f.sku, name: f.name, reason: f.reason })),
+      };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.products.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.products.active(user?.tenantId || '') 
-      });
-    },
+    onSuccess: () => invalidateProducts(queryClient, user?.tenantId ?? ''),
   });
 }

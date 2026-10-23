@@ -9,7 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldError, FilterSelect } from "@/components/shared";
 import type { Product } from "@/data/mock-db";
-import type { FieldErrors } from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { getAccessScope, useCurrentUserId } from "@/lib/session";
+import { runWrite, validateProductWrite, type FieldErrors } from "@/lib/validation";
 import { useCreateProduct, useUpdateProduct } from "@/hooks/use-products";
 
 export const PRODUCT_UNITS = ["Piece", "Box", "Carton", "Pack", "Set", "Unit"];
@@ -24,6 +26,8 @@ export function ProductFormDialog({ open, onOpenChange, product, categories = []
   const [saving, setSaving] = useState(false);
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
+  const { db } = useLiveWorkspace();
+  const userId = useCurrentUserId();
   useEffect(() => { if (open) { setForm(product ? fromProduct(product) : empty); setErrors({}); } }, [open, product]);
   const set = (k: Key, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const units = product && !PRODUCT_UNITS.includes(product.unit) ? [product.unit, ...PRODUCT_UNITS] : PRODUCT_UNITS;
@@ -32,25 +36,30 @@ export function ProductFormDialog({ open, onOpenChange, product, categories = []
     e.preventDefault();
     const num = (v: string) => (v.trim() === "" ? Number.NaN : Number(v));
     const input = { name: form.name, sku: form.sku, category: form.category, unit: form.unit, unitPrice: num(form.unitPrice), unitCost: num(form.unitCost), lowStockThreshold: num(form.threshold), description: form.description };
+    const fields = {
+      p_name: input.name.trim(),
+      p_sku: input.sku.trim().toUpperCase(),
+      p_category: input.category.trim(),
+      p_unit: input.unit.trim(),
+      p_unit_price: input.unitPrice,
+      p_unit_cost: input.unitCost,
+      p_low_stock_threshold: input.lowStockThreshold,
+      p_description: input.description.trim() || null,
+    };
     setSaving(true);
-    try {
-      const saved = product
-        ? await updateProduct.mutateAsync({ id: product.id, updates: input })
-        : await createProduct.mutateAsync(input);
-      toast.success(product ? `${saved.name} updated` : `${saved.name} added`, {
-        description: product ? "Changes apply everywhere this product is referenced." : "Product saved. Add stock separately to start selling.",
-      });
-      onOpenChange(false);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not save product";
-      const nextErrors: FieldErrors = message.toLowerCase().includes("sku")
-        ? { sku: "This SKU is already in use in your organization" }
-        : { form: message };
-      setErrors(nextErrors);
-      toast.error(message);
-    } finally {
-      setSaving(false);
+    const result = await runWrite(validateProductWrite(db, getAccessScope(db, userId), input, product ?? undefined), () =>
+      product ? updateProduct.mutateAsync({ p_product_id: product.id, ...fields }) : createProduct.mutateAsync(fields),
+    );
+    setSaving(false);
+    if (!result.ok) {
+      setErrors(result.errors);
+      toast.error(result.errors.form ?? "Please fix the highlighted fields");
+      return;
     }
+    toast.success(product ? `${result.data.name} updated` : `${result.data.name} added`, {
+      description: product ? "Changes apply everywhere this product is referenced." : "Product saved. Add stock separately to start selling.",
+    });
+    onOpenChange(false);
   }
 
   const field = (k: Key, label: string, err: keyof FieldErrors, props: Record<string, unknown> = {}) => (

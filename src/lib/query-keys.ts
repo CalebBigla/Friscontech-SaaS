@@ -21,6 +21,8 @@ export const queryKeys = {
 
   // Products
   products: {
+    /** Prefix of every product query. */
+    root: () => ["products"] as const,
     all: (tenantId: string) => ["products", tenantId] as const,
     list: (tenantId: string, filters?: object) =>
       ["products", tenantId, "list", filters] as const,
