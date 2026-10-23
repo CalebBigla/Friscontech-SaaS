@@ -103,6 +103,8 @@ export const queryKeys = {
 
   // Rep payments
   payments: {
+    /** Prefix of every rep payment query. */
+    root: () => ["payments"] as const,
     all: (tenantId: string) => ["payments", tenantId] as const,
     list: (tenantId: string, filters?: object) =>
       ["payments", tenantId, "list", filters] as const,

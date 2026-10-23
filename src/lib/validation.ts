@@ -4,7 +4,8 @@
  * Same rules and messages the app has always shown. The database (RPCs and
  * CHECK constraints) enforces them again; this only gives faster feedback.
  */
-import type { ApprovalRequest, Customer, CustomerPaymentMethod, Db, InventoryRecord, StockRequest } from "@/data/mock-db";
+import type { ApprovalRequest, Customer, CustomerPayment, CustomerPaymentMethod, Db, InventoryRecord, Payment, StockRequest } from "@/data/mock-db";
+import { getRepTotalSales, isValidPaymentPeriod } from "@/lib/payment-calculations";
 import { fieldErrorsFrom } from "@/lib/supabase-helpers";
 import { canReviewApproval } from "@/lib/approvals";
 import { findInventory, getAvailable, getRequestOutstanding } from "@/lib/inventory-calculations";
@@ -301,4 +302,86 @@ export function validateCustomerPayment(db: Db, scope: AccessScope, input: Custo
   if (!isValidDate(input.paymentDate) || input.paymentDate > db.tenant.referenceDate) errors.paymentDate = "Enter a valid date (not in the future)";
   if (!db.branches.find((b) => b.id === scope.user.branchId)?.managerId) errors.form = "A branch manager must be assigned first";
   return hasErrors(errors) ? errors : null;
+}
+
+// ---------- payment chain (rep payments and customer payments) ----------
+// submitted → acknowledged (branch manager) → confirmed / declined (owner)
+
+export type PaymentSubmission = {
+  period: string;
+  cashAmount: number;
+  transferAmount: number;
+  transferReference?: string;
+  note?: string;
+};
+export type PaymentAcknowledgement = { transferReference?: string; proofName?: string };
+
+/** Sales rep submits cash/transfer collected against their sales for a month. */
+export function validatePaymentSubmission(db: Db, scope: AccessScope, input: PaymentSubmission): FieldErrors | null {
+  const errors: FieldErrors = {};
+  const rep = scope.user;
+  if (rep.role !== "sales_rep" || scope.repId !== rep.id) errors.form = "Only a sales representative can submit their own payment";
+  if (rep.tenantId !== db.tenant.id || rep.status !== "active" || !rep.branchId) errors.form = "An active sales representative and branch are required";
+  if (!isValidPaymentPeriod(input.period) || input.period > db.tenant.referenceDate.slice(0, 7)) errors.period = "Choose a valid current or past month";
+  if (!Number.isFinite(input.cashAmount) || input.cashAmount < 0) errors.cashAmount = "Cash cannot be negative";
+  if (!Number.isFinite(input.transferAmount) || input.transferAmount < 0) errors.transferAmount = "Transfer cannot be negative";
+  if (input.transferAmount > 0 && !input.transferReference?.trim())
+    errors.transferReference = "A transfer reference is required when transfer is greater than zero";
+  if (rep.branchId) {
+    const branch = db.branches.find((b) => b.id === rep.branchId && b.tenantId === rep.tenantId);
+    const manager = branch?.managerId
+      ? db.users.find((u) => u.id === branch.managerId && u.role === "manager" && u.status === "active" && u.tenantId === rep.tenantId)
+      : null;
+    if (!branch || !manager) errors.form = "A branch manager must be assigned before submitting a payment";
+    const previouslyCollected = db.payments
+      .filter((p) => p.tenantId === rep.tenantId && p.salesRepId === rep.id && p.period === input.period && p.status !== "declined")
+      .reduce((sum, p) => sum + p.cashAmount + p.transferAmount, 0);
+    if (getRepTotalSales(db, rep.id, input.period) - previouslyCollected - input.cashAmount - input.transferAmount < 0)
+      errors.transferAmount = "Cash and transfer cannot exceed total sales";
+  }
+  return hasErrors(errors) ? errors : null;
+}
+
+type ChainPayment = (Payment | CustomerPayment) & { status: Payment["status"] };
+
+/** Who may act on a payment: the assigned branch manager, or the owner. */
+function paymentScopeError(db: Db, scope: AccessScope, payment: ChainPayment, role: "manager" | "owner"): string | null {
+  if (scope.user.tenantId !== db.tenant.id || payment.tenantId !== db.tenant.id) return "This payment is outside your organization";
+  if (scope.user.status !== "active") return "Your account is inactive";
+  if (role === "manager" && (!scope.canAcknowledgePayments || payment.managerId !== scope.user.id || !scope.branchIds?.includes(payment.branchId)))
+    return "This payment is outside your branch scope";
+  if (role === "owner" && !scope.canConfirmPayments) return "Only the business owner can confirm payments";
+  return null;
+}
+
+/** Step 2: the assigned manager acknowledges; a transfer needs its reference. */
+export function validateAcknowledgePayment(db: Db, scope: AccessScope, payment: ChainPayment, existingReference: string | undefined, details: PaymentAcknowledgement): FieldErrors | null {
+  const denied = paymentScopeError(db, scope, payment, "manager");
+  if (denied) return { form: denied };
+  if (payment.status !== "submitted") return { form: "Only submitted payments can be acknowledged" };
+  const isTransfer = "transferAmount" in payment ? payment.transferAmount > 0 : payment.method === "transfer";
+  if (isTransfer && !(details.transferReference?.trim() || existingReference))
+    return { transferReference: "Enter the transfer reference before acknowledging" };
+  return null;
+}
+
+/** Step 3: the owner confirms a submitted or acknowledged payment. */
+export function validateConfirmPayment(db: Db, scope: AccessScope, payment: ChainPayment): FieldErrors | null {
+  const denied = paymentScopeError(db, scope, payment, "owner");
+  if (denied) return { form: denied };
+  if (payment.status !== "acknowledged" && payment.status !== "submitted") return { form: "Only pending payments can be confirmed" };
+  return null;
+}
+
+/** A manager declines while submitted; the owner while submitted or acknowledged. */
+export function validateDeclinePayment(db: Db, scope: AccessScope, payment: ChainPayment, reason: string): FieldErrors | null {
+  const role = scope.canConfirmPayments ? "owner" : "manager";
+  if (scope.user.role !== "manager" && scope.user.role !== "owner") return { form: "You cannot decline this payment" };
+  const denied = paymentScopeError(db, scope, payment, role);
+  if (denied) return { form: denied };
+  if (role === "manager" && payment.status !== "submitted") return { form: "Only submitted payments can be declined by a manager" };
+  if (role === "owner" && payment.status !== "acknowledged" && payment.status !== "submitted")
+    return { form: "Only pending payments can be declined by the owner" };
+  if (!reason.trim()) return { reason: "A decline reason is required" };
+  return null;
 }

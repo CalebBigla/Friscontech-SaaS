@@ -157,6 +157,36 @@ export type PlannedRpcs = {
     p_payment_id: string;
     p_reason: string;
   };
+  /**
+   * Payment chain step 1 for rep collections: the sales rep submits cash/transfer
+   * for a month (cannot exceed their sales minus earlier non-declined payments).
+   * Generates the text id (payments.id has no default), sets manager_id to the
+   * branch manager. Returns the payments row.
+   * Must replace the payment_status_notification trigger, which reads the dropped
+   * users.name column (so every insert fails) and notifies only one owner.
+   */
+  submit_payment: {
+    p_period: string;
+    p_cash_amount: number;
+    p_transfer_amount: number;
+    p_transfer_reference: string | null;
+    p_note: string | null;
+  };
+  /** Step 2: the assigned branch manager acknowledges (a transfer needs its reference). */
+  acknowledge_payment: {
+    p_payment_id: string;
+    p_transfer_reference: string | null;
+    p_proof_name: string | null;
+  };
+  /** Step 3: the owner confirms a submitted or acknowledged payment. */
+  confirm_payment: {
+    p_payment_id: string;
+  };
+  /** Decline with a reason: a manager while submitted, the owner while submitted or acknowledged. */
+  decline_payment: {
+    p_payment_id: string;
+    p_reason: string;
+  };
 };
 
 export async function callRpc<N extends keyof PlannedRpcs>(name: N, args: PlannedRpcs[N]): Promise<unknown> {

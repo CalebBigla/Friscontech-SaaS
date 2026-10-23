@@ -8,7 +8,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/auth-context";
 import { queryKeys } from "@/lib/query-keys";
-import { transformPayment, paymentToDb } from "@/lib/type-adapters";
+import { transformPayment, type PaymentMigrationRow } from "@/lib/type-adapters";
+import { callRpc, type PlannedRpcs } from "@/lib/rpc";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
 import type { Payment } from "@/data/mock-db";
 
@@ -103,69 +104,30 @@ export function usePendingPayments() {
   });
 }
 
-/**
- * Submit payment (rep action)
- */
-export function useSubmitPayment() {
+/** Each payment chain step changes payments, balances, remittances, notifications and the audit log. */
+function usePaymentMutation<N extends "submit_payment" | "acknowledge_payment" | "confirm_payment" | "decline_payment">(name: N) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (input: Partial<Payment>) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = paymentToDb(input, user.tenantId);
-      
-      const { data, error } = await (supabase as any).from('payments')
-        .insert(dbData)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformPayment(data);
+    mutationFn: async (args: PlannedRpcs[N]): Promise<Payment> => {
+      const row = await callRpc(name, args);
+      return transformPayment(row as PaymentMigrationRow);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.payments.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.payments.pending(user?.tenantId || '') 
-      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.payments.root() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.remittances.manager.all(user?.tenantId ?? "") });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.root() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all(user?.tenantId ?? "") });
     },
   });
 }
 
-/**
- * Update payment status (acknowledge, confirm, decline)
- */
-export function useUpdatePayment() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Payment> }) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = paymentToDb(updates, user.tenantId);
-      
-      const { data, error } = await (supabase as any).from('payments')
-        .update(dbData)
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformPayment(data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.payments.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.payments.pending(user?.tenantId || '') 
-      });
-    },
-  });
-}
+/** Step 1: sales rep submits a collection (RPC submit_payment). */
+export const useSubmitPayment = () => usePaymentMutation("submit_payment");
+/** Step 2: branch manager acknowledges (RPC acknowledge_payment). */
+export const useAcknowledgePayment = () => usePaymentMutation("acknowledge_payment");
+/** Step 3: owner confirms (RPC confirm_payment). */
+export const useConfirmPayment = () => usePaymentMutation("confirm_payment");
+/** Manager or owner declines (RPC decline_payment). */
+export const useDeclinePayment = () => usePaymentMutation("decline_payment");
