@@ -34,6 +34,7 @@ import { formatDate, formatNaira, formatTime } from "@/lib/format";
 import { getOwnerRemittanceSummary, getOwnerRemittances } from "@/lib/remittance-calculations";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useIdempotencyKey } from "@/hooks/use-idempotency-key";
 import { useCreateOwnerRemittance } from "@/hooks/use-remittances";
 import { runWrite, validateOwnerRemittance, type FieldErrors, type OwnerRemittanceInput } from "@/lib/validation";
 
@@ -67,6 +68,7 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  const idempotencyKey = useIdempotencyKey(formOpen);
   const [form, setForm] = useState<OwnerRemittanceInput>(defaultForm(db.tenant.referenceDate));
   const [errors, setErrors] = useState<FieldErrors>({});
   const [busy, setBusy] = useState(false);
@@ -104,6 +106,7 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
         p_remittance_date: form.remittanceDate,
         p_purpose: form.purpose.trim(),
         p_note: form.note?.trim() || null,
+        p_idempotency_key: idempotencyKey,
       }),
     );
     setBusy(false);

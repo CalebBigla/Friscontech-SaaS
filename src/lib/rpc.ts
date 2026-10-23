@@ -32,6 +32,8 @@ export type PlannedRpcs = {
     p_expiry_date: string;
     p_emergency: boolean;
     p_emergency_reason: string | null;
+    /** Same key while the form is open: a retried submit returns the first result. */
+    p_idempotency_key: string;
   };
   /**
    * Stock count correction: sets quantity_on_hand to the counted quantity,
@@ -53,6 +55,8 @@ export type PlannedRpcs = {
     p_branch_id: string;
     p_items: { product_id: string; quantity: number }[];
     p_note: string | null;
+    /** Same key while the form is open: a retried submit returns the first result. */
+    p_idempotency_key: string;
   };
   /** Pending → approved (quantity_approved = quantity_requested). Never touches stock. */
   approve_stock_request: {
@@ -138,6 +142,8 @@ export type PlannedRpcs = {
     p_payment_date: string;
     p_order_id: string | null;
     p_note: string | null;
+    /** Same key while the form is open: a retried submit returns the first result. */
+    p_idempotency_key: string;
   };
   /**
    * Payment chain step 2: the branch manager acknowledges a submitted payment
@@ -174,6 +180,8 @@ export type PlannedRpcs = {
     p_transfer_amount: number;
     p_transfer_reference: string | null;
     p_note: string | null;
+    /** Same key while the form is open: a retried submit returns the first result. */
+    p_idempotency_key: string;
   };
   /** Step 2: the assigned branch manager acknowledges (a transfer needs its reference). */
   acknowledge_payment: {
@@ -202,6 +210,8 @@ export type PlannedRpcs = {
     p_description: string;
     p_note: string | null;
     p_branch_id: string | null;
+    /** Same key while the form is open: a retried submit returns the first result. */
+    p_idempotency_key: string;
   };
   /** Edit a recorded expense the caller owns (managers cannot move it to another branch). */
   update_expense: {
@@ -255,6 +265,8 @@ export type PlannedRpcs = {
     p_remittance_date: string;
     p_purpose: string;
     p_note: string | null;
+    /** Same key while the form is open: a retried submit returns the first result. */
+    p_idempotency_key: string;
   };
   /**
    * Owner sets a monthly rep target (scope rep, branch = the rep's branch, amount
@@ -340,6 +352,8 @@ export type PlannedRpcs = {
     }[];
     p_mode: "update" | "skip";
     p_branch_id: string | null;
+    /** Same key while the form is open: a retried submit returns the first result. */
+    p_idempotency_key: string;
   };
   /**
    * Manager proposes a new member: a pending team_member approval request with

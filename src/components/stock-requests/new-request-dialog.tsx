@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FieldError, FilterSelect, StockStatusBadge } from "@/components/shared";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { useCreateStockRequests } from "@/hooks/use-stock-requests";
+import { useIdempotencyKey } from "@/hooks/use-idempotency-key";
 import { fieldErrorsFrom } from "@/lib/supabase-helpers";
 import { FIELD_NAMES, validateStockRequests, type FieldErrors } from "@/lib/validation";
 import type { AccessScope } from "@/lib/session";
@@ -24,6 +25,7 @@ const blank = (): Line => ({ key: ++seq, productId: "", quantity: "" });
 export function NewRequestDialog({ open, onOpenChange, scope }: { open: boolean; onOpenChange: (o: boolean) => void; scope: AccessScope }) {
   const { db } = useLiveWorkspace();
   const createRequests = useCreateStockRequests();
+  const idempotencyKey = useIdempotencyKey(open);
   const branchId = scope.user.branchId ?? "";
   const branch = db.branches.find((b) => b.id === branchId);
   const [lines, setLines] = useState<Line[]>([blank()]);
@@ -62,6 +64,7 @@ export function NewRequestDialog({ open, onOpenChange, scope }: { open: boolean;
         p_branch_id: branchId,
         p_items: items.map((it) => ({ product_id: it.productId, quantity: it.quantity })),
         p_note: note.trim() || null,
+        p_idempotency_key: idempotencyKey,
       });
       toast.success(created.length > 1 ? `${created.length} products requested.` : "Stock request submitted.", { description: `${created.map((x) => x.id).join(", ")} pending storekeeper review` });
       onOpenChange(false);

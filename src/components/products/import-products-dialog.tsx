@@ -11,6 +11,7 @@ import { IMPORT_COLUMNS, IMPORT_EXAMPLE, importErrorsCsv, validateImportRows, ty
 import type { AccessScope } from "@/lib/session";
 import { formatNaira, formatNumber } from "@/lib/format";
 import { useImportProducts, type ImportSummary } from "@/hooks/use-products";
+import { useIdempotencyKey } from "@/hooks/use-idempotency-key";
 
 function download(name: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
@@ -32,6 +33,7 @@ export async function downloadImportTemplate() {
 export function ImportProductsDialog({ open, onOpenChange, db, scope }: { open: boolean; onOpenChange: (o: boolean) => void; db: Db; scope: AccessScope }) {
   const branches = db.branches.filter((b) => b.status === "active" && (!scope.branchIds || scope.branchIds.includes(b.id)));
   const importProducts = useImportProducts();
+  const idempotencyKey = useIdempotencyKey(open);
   const [file, setFile] = useState("");
   const [rows, setRows] = useState<ImportRow[] | null>(null);
   const [skipInvalid, setSkipInvalid] = useState(true);
@@ -94,6 +96,7 @@ export function ImportProductsDialog({ open, onOpenChange, db, scope }: { open: 
         })),
         p_mode: mode,
         p_branch_id: branchId || null,
+        p_idempotency_key: idempotencyKey,
       });
       const merged: ImportSummary = {
         ...result,

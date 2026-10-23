@@ -20,6 +20,7 @@ import { formatNaira } from "@/lib/format";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { useCreateCustomer, useSetCustomerCreditLimit, useUpdateCustomer } from "@/hooks/use-customers";
 import { useRecordCustomerPayment } from "@/hooks/use-customer-payments";
+import { useIdempotencyKey } from "@/hooks/use-idempotency-key";
 import { getAccessScope } from "@/lib/session";
 import {
   runWrite,
@@ -173,6 +174,7 @@ export function RecordCustomerPaymentDialog({
 }) {
   const { db } = useLiveWorkspace();
   const recordPayment = useRecordCustomerPayment();
+  const idempotencyKey = useIdempotencyKey(open);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<CustomerPaymentMethod>("cash");
   const [reference, setReference] = useState("");
@@ -212,6 +214,7 @@ export function RecordCustomerPaymentDialog({
         p_payment_date: input.paymentDate,
         p_order_id: input.orderId ?? null,
         p_note: input.note.trim() || null,
+        p_idempotency_key: idempotencyKey,
       }),
     );
     setBusy(false);

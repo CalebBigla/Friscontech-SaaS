@@ -43,6 +43,7 @@ import {
 } from "@/lib/payment-calculations";
 import { getAccessScope, useCurrentUserId, type AccessScope } from "@/lib/session";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useIdempotencyKey } from "@/hooks/use-idempotency-key";
 import { useAcknowledgePayment, useConfirmPayment, useDeclinePayment, useSubmitPayment } from "@/hooks/use-payments";
 import { useAcknowledgeCustomerPayment, useConfirmCustomerPayment, useDeclineCustomerPayment } from "@/hooks/use-customer-payments";
 import {
@@ -775,6 +776,7 @@ function SubmitPaymentDialog({
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const submitPayment = useSubmitPayment();
+  const idempotencyKey = useIdempotencyKey(open);
   const position = getRepPaymentSummary(db, userId, period);
   const cashN = cash === "" ? 0 : Number(cash);
   const transferN = transfer === "" ? 0 : Number(transfer);
@@ -793,6 +795,7 @@ function SubmitPaymentDialog({
         p_transfer_amount: transferN,
         p_transfer_reference: reference.trim() || null,
         p_note: note.trim() || null,
+        p_idempotency_key: idempotencyKey,
       }),
     );
     setBusy(false);

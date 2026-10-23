@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FieldError, FilterSelect, StockStatusBadge } from "@/components/shared";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { useAddStock } from "@/hooks/use-inventory";
+import { useIdempotencyKey } from "@/hooks/use-idempotency-key";
 import { fieldErrorsFrom } from "@/lib/supabase-helpers";
 import { FIELD_NAMES, validateAddStock, type AddStockInput, type FieldErrors } from "@/lib/validation";
 import type { AccessScope } from "@/lib/session";
@@ -19,6 +20,7 @@ import { formatUnits } from "@/lib/format";
 export function AddStockDialog({ open, onOpenChange, scope, defaults }: { open: boolean; onOpenChange: (o: boolean) => void; scope: AccessScope; defaults?: { branchId?: string | undefined; productId?: string | undefined } | undefined }) {
   const { db } = useLiveWorkspace();
   const addStock = useAddStock();
+  const idempotencyKey = useIdempotencyKey(open);
   const [form, setForm] = useState({ branchId: "", productId: "", quantity: "", note: "", emergency: false, emergencyReason: "", batchNumber: "", expiryDate: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
   const saving = addStock.isPending;
@@ -52,6 +54,7 @@ export function AddStockDialog({ open, onOpenChange, scope, defaults }: { open: 
         p_expiry_date: input.expiryDate ?? "",
         p_emergency: !direct && !!input.emergency,
         p_emergency_reason: input.emergency ? input.emergencyReason?.trim() ?? null : null,
+        p_idempotency_key: idempotencyKey,
       });
       if (direct) toast.success("Stock added.", { description: `${product?.name} · +${formatUnits(qty)}` });
       else if (approval.emergency) toast.success("Emergency stock added.", { description: `${product?.name} · +${formatUnits(qty)} · your manager will review it` });

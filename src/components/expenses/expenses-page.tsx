@@ -34,6 +34,7 @@ import {
 } from "@/lib/remittance-calculations";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useIdempotencyKey } from "@/hooks/use-idempotency-key";
 import { useCreateExpense, useUpdateExpense, useVoidExpense } from "@/hooks/use-expenses";
 import {
   runWrite,
@@ -56,6 +57,7 @@ export function ExpensesPage() {
   const periodNow = currentPeriod(db.tenant.referenceDate);
   const [period, setPeriod] = useState(periodNow);
   const [formOpen, setFormOpen] = useState(false);
+  const idempotencyKey = useIdempotencyKey(formOpen);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
   const [voidId, setVoidId] = useState<string | null>(null);
@@ -120,7 +122,7 @@ export function ExpensesPage() {
     const result = editing
       ? await runWrite(validateExpenseUpdate(db, scope, editing, form), () =>
           updateExpense.mutateAsync({ p_expense_id: editing.id, ...fields }))
-      : await runWrite(validateExpenseCreate(db, scope, form), () => createExpense.mutateAsync(fields));
+      : await runWrite(validateExpenseCreate(db, scope, form), () => createExpense.mutateAsync({ ...fields, p_idempotency_key: idempotencyKey }));
     setBusy(false);
     if (!result.ok) {
       setErrors(result.errors);
