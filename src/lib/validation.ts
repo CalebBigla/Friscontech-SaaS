@@ -4,7 +4,8 @@
  * Same rules and messages the app has always shown. The database (RPCs and
  * CHECK constraints) enforces them again; this only gives faster feedback.
  */
-import type { ApprovalRequest, Customer, CustomerPayment, CustomerPaymentMethod, Db, InventoryRecord, Payment, StockRequest } from "@/data/mock-db";
+import type { ApprovalRequest, Customer, CustomerPayment, CustomerPaymentMethod, Db, Expense, ExpenseCategory, InventoryRecord, Payment, StockRequest, User } from "@/data/mock-db";
+import { expenseCategories } from "@/lib/remittance-calculations";
 import { getRepTotalSales, isValidPaymentPeriod } from "@/lib/payment-calculations";
 import { fieldErrorsFrom } from "@/lib/supabase-helpers";
 import { canReviewApproval } from "@/lib/approvals";
@@ -383,5 +384,62 @@ export function validateDeclinePayment(db: Db, scope: AccessScope, payment: Chai
   if (role === "owner" && payment.status !== "acknowledged" && payment.status !== "submitted")
     return { form: "Only pending payments can be declined by the owner" };
   if (!reason.trim()) return { reason: "A decline reason is required" };
+  return null;
+}
+
+// ---------- expenses ----------
+
+export type ExpenseInput = {
+  category: ExpenseCategory;
+  amount: number;
+  expenseDate: string;
+  description: string;
+  note?: string;
+  branchId?: string;
+};
+
+const activeOwner = (db: Db, user: User) => user.tenantId === db.tenant.id && user.role === "owner" && user.status === "active";
+/** A manager acts for a branch only while assigned as that branch's manager. */
+export const managedBranch = (db: Db, user: User) =>
+  user.tenantId === db.tenant.id && user.role === "manager" && user.status === "active" && user.branchId
+    ? db.branches.find((b) => b.id === user.branchId && b.tenantId === user.tenantId && b.managerId === user.id) ?? null
+    : null;
+
+export function validateExpense(db: Db, input: ExpenseInput): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!isValidDate(input.expenseDate)) errors.expenseDate = "Enter a valid expense date";
+  else if (input.expenseDate > db.tenant.referenceDate) errors.expenseDate = "Expense date cannot be in the future";
+  if (!expenseCategories.includes(input.category)) errors.category = "Choose an expense category";
+  if (!Number.isFinite(input.amount) || input.amount <= 0) errors.amount = "Amount must be greater than zero";
+  if (!input.description.trim()) errors.description = "Description is required";
+  if (input.branchId && !db.branches.some((b) => b.id === input.branchId && b.tenantId === db.tenant.id)) errors.branchId = "Choose a valid branch";
+  return errors;
+}
+
+/** Owners record company expenses; managers record their branch's. */
+export function validateExpenseCreate(db: Db, scope: AccessScope, input: ExpenseInput): FieldErrors | null {
+  if (!activeOwner(db, scope.user) && !managedBranch(db, scope.user)) return { form: "Only an active Owner or branch Manager can record expenses" };
+  const errors = validateExpense(db, input);
+  return hasErrors(errors) ? errors : null;
+}
+
+function canManageExpense(db: Db, user: User, expense: Expense) {
+  if (expense.tenantId !== db.tenant.id) return false;
+  if (activeOwner(db, user)) return expense.ownerId === user.id;
+  const branch = managedBranch(db, user);
+  return !!branch && expense.managerId === user.id && expense.branchId === branch.id;
+}
+
+export function validateExpenseUpdate(db: Db, scope: AccessScope, expense: Expense, input: ExpenseInput): FieldErrors | null {
+  if (!canManageExpense(db, scope.user, expense)) return { form: "You cannot edit this expense" };
+  if (expense.status !== "recorded") return { form: "Voided expenses cannot be edited" };
+  const errors = validateExpense(db, input);
+  return hasErrors(errors) ? errors : null;
+}
+
+export function validateExpenseVoid(db: Db, scope: AccessScope, expense: Expense, reason: string): FieldErrors | null {
+  if (!canManageExpense(db, scope.user, expense)) return { form: "You cannot void this expense" };
+  if (expense.status !== "recorded") return { form: "This expense is already voided" };
+  if (!reason.trim()) return { reason: "A void reason is required" };
   return null;
 }

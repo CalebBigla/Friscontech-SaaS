@@ -3,7 +3,7 @@ import { Ban, Eye, Pencil, Plus, Receipt } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/app-shell";
-import { EmptyState, FieldError, MetricCard, Panel } from "@/components/shared";
+import { DataGate, EmptyState, FieldError, MetricCard, Panel } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,13 +33,24 @@ import {
   getExpenseSummary,
 } from "@/lib/remittance-calculations";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
-import { useDb } from "@/services/mock-store";
-import { expenseService, type FieldErrors, type ExpenseInput } from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useCreateExpense, useUpdateExpense, useVoidExpense } from "@/hooks/use-expenses";
+import {
+  runWrite,
+  validateExpenseCreate,
+  validateExpenseUpdate,
+  validateExpenseVoid,
+  type ExpenseInput,
+  type FieldErrors,
+} from "@/lib/validation";
 
 const currentPeriod = (date: string) => date.slice(0, 7);
 
 export function ExpensesPage() {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
+  const createExpense = useCreateExpense();
+  const updateExpense = useUpdateExpense();
+  const voidExpenseMutation = useVoidExpense();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const periodNow = currentPeriod(db.tenant.referenceDate);
@@ -95,10 +106,21 @@ export function ExpensesPage() {
   const set = <K extends keyof ExpenseInput>(key: K, value: ExpenseInput[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
   const save = async () => {
+    const editing = editingId ? db.expenses.find((expense) => expense.id === editingId) : undefined;
+    if (editingId && !editing) return setErrors({ form: "Expense not found" });
+    const fields = {
+      p_category: form.category,
+      p_amount: form.amount,
+      p_expense_date: form.expenseDate,
+      p_description: form.description.trim(),
+      p_note: form.note?.trim() || null,
+      p_branch_id: form.branchId ?? null,
+    };
     setBusy(true);
-    const result = editingId
-      ? await expenseService.update(editingId, form, userId)
-      : await expenseService.create(form, userId);
+    const result = editing
+      ? await runWrite(validateExpenseUpdate(db, scope, editing, form), () =>
+          updateExpense.mutateAsync({ p_expense_id: editing.id, ...fields }))
+      : await runWrite(validateExpenseCreate(db, scope, form), () => createExpense.mutateAsync(fields));
     setBusy(false);
     if (!result.ok) {
       setErrors(result.errors);
@@ -108,9 +130,11 @@ export function ExpensesPage() {
     setFormOpen(false);
   };
   const voidRecord = async () => {
-    if (!voidId) return;
+    if (!voidId || !voidExpense) return;
     setBusy(true);
-    const result = await expenseService.void(voidId, voidReason, userId);
+    const result = await runWrite(validateExpenseVoid(db, scope, voidExpense, voidReason), () =>
+      voidExpenseMutation.mutateAsync({ p_expense_id: voidId, p_reason: voidReason.trim() }),
+    );
     setBusy(false);
     if (!result.ok) {
       setReasonError(result.errors.reason ?? result.errors.form ?? "Unable to void expense");
@@ -159,6 +183,7 @@ export function ExpensesPage() {
           />
         </div>
       </div>
+      <DataGate isLoading={isLoading} error={error}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           icon={Receipt}
@@ -289,6 +314,7 @@ export function ExpensesPage() {
           />
         )}
       </Panel>
+      </DataGate>
       <Dialog open={formOpen} onOpenChange={(open) => !busy && setFormOpen(open)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>

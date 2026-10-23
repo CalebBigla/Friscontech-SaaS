@@ -8,7 +8,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/auth-context";
 import { queryKeys } from "@/lib/query-keys";
-import { transformExpense, expenseToDb } from "@/lib/type-adapters";
+import { transformExpense, type ExpenseMigrationRow } from "@/lib/type-adapters";
+import { callRpc, type PlannedRpcs } from "@/lib/rpc";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
 import type { Expense } from "@/data/mock-db";
 
@@ -80,94 +81,27 @@ export function useExpensesByManager(managerId: string | undefined) {
   });
 }
 
-/**
- * Create a new expense
- */
-export function useCreateExpense() {
+/** Expenses feed remittance totals, reports and the audit log. */
+function useExpenseMutation<N extends "create_expense" | "update_expense" | "void_expense">(name: N) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: Partial<Expense>) => {
-      if (!user?.tenantId) throw new Error("Not authenticated");
-
-      const dbData = expenseToDb(input, user.tenantId);
-
-      const { data, error } = await (supabase as any).from("expenses")
-        .insert(dbData)
-        .select()
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-
-      return transformExpense(data);
+    mutationFn: async (args: PlannedRpcs[N]): Promise<Expense> => {
+      const row = await callRpc(name, args);
+      return transformExpense(row as ExpenseMigrationRow);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.expenses.all(user?.tenantId ?? ""),
-      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.expenses.root() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.remittances.manager.all(user?.tenantId ?? "") });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all(user?.tenantId ?? "") });
     },
   });
 }
 
-/**
- * Update an existing expense
- */
-export function useUpdateExpense() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      id,
-      updates,
-    }: {
-      id: string;
-      updates: Partial<Expense>;
-    }) => {
-      if (!user?.tenantId) throw new Error("Not authenticated");
-
-      const dbData = expenseToDb(updates, user.tenantId);
-
-      const { data, error } = await (supabase as any).from("expenses")
-        .update(dbData)
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw handleSupabaseError(error);
-
-      return transformExpense(data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.expenses.all(user?.tenantId ?? ""),
-      });
-    },
-  });
-}
-
-/**
- * Delete an expense
- */
-export function useDeleteExpense() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (expenseId: string) => {
-      const { error } = await (supabase as any).from("expenses")
-        .delete()
-        .eq("id", expenseId);
-
-      if (error) throw handleSupabaseError(error);
-
-      return expenseId;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.expenses.all(user?.tenantId ?? ""),
-      });
-    },
-  });
-}
+/** Record an expense (RPC create_expense). */
+export const useCreateExpense = () => useExpenseMutation("create_expense");
+/** Edit a recorded expense (RPC update_expense). */
+export const useUpdateExpense = () => useExpenseMutation("update_expense");
+/** Void a recorded expense (RPC void_expense). */
+export const useVoidExpense = () => useExpenseMutation("void_expense");

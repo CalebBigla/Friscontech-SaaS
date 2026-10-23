@@ -187,6 +187,34 @@ export type PlannedRpcs = {
     p_payment_id: string;
     p_reason: string;
   };
+  /**
+   * Owner (company expense, optional branch) or the branch's assigned manager
+   * (branch = their branch) records an expense. Generates the text id
+   * (expenses.id has no default). Returns the expenses row.
+   */
+  create_expense: {
+    p_category: string;
+    p_amount: number;
+    p_expense_date: string;
+    p_description: string;
+    p_note: string | null;
+    p_branch_id: string | null;
+  };
+  /** Edit a recorded expense the caller owns (managers cannot move it to another branch). */
+  update_expense: {
+    p_expense_id: string;
+    p_category: string;
+    p_amount: number;
+    p_expense_date: string;
+    p_description: string;
+    p_note: string | null;
+    p_branch_id: string | null;
+  };
+  /** Void a recorded expense; the reason goes in the audit row (no column for it). */
+  void_expense: {
+    p_expense_id: string;
+    p_reason: string;
+  };
 };
 
 export async function callRpc<N extends keyof PlannedRpcs>(name: N, args: PlannedRpcs[N]): Promise<unknown> {

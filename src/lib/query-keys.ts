@@ -116,6 +116,8 @@ export const queryKeys = {
 
   // Expenses
   expenses: {
+    /** Prefix of every expense query. */
+    root: () => ["expenses"] as const,
     all: (tenantId: string) => ["expenses", tenantId] as const,
     list: (tenantId: string, filters?: object) =>
       ["expenses", tenantId, "list", filters] as const,
