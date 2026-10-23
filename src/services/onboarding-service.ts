@@ -327,7 +327,14 @@ export const onboardingService = {
     const email = (data.email || "").trim().toLowerCase();
     if (!email) return fail("Email is required.");
 
-    // 1. mark the onboarding submitted (RPC validates the token)
+    // A retry after the account was already created (e.g. the first response was
+    // lost): nothing to redo, the member only confirms their email and waits.
+    const before = await fetchByToken(rawToken);
+    if (before?.passwordSet)
+      return fail("Your account was already created. Confirm your email, then wait for the Owner to approve you.");
+
+    // 1. mark the onboarding submitted (RPC validates the token; a submitted invite
+    //    without an account can be submitted again, so a failed sign-up is retryable)
     const { error: submitErr } = await (supabase as any).rpc("submit_onboarding", {
       p_token: rawToken,
       p_data: data,

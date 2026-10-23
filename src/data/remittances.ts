@@ -4,7 +4,6 @@ export type OwnerRemittance = {
   id: string;
   tenantId: string;
   ownerId: string;
-  branchId?: string;
   payeeType: OwnerRemittancePayeeType;
   payeeName: string;
   amount: number;

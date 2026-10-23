@@ -187,7 +187,7 @@ function ExpiryAlertSection() {
       {!edit && <ReadOnlyNote />}
       <form onSubmit={submit} noValidate>
         <div className="grid gap-4 p-5 sm:grid-cols-2">
-          <Field id="exp-months" label="Start alerts this many months before expiry" error={error}><Input id="exp-months" type="number" min={1} max={24} step={1} inputMode="numeric" value={months} disabled={!edit} onChange={(e) => setMonths(e.target.value)} /></Field>
+          <Field id="exp-months" label="Start alerts this many months before expiry" error={error}><Input id="exp-months" type="number" min={1} max={12} step={1} inputMode="numeric" value={months} disabled={!edit} onChange={(e) => setMonths(e.target.value)} /></Field>
           <p className="self-end text-xs text-muted-foreground">Alerts also escalate at 3 months, 1 month and once expired.</p>
         </div>
         {edit && <FormActions dirty={months !== String(db.tenant.expiryAlertMonths)} saving={saving} onCancel={() => { setMonths(String(db.tenant.expiryAlertMonths)); setError(""); }} />}

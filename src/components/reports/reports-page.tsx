@@ -188,13 +188,12 @@ function ReportsPageContent() {
     if (applied.type === "inventory")
       downloadCsv(
         file,
-        ["Product", "SKU", "Branch", "On Hand", "Reserved", "Available", "Threshold", "Status"],
+        ["Product", "SKU", "Branch", "On Hand", "Available", "Threshold", "Status"],
         inventory.rows.map((r) => [
           r.product.name,
           r.product.sku,
           r.branch.name,
           r.record.quantityOnHand,
-          r.record.quantityReserved,
           r.available,
           r.record.lowStockThreshold,
           inventoryStatusLabel[r.status],
@@ -559,7 +558,6 @@ function ReportsPageContent() {
                     "SKU",
                     "Branch",
                     "On Hand|r",
-                    "Reserved|r",
                     "Available|r",
                     "Threshold|r",
                     "Status",
@@ -580,9 +578,6 @@ function ReportsPageContent() {
                       <td className={td}>{r.branch.name}</td>
                       <td className={`${td} text-right`}>
                         {formatNumber(r.record.quantityOnHand)}
-                      </td>
-                      <td className={`${td} text-right`}>
-                        {formatNumber(r.record.quantityReserved)}
                       </td>
                       <td className={`${td} text-right font-semibold`}>
                         {formatNumber(r.available)}

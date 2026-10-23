@@ -32,7 +32,6 @@ export function AdjustStockDialog({ record, productName, onClose }: { record: In
   function review() {
     const e: FieldErrors = {};
     if (!valid) e.quantity = "Enter a whole number of zero or more";
-    else if (n < record!.quantityReserved) e.quantity = `Cannot go below the ${record!.quantityReserved} reserved units`;
     else if (delta === 0) e.quantity = "Counted quantity matches current stock";
     if (!reason.trim()) e.reason = "Give a reason for the adjustment";
     setErrors(e);

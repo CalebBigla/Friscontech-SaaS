@@ -65,6 +65,7 @@ export function validateImportRows(db: Db, raw: Record<string, unknown>[]): Impo
     if (expiryDate === "invalid") errors.push("Invalid expiry date");
     const batchNumber = str(g.batchNumber);
     if (batchNumber && !expiryDate) errors.push("Batch number needs an expiry date");
+    if (opening > 0 && !expiryDate) errors.push("Opening stock needs an expiry date");
     if (!str(g.category)) errors.push("Missing category");
     if (!str(g.unit)) errors.push("Missing unit");
     if (sku) {

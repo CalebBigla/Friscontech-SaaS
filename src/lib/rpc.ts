@@ -16,10 +16,12 @@ import { handleSupabaseError } from "@/lib/supabase-helpers";
 
 export type PlannedRpcs = {
   /**
-   * Storekeeper stock addition. Creates a pending stock_addition approval request.
-   * With p_emergency, also applies the stock now: inventory record, lot
-   * (opened or extended by batch number + expiry), stock_added movement, audit row.
-   * Returns the approval_requests row.
+   * Stock addition to the central stock (inventory_records). Expiry date required.
+   * Owner: applied immediately (approval row recorded as approved).
+   * Storekeeper: pending stock_addition approval for the manager; with p_emergency
+   * it is applied now and reviewed afterwards.
+   * Applying = inventory record, lot (batch number generated when blank),
+   * stock_added movement, audit row. Returns the approval_requests row.
    */
   add_stock: {
     p_branch_id: string;
@@ -27,7 +29,7 @@ export type PlannedRpcs = {
     p_quantity: number;
     p_note: string | null;
     p_batch_number: string | null;
-    p_expiry_date: string | null;
+    p_expiry_date: string;
     p_emergency: boolean;
     p_emergency_reason: string | null;
   };
@@ -63,9 +65,10 @@ export type PlannedRpcs = {
   };
   /**
    * Approved / partially fulfilled → (partially) fulfilled. The only step that
-   * deducts stock: inventory, stock_issued movement, lots drained FEFO, rep
-   * notified, audit row. Must replace the existing stock_request_fulfillment
-   * trigger, which skips repeat partial issues and decrements quantity_reserved.
+   * deducts stock: quantity_on_hand (stock is never reserved), stock_issued
+   * movement, lots drained FEFO, rep notified, audit row. Replaces the
+   * stock_request_fulfillment trigger, which skipped repeat partial issues and
+   * decremented quantity_reserved.
    */
   fulfil_stock_request: {
     p_request_id: string;
@@ -239,10 +242,9 @@ export type PlannedRpcs = {
     p_reason: string;
   };
   /**
-   * Owner records a payment to an external payee (cash or transfer). Generates the
-   * text id (owner_remittances.id has no default). p_branch_id needs a new nullable
-   * owner_remittances.branch_id column (Phase 2 migration): the form lets the owner
-   * tag a branch but the table cannot store it yet. Returns the owner_remittances row.
+   * Owner records money paid out of the business to an external payee (supplier,
+   * landlord, …). Not part of the payment chain: no review step. Cash or transfer.
+   * Generates the text id (owner_remittances.id has no default). Returns the row.
    */
   create_owner_remittance: {
     p_payee_type: "supplier" | "landlord" | "utility" | "contractor" | "other";
@@ -253,7 +255,6 @@ export type PlannedRpcs = {
     p_remittance_date: string;
     p_purpose: string;
     p_note: string | null;
-    p_branch_id: string | null;
   };
   /**
    * Owner sets a monthly rep target (scope rep, branch = the rep's branch, amount
@@ -355,15 +356,13 @@ export type PlannedRpcs = {
    * Edit a member (owner: anyone but themselves; manager: their branch staff).
    * Sets users.manager_id from the branch for storekeepers and sales reps, keeps
    * branches.manager_id in sync when a manager is (re)assigned, and writes audit
-   * rows for edit / role change / branch change / status change.
-   * Email lives in auth.users too: a changed email must update both or be refused
-   * (Phase 2 design decision). Returns the users row.
+   * rows for edit / role change / branch change / status change. The email is
+   * verified at sign-up and never changes here. Returns the users row.
    */
   update_team_member: {
     p_user_id: string;
     p_first_name: string;
     p_last_name: string;
-    p_email: string;
     p_role: "owner" | "manager" | "storekeeper" | "sales_rep";
     p_branch_id: string | null;
     p_status: "active" | "inactive" | "pending";
@@ -375,9 +374,8 @@ export type PlannedRpcs = {
   };
   /**
    * Owner updates the business profile. Null means "leave unchanged"; one audit
-   * row lists the changed fields. Returns the tenants row.
-   * The app allows 1–24 expiry alert months, but tenants.expiry_alert_months has
-   * CHECK 1–12 (Phase 2 decision: widen the CHECK or narrow the app rule).
+   * row lists the changed fields. Expiry alerts: 1–12 months (default 6).
+   * Returns the tenants row.
    */
   update_tenant_settings: {
     p_name: string | null;

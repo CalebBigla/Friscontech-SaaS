@@ -44,9 +44,8 @@ export function InventoryDetailPage({ inventoryId }: { inventoryId: string }) {
 
       <section className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
         <Panel title="Current stock" subtitle={`Last updated ${formatDayTime(row.record.lastUpdated, db.tenant.referenceDate)}`}>
-          <div className="grid grid-cols-2 gap-5 p-5 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-5 p-5 sm:grid-cols-3">
             <DetailItem label="On hand"><span className="text-2xl font-bold">{formatNumber(row.record.quantityOnHand)}</span></DetailItem>
-            <DetailItem label="Reserved"><span className="text-2xl font-bold text-muted-foreground">{row.record.quantityReserved}</span></DetailItem>
             <DetailItem label="Available"><span className="text-2xl font-bold text-primary">{formatNumber(available)}</span></DetailItem>
             <DetailItem label="Low-stock threshold"><span className="text-2xl font-bold">{row.record.lowStockThreshold}</span></DetailItem>
           </div>

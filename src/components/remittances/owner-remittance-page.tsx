@@ -64,7 +64,6 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
   const [query, setQuery] = useState("");
   const [method, setMethod] = useState<"all" | OwnerRemittancePaymentMethod>("all");
   const [payeeType, setPayeeType] = useState<"all" | OwnerRemittancePayeeType>("all");
-  const [branchId, setBranchId] = useState("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -79,14 +78,12 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
         search: query,
         paymentMethod: method,
         payeeType,
-        branchId,
         from,
         to,
       }),
-    [db, scope, query, method, payeeType, branchId, from, to],
+    [db, scope, query, method, payeeType, from, to],
   );
   const selected = remittanceId ? allRows.find((row) => row.id === remittanceId) : null;
-  const branches = db.branches.filter((branch) => branch.tenantId === scope.user.tenantId);
   const openForm = () => {
     setErrors({});
     setForm(defaultForm(db.tenant.referenceDate));
@@ -107,7 +104,6 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
         p_remittance_date: form.remittanceDate,
         p_purpose: form.purpose.trim(),
         p_note: form.note?.trim() || null,
-        p_branch_id: form.branchId ?? null,
       }),
     );
     setBusy(false);
@@ -211,15 +207,6 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
             value={payeeType}
             onChange={(value) => setPayeeType(value as typeof payeeType)}
             values={[["all", "All types"], ...Object.entries(payeeLabels)]}
-          />
-          <Filter
-            label="Branch"
-            value={branchId}
-            onChange={setBranchId}
-            values={[
-              ["all", "All branches"],
-              ...branches.map((branch) => [branch.id, branch.name] as [string, string]),
-            ]}
           />
           <div className="flex gap-2">
             <Input
@@ -397,32 +384,6 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
               />
               {errors.reference && <FieldError message={errors.reference} />}
             </Field>
-            <Field label="Branch (optional)">
-              <Select
-                value={form.branchId ?? "none"}
-                onValueChange={(value) =>
-                  setForm((current) => {
-                    const next = { ...current };
-                    if (value === "none") delete next.branchId;
-                    else next.branchId = value;
-                    return next;
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Business-wide" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Business-wide</SelectItem>
-                  {branches.map((branch) => (
-                    <SelectItem key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.branchId && <FieldError message={errors.branchId} />}
-            </Field>
             <Field label="Purpose" className="sm:col-span-2">
               <Input
                 value={form.purpose}
@@ -528,7 +489,6 @@ function Field({
 }
 function RemittanceDetail({ db, row }: { db: Db; row: OwnerRemittance }) {
   const owner = db.users.find((user) => user.id === row.ownerId);
-  const branch = row.branchId ? db.branches.find((item) => item.id === row.branchId) : null;
   const values: [string, string][] = [
     ["Payee", row.payeeName],
     ["Payee Type", payeeLabels[row.payeeType]],
@@ -538,7 +498,6 @@ function RemittanceDetail({ db, row }: { db: Db; row: OwnerRemittance }) {
     ["Reference", row.reference ?? "—"],
     ["Remittance Date", formatDate(row.remittanceDate)],
     ["Owner", owner?.name ?? "Owner"],
-    ["Branch", branch?.name ?? "Business-wide"],
     ["Note", row.note ?? "—"],
     ["Created At", `${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}`],
   ];

@@ -222,6 +222,8 @@ function baseScope(user: User | null, userId: string): Omit<AccessScope, Extra> 
         canRecordSales: true,
         canViewSales: true,
         ...none,
+        // Owner and storekeeper both replenish and adjust the central stock.
+        canManageStock: true,
         canViewBranches: true,
         canManageProducts: true,
         canManageTargets: true,

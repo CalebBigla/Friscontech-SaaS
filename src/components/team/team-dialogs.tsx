@@ -99,7 +99,6 @@ export function TeamMemberDialog({
           p_user_id: member.id,
           p_first_name: names.firstName,
           p_last_name: names.lastName,
-          p_email: form.email.trim().toLowerCase(),
           p_role: form.role,
           p_branch_id: branchId || null,
           p_status: form.status === "inactive" ? "inactive" : form.status === "pending" ? "pending" : "active",
@@ -171,7 +170,7 @@ export function TeamMemberDialog({
           </div>
           <div>
             <Label htmlFor="t-email" className="text-xs">Email *</Label>
-            <Input id="t-email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="mt-1.5 h-9" placeholder="name@friscontech.ng" aria-invalid={!!errors.email} />
+            <Input id="t-email" type="email" value={form.email} disabled={!!member} onChange={(e) => setForm({ ...form, email: e.target.value })} className="mt-1.5 h-9" placeholder="name@friscontech.ng" aria-invalid={!!errors.email} />
             <FieldError message={errors.email} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">

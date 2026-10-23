@@ -114,10 +114,10 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
         </table></div>}
         {!simple && <>
         <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[900px] text-left">
+          <table className="w-full min-w-[840px] text-left">
             <thead><tr className="text-[10px] uppercase text-muted-foreground">
               <SortHead k="product" label="Product" /><th className="hidden px-4 py-3 xl:table-cell">SKU</th><th className="px-4 py-3">Branch</th>
-              <th className="px-4 py-3 text-right">On hand</th><th className="px-4 py-3 text-right">Reserved</th><SortHead k="available" label="Available" right /><th className="px-4 py-3 text-right">Threshold</th><th className="px-4 py-3">Nearest expiry</th>
+              <th className="px-4 py-3 text-right">On hand</th><SortHead k="available" label="Available" right /><th className="px-4 py-3 text-right">Threshold</th><th className="px-4 py-3">Nearest expiry</th>
               <SortHead k="status" label="Status" /><SortHead k="updated" label="Last updated" /><th className="px-4 py-3 text-right">Actions</th>
             </tr></thead>
             <tbody>{shown.map((r) => (
@@ -126,7 +126,6 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
                 <td className="hidden px-4 py-3.5 font-mono text-[11px] text-muted-foreground xl:table-cell">{r.product.sku}</td>
                 <td className="px-4 py-3.5">{r.branch.name}</td>
                 <td className="px-4 py-3.5 text-right font-semibold">{formatNumber(r.record.quantityOnHand)}</td>
-                <td className="px-4 py-3.5 text-right text-muted-foreground">{r.record.quantityReserved}</td>
                 <td className="px-4 py-3.5 text-right font-bold">{formatNumber(r.available)}</td>
                 <td className="px-4 py-3.5 text-right text-muted-foreground">{r.record.lowStockThreshold}</td>
                 <td className="px-4 py-3.5"><NearestExpiryBadge db={db} productId={r.product.id} branchIds={scope.branchIds} branchId={r.branch.id} /></td>
@@ -142,8 +141,8 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
               <Link to="/inventory/$inventoryId" params={{ inventoryId: r.record.id }} className="min-w-0"><p className="truncate text-sm font-bold">{r.product.name}</p><p className="text-[11px] text-muted-foreground">{r.product.sku} · {r.branch.name}</p></Link>
               <div className="flex items-center gap-1"><StockStatusBadge status={r.status} />{actions(r)}</div>
             </div>
-            <div className="mt-3 grid grid-cols-4 gap-2 text-[11px]">
-              {[["On hand", r.record.quantityOnHand], ["Reserved", r.record.quantityReserved], ["Available", r.available], ["Threshold", r.record.lowStockThreshold]].map(([k, v]) => <div key={k}><p className="text-muted-foreground">{k}</p><p className="font-bold">{formatNumber(Number(v))}</p></div>)}
+            <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+              {[["On hand", r.record.quantityOnHand], ["Available", r.available], ["Threshold", r.record.lowStockThreshold]].map(([k, v]) => <div key={k}><p className="text-muted-foreground">{k}</p><p className="font-bold">{formatNumber(Number(v))}</p></div>)}
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">Updated {formatDayTime(r.record.lastUpdated, db.tenant.referenceDate)}</p>
           </div>))}</div>

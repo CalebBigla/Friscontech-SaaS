@@ -116,7 +116,7 @@ export type AddStockInput = {
 
 /** Storekeeper stock addition. */
 export function validateAddStock(db: Db, scope: AccessScope, input: AddStockInput): FieldErrors | null {
-  if (!scope.canManageStock) return { form: "Only storekeepers can add stock" };
+  if (!scope.canManageStock) return { form: "Only the owner or a storekeeper can add stock" };
   const errors: FieldErrors = {};
   const branch = db.branches.find((b) => b.id === input.branchId);
   if (!branch) errors.branchId = "Select a branch";
@@ -126,8 +126,9 @@ export function validateAddStock(db: Db, scope: AccessScope, input: AddStockInpu
   if (!product) errors.productId = "Select a product";
   else if (product.status !== "active") errors.productId = "This product is inactive — reactivate it before adding stock";
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) errors.quantity = "Enter a whole number greater than zero";
-  if (input.expiryDate && !isDate(input.expiryDate)) errors.expiryDate = "Enter a valid date";
-  if (input.batchNumber?.trim() && !input.expiryDate) errors.expiryDate = "Add the batch's expiry date";
+  // Every received lot has an expiry date so FEFO issue and expiry alerts can track it.
+  if (!input.expiryDate) errors.expiryDate = "Enter the expiry date";
+  else if (!isValidDate(input.expiryDate)) errors.expiryDate = "Enter a valid date";
   if (input.emergency && (input.emergencyReason ?? "").trim().length < 5)
     errors.emergencyReason = "Explain why this addition can't wait for approval";
   return hasErrors(errors) ? errors : null;
@@ -138,7 +139,6 @@ export function validateAdjustStock(scope: AccessScope, record: InventoryRecord,
   if (!scope.canManageStock || (scope.branchIds && !scope.branchIds.includes(record.branchId)))
     return { form: "You cannot adjust this stock record" };
   if (!Number.isInteger(counted) || counted < 0) return { quantity: "Enter a whole number of zero or more" };
-  if (counted < record.quantityReserved) return { quantity: `Cannot go below the ${record.quantityReserved} reserved units` };
   if (counted === record.quantityOnHand) return { quantity: "Counted quantity matches current stock" };
   if (!reason.trim()) return { reason: "Give a reason for the adjustment" };
   return null;
@@ -514,12 +514,11 @@ export type OwnerRemittanceInput = {
   remittanceDate: string;
   purpose: string;
   note?: string;
-  branchId?: string;
 };
 
 const ownerPayeeTypes: OwnerRemittancePayeeType[] = ["supplier", "landlord", "utility", "contractor", "other"];
 
-/** Owner records money paid out to an external payee. */
+/** Owner records money paid out of the business to an external payee (not part of the payment chain). */
 export function validateOwnerRemittance(db: Db, scope: AccessScope, input: OwnerRemittanceInput): FieldErrors | null {
   if (!activeOwner(db, scope.user)) return { form: "Only the active business owner can create remittances" };
   const errors: FieldErrors = {};
@@ -531,7 +530,6 @@ export function validateOwnerRemittance(db: Db, scope: AccessScope, input: Owner
   else if (input.remittanceDate > db.tenant.referenceDate) errors.remittanceDate = "Date cannot be in the future";
   if (!input.purpose.trim()) errors.purpose = "Purpose is required";
   if (input.paymentMethod === "transfer" && !input.reference?.trim()) errors.reference = "A transfer reference is required";
-  if (input.branchId && !db.branches.some((b) => b.id === input.branchId && b.tenantId === db.tenant.id)) errors.branchId = "Choose a valid branch";
   return hasErrors(errors) ? errors : null;
 }
 

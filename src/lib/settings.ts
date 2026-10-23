@@ -66,7 +66,7 @@ export function validateOrganization(canManage: boolean, input: OrganizationInpu
 
 export function validateExpiryAlertMonths(canManage: boolean, months: number): SettingsErrors | null {
   if (!canManage) return { form: "Only the business owner can change expiry alerts." };
-  if (!Number.isInteger(months) || months < 1 || months > 24) return { form: "Enter a whole number of months between 1 and 24" };
+  if (!Number.isInteger(months) || months < 1 || months > 12) return { form: "Enter a whole number of months between 1 and 12" };
   return null;
 }
 
