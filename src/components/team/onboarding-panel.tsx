@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { DetailItem, Panel } from "@/components/shared";
+import { DetailItem, ErrorState, Panel } from "@/components/shared";
 import { FilterSelect } from "@/components/shared";
 import type { User, Branch } from "@/data/mock-db";
 import {
@@ -21,9 +21,11 @@ import {
   isMarried, needsSecondContact, onboardingLinkState, onboardingUrl, ONBOARDING_STEPS,
 } from "@/lib/onboarding";
 import type { AccessScope } from "@/lib/session";
-import { useDb } from "@/services/mock-store";
-import { supabase } from "@/lib/supabase";
-import { onboardingService } from "@/services/services";
+import { useQueryClient } from "@tanstack/react-query";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useMemberOnboarding } from "@/hooks/use-onboardings";
+import { queryKeys } from "@/lib/query-keys";
+import { onboardingService } from "@/services/onboarding-service";
 import { downloadOnboardingPdf } from "@/components/team/onboarding-pdf";
 import { roleLabel } from "@/lib/format";
 import { useBranches } from "@/hooks/use-branches";
@@ -43,9 +45,11 @@ export function OnboardingStatusBadge({ status }: { status: OnboardingStatus }) 
 
 /** Panel on the Team detail page. Fetches the onboarding from Supabase by the member's user_id. */
 export function OnboardingPanel({ member, scope }: { member: User; scope: AccessScope }) {
-  const db = useDb(); // branches list (still from mock shell until branches migrate — gives empty; owner can type branch anyway)
+  const { db } = useLiveWorkspace();
   const owner = canViewOnboardingDetails(scope);
-  const [o, setO] = useState<Onboarding | null | undefined>(undefined); // undefined=loading, null=none
+  const queryClient = useQueryClient();
+  const onboarding = useMemberOnboarding(member.id, owner || member.status === "pending");
+  const o = owner || member.status === "pending" ? onboarding.data : null;
   const [busy, setBusy] = useState("");
   const [correcting, setCorrecting] = useState(false);
   const [jobOpen, setJobOpen] = useState(false);
@@ -54,40 +58,13 @@ export function OnboardingPanel({ member, scope }: { member: User; scope: Access
   const [now, setNow] = useState("");
   useEffect(() => setNow(new Date().toISOString()), []);
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      if (!owner && member.status !== "pending") { setO(null); return; }
-      const { data, error } = await (supabase as any)
-        .from("onboardings")
-        .select("*")
-        .eq("user_id", member.id)
-        .maybeSingle();
-      if (!active) return;
-      if (error || !data) { setO(null); return; }
-      const row = data as any;
-      setO({
-        id: row.id, tenantId: row.tenant_id, userId: row.user_id ?? "",
-        employeeId: row.employee_id, jobTitle: row.job_title, department: row.department,
-        startDate: row.start_date, status: row.status,
-        token: "",
-        tokenExpiresAt: row.token_expires_at, tokenRevoked: row.token_revoked,
-        tokenUsed: row.used_at !== null, step: row.step,
-        data: row.data ?? {}, photo: null, credentials: [],
-        correctionNote: row.correction_note, guarantorStatus: row.guarantor_status,
-        guarantorToken: row.guarantor_token, guarantorResponse: row.guarantor_response,
-        guarantorDecision: row.guarantor_decision, guarantorDecisionReason: row.guarantor_decision_reason,
-        guarantorDecidedAt: row.guarantor_decided_at, passwordSet: row.user_id !== null,
-        createdAt: row.created_at, submittedAt: row.submitted_at, activatedAt: row.activated_at,
-      } as Onboarding);
-    })();
-    return () => { active = false; };
-  }, [member.id, owner]);
-
+  /** Reload this onboarding and everything an onboarding decision changes. */
   async function refresh() {
-    const { data } = await (supabase as any)
-      .from("onboardings").select("*").eq("user_id", member.id).maybeSingle();
-    if (data) setO({ ...(o ?? {} as Onboarding), ...(data as any) });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.onboardings.root() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all(scope.user.tenantId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.root() }),
+    ]);
   }
 
   async function run(key: string, fn: () => Promise<{ ok: boolean; errors?: { form?: string } }>, success: string) {
@@ -98,6 +75,7 @@ export function OnboardingPanel({ member, scope }: { member: User; scope: Access
     else toast.error(r.errors?.form ?? "Something went wrong");
   }
 
+  if (onboarding.error) return <div className="mb-5"><ErrorState title="Could not load onboarding" error={onboarding.error} /></div>;
   if (o === undefined) return null; // loading
   if (!o) {
     if (!owner || member.status !== "pending") return null;

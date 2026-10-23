@@ -4,7 +4,8 @@
  * Same rules and messages the app has always shown. The database (RPCs and
  * CHECK constraints) enforces them again; this only gives faster feedback.
  */
-import type { ApprovalRequest, Customer, CustomerPayment, CustomerPaymentMethod, Db, Expense, ExpenseCategory, InventoryRecord, ManagerRemittance, Payment, Product, ProductStatus, StockRequest, Target, User } from "@/data/mock-db";
+import type { ApprovalRequest, Customer, CustomerPayment, CustomerPaymentMethod, Db, Expense, ExpenseCategory, InventoryRecord, ManagerRemittance, Payment, Product, ProductStatus, Role, StockRequest, Target, User, UserStatus } from "@/data/mock-db";
+import { assignableRoles, canEditMember, roleNeedsBranch } from "@/lib/team";
 import type { OwnerRemittancePayeeType, OwnerRemittancePaymentMethod } from "@/data/remittances";
 import {
   expenseCategories,
@@ -617,4 +618,66 @@ export function validateDeactivationRequest(db: Db, scope: AccessScope, product:
     return { form: "A deactivation request for this product is already pending" };
   if (reason.trim().length < 3) return { reason: "Give a reason for the manager" };
   return null;
+}
+
+// ---------- team ----------
+
+export type TeamMemberInput = {
+  name: string;
+  email: string;
+  role: Role;
+  branchId: string;
+  status: UserStatus;
+};
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function validateTeamMember(db: Db, scope: AccessScope, input: TeamMemberInput, editingId?: string): FieldErrors {
+  const e: FieldErrors = {};
+  const existing = editingId ? db.users.find((u) => u.id === editingId) : undefined;
+  if (!scope.canManageTeam) e.form = "You don't have permission to manage the team.";
+  if (existing && !canEditMember(scope, existing)) e.form = "You can't edit this team member.";
+  if (input.name.trim().length < 2) e.name = "Enter the member's full name.";
+  const email = input.email.trim().toLowerCase();
+  if (!email) e.email = "Email is required.";
+  else if (!EMAIL.test(email)) e.email = "Enter a valid email address.";
+  else if (db.users.some((u) => u.email.toLowerCase() === email && u.id !== editingId)) e.email = "Someone on the team already uses this email.";
+  if (!assignableRoles(scope).includes(input.role) && existing?.role !== input.role) e.role = "You can't assign this role.";
+  const branch = db.branches.find((b) => b.id === input.branchId);
+  if (roleNeedsBranch(input.role) && !input.branchId) e.branchId = "Select the branch this member works at.";
+  if (input.branchId) {
+    if (!branch || branch.tenantId !== db.tenant.id) e.branchId = "Select a valid branch.";
+    else if (scope.branchIds && !scope.branchIds.includes(branch.id)) e.branchId = "You can only assign members to your own branch.";
+    else if (branch.status !== "active" && input.status === "active") e.branchId = "This branch is inactive.";
+    else if (input.role === "manager" && branch.managerId && branch.managerId !== editingId
+      && db.users.find((u) => u.id === branch.managerId)?.status === "active")
+      e.branchId = `${branch.name} already has a manager.`;
+  }
+  if (!["active", "inactive", "pending"].includes(input.status)) e.status = "Choose a valid status.";
+  return e;
+}
+
+export function validateTeamMemberUpdate(db: Db, scope: AccessScope, member: User, input: TeamMemberInput): FieldErrors | null {
+  const errors = validateTeamMember(db, scope, input, member.id);
+  return hasErrors(errors) ? errors : null;
+}
+
+/** Managers propose new members; the Owner approves before they are invited. */
+export function validateTeamMemberRequest(db: Db, scope: AccessScope, input: TeamMemberInput): FieldErrors | null {
+  const errors = validateTeamMember(db, scope, { ...input, status: "pending" });
+  const email = input.email.trim().toLowerCase();
+  if (!errors.email && db.approvals.some((a) => a.type === "team_member" && a.status === "pending" && a.member?.email === email))
+    errors.email = "A request for this email is already waiting for approval.";
+  return hasErrors(errors) ? errors : null;
+}
+
+/** Soft (de)activation; history keeps referencing the member. */
+export function validateMemberStatus(scope: AccessScope, member: User): FieldErrors | null {
+  return canEditMember(scope, member) ? null : { form: "You can't change this member's status." };
+}
+
+/** users has first_name/last_name; the app edits one full-name field. */
+export function splitName(name: string): { firstName: string; lastName: string } {
+  const [firstName = "", ...rest] = name.trim().split(/\s+/);
+  return { firstName, lastName: rest.join(" ") };
 }

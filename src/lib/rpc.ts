@@ -340,6 +340,39 @@ export type PlannedRpcs = {
     p_mode: "update" | "skip";
     p_branch_id: string | null;
   };
+  /**
+   * Manager proposes a new member: a pending team_member approval request with
+   * member_data { name, email, role, branchId }. Email must be unused and not
+   * already pending. Returns the approval_requests row.
+   */
+  request_team_member: {
+    p_name: string;
+    p_email: string;
+    p_role: "owner" | "manager" | "storekeeper" | "sales_rep";
+    p_branch_id: string | null;
+  };
+  /**
+   * Edit a member (owner: anyone but themselves; manager: their branch staff).
+   * Sets users.manager_id from the branch for storekeepers and sales reps, keeps
+   * branches.manager_id in sync when a manager is (re)assigned, and writes audit
+   * rows for edit / role change / branch change / status change.
+   * Email lives in auth.users too: a changed email must update both or be refused
+   * (Phase 2 design decision). Returns the users row.
+   */
+  update_team_member: {
+    p_user_id: string;
+    p_first_name: string;
+    p_last_name: string;
+    p_email: string;
+    p_role: "owner" | "manager" | "storekeeper" | "sales_rep";
+    p_branch_id: string | null;
+    p_status: "active" | "inactive" | "pending";
+  };
+  /** Soft (de)activation of a member; never deletes. Returns the users row. */
+  set_team_member_status: {
+    p_user_id: string;
+    p_status: "active" | "inactive";
+  };
 };
 
 export async function callRpc<N extends keyof PlannedRpcs>(name: N, args: PlannedRpcs[N]): Promise<unknown> {

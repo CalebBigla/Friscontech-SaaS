@@ -52,6 +52,26 @@ export function usePendingOnboardings(tenantId: string) {
   });
 }
 
+/**
+ * The onboarding of one team member, or null when they have none.
+ * A failed request throws, so the screen can show an error instead of "none".
+ */
+export function useMemberOnboarding(userId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.onboardings.byUser(userId),
+    queryFn: async (): Promise<Onboarding | null> => {
+      const { data, error } = await (supabase as any)
+        .from("onboardings")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) throw handleSupabaseError(error);
+      return data ? transformOnboarding(data) : null;
+    },
+    enabled: enabled && !!userId,
+  });
+}
+
 /** A single onboarding by id (owner RLS). */
 export function useOnboarding(id: string) {
   return useQuery({

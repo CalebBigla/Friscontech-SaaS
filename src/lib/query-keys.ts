@@ -232,7 +232,10 @@ export const queryKeys = {
 
   // Onboardings
   onboardings: {
+    /** Prefix of every onboarding query. */
+    root: () => ["onboardings"] as const,
     all: (tenantId: string) => ["onboardings", tenantId] as const,
+    byUser: (userId: string) => ["onboardings", "user", userId] as const,
     list: (tenantId: string, filters?: object) =>
       ["onboardings", tenantId, "list", filters] as const,
     detail: (id: string) => ["onboardings", "detail", id] as const,

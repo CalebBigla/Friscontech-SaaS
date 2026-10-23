@@ -4,13 +4,14 @@
  * Data fetching and mutations for user/team management
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { callRpc, type PlannedRpcs } from "@/lib/rpc";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/auth-context";
 import { queryKeys } from "@/lib/query-keys";
-import { transformUser, userToDb } from "@/lib/type-adapters";
+import { transformApprovalRequest, transformUser, type ApprovalRequestMigrationRow } from "@/lib/type-adapters";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
-import type { User, Role } from "@/data/mock-db";
+import type { ApprovalRequest, User, Role } from "@/data/mock-db";
 
 /**
  * Fetch all users for the current tenant (scoped by role)
@@ -108,141 +109,42 @@ export function useUser(userId: string | undefined) {
   });
 }
 
-/**
- * Create a new user (via onboarding or manual)
- */
-export function useCreateUser() {
+/** Team changes touch users, branches (manager assignment), approvals and the audit log. */
+function invalidateTeam(queryClient: QueryClient, tenantId: string) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.users.all(tenantId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.branches.all(tenantId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.approvals.all(tenantId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all(tenantId) });
+}
+
+function useTeamMutation<N extends "update_team_member" | "set_team_member_status">(name: N) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (input: Partial<User>) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = userToDb(input, user.tenantId);
-      
-      const { data, error } = await (supabase as any).from('users')
-        .insert(dbData)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformUser(data);
+    mutationFn: async (args: PlannedRpcs[N]): Promise<User> => {
+      const row = await callRpc(name, args);
+      return transformUser(row as Parameters<typeof transformUser>[0]);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.users.all(user?.tenantId || '') 
-      });
-    },
+    onSuccess: () => invalidateTeam(queryClient, user?.tenantId ?? ''),
   });
 }
 
-/**
- * Update an existing user
- */
-export function useUpdateUser() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<User> }) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = userToDb(updates, user.tenantId);
-      
-      const { data, error } = await (supabase as any).from('users')
-        .update(dbData)
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformUser(data);
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.users.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.users.detail(data.id) 
-      });
-      if (data.branchId) {
-        queryClient.invalidateQueries({ 
-          queryKey: queryKeys.users.byBranch(data.branchId) 
-        });
-      }
-    },
-  });
-}
+/** Edit a member (RPC update_team_member). */
+export const useUpdateTeamMember = () => useTeamMutation('update_team_member');
+/** Soft (de)activation (RPC set_team_member_status). */
+export const useSetTeamMemberStatus = () => useTeamMutation('set_team_member_status');
 
-/**
- * Deactivate a user (soft delete)
- */
-export function useDeactivateUser() {
+/** Manager proposes a new member for Owner approval (RPC request_team_member). */
+export function useRequestTeamMember() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (userId: string) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const { data, error } = await (supabase as any).from('users')
-        .update({ 
-          status: 'inactive',
-          deactivated_at: new Date().toISOString(),
-        })
-        .eq('id', userId)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformUser(data);
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.users.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.users.detail(data.id) 
-      });
-    },
-  });
-}
 
-/**
- * Reactivate a deactivated user
- */
-export function useReactivateUser() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  
   return useMutation({
-    mutationFn: async (userId: string) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const { data, error } = await (supabase as any).from('users')
-        .update({ 
-          status: 'active',
-          deactivated_at: null,
-        })
-        .eq('id', userId)
-        .select()
-        .single();
-      
-      if (error) handleSupabaseError(error);
-      
-      return transformUser(data);
+    mutationFn: async (args: PlannedRpcs['request_team_member']): Promise<ApprovalRequest> => {
+      const row = await callRpc('request_team_member', args);
+      return transformApprovalRequest(row as ApprovalRequestMigrationRow);
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.users.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.users.detail(data.id) 
-      });
-    },
+    onSuccess: () => invalidateTeam(queryClient, user?.tenantId ?? ''),
   });
 }

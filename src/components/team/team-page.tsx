@@ -5,11 +5,11 @@ import { ArrowUpDown, Clock, Eye, MoreHorizontal, Pencil, Plus, Power, ShieldChe
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ALL, EmptyState, FilterSelect, MetricCard, Panel, SearchBox } from "@/components/shared";
+import { ALL, DataGate, EmptyState, FilterSelect, MetricCard, Panel, SearchBox } from "@/components/shared";
 import { MemberStatusBadge, MemberStatusDialog, RoleBadge, TeamMemberDialog } from "@/components/team/team-dialogs";
 import { OnboardingStatusBadge } from "@/components/team/onboarding-panel";
 import type { Role, User, UserStatus } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { useAuth } from "@/contexts/auth-context";
 import { usePendingOnboardings } from "@/hooks/use-onboardings";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
@@ -17,10 +17,11 @@ import { formatDate, formatDayTime, initials, roleLabel } from "@/lib/format";
 import { canEditMember, getLastActivity, getTeamMembers, getTeamSummary, sortTeam, userStatusLabel, type TeamSortKey } from "@/lib/team";
 
 export function TeamPage() {
-  const db = useDb();
+  // Movements and requests feed each member's "last activity".
+  const { db, isLoading, error } = useLiveWorkspace({ movements: true });
   const userId = useCurrentUserId();
   const { user: authUser } = useAuth();
-  const scope = getAccessScope(authUser ? { ...db, users: [authUser] } : db, authUser?.id ?? userId);
+  const scope = getAccessScope(db, authUser?.id ?? userId);
   const tenantId = authUser?.tenantId ?? "";
   const all = useMemo(() => getTeamMembers(db, scope), [db, scope]);
   const { data: pendingOnboardings = [] } = usePendingOnboardings(tenantId);
@@ -70,6 +71,7 @@ export function TeamPage() {
   return (
     <AppShell title="Team" subtitle="Manage the people who work across your organization."
       actions={<Button size="sm" onClick={() => setCreating(true)}><Plus className="size-4" /><span className="hidden sm:inline">Add Team Member</span></Button>}>
+      <DataGate isLoading={isLoading} error={error}>
       <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <MetricCard icon={Users} tone="brand" label="Total team members" value={String(summary.total)} detail={scope.user.role === "owner" ? "Across the organization" : "In your branch team"} />
         <MetricCard icon={UserCheck} tone="success" label="Active" value={String(summary.active)} detail={`${summary.total - summary.active} inactive or pending`} />
@@ -127,6 +129,7 @@ export function TeamPage() {
           </div>))}</div>
         {!rows.length && <EmptyState title="No team members found." detail={all.length ? "Try a different search or filter." : "Use Add Team Member to invite someone."} />}
       </Panel>
+      </DataGate>
       <TeamMemberDialog open={creating} onOpenChange={setCreating} scope={scope} />
       <TeamMemberDialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)} scope={scope} member={editing} />
       <MemberStatusDialog member={toggling} onClose={() => setToggling(null)} actorId={userId} />

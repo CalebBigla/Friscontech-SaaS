@@ -4,7 +4,7 @@ import { ArrowLeft, Pencil, Power, Trash2 } from "lucide-react";
 
 import { AppShell, RestrictedNotice } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { DetailItem, MetricCard, Panel } from "@/components/shared";
+import { DataGate, DetailItem, MetricCard, Panel } from "@/components/shared";
 import {
   MemberStatusBadge,
   MemberStatusDialog,
@@ -20,7 +20,7 @@ import {
   Target as TargetIcon,
   Users,
 } from "lucide-react";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { filterSales, monthRange, saleTotal, getSalesRevenue } from "@/lib/calculations";
@@ -43,14 +43,20 @@ import {
 } from "@/lib/team";
 
 export function TeamDetailPage({ userId: memberId }: { userId: string }) {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace({ movements: true });
   const { user: authUser } = useAuth();
   const legacyUserId = useCurrentUserId(); // always called (hooks order must be stable)
   const userId = authUser?.id ?? legacyUserId;
-  const scope = getAccessScope(authUser ? { ...db, users: [authUser] } : db, userId);
+  const scope = getAccessScope(db, userId);
   const [editing, setEditing] = useState(false);
   const [toggling, setToggling] = useState(false);
   const u = getTeamMember(db, scope, memberId);
+  if (isLoading || error)
+    return (
+      <AppShell title="Team member">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
   if (!u)
     return (
       <AppShell title="Team member">
@@ -165,7 +171,7 @@ function RepSection({
   range: { from: string; to: string };
   managerView: boolean;
 }) {
-  const db = useDb();
+  const { db } = useLiveWorkspace({ movements: true });
   if (managerView) {
     const sales = filterSales(db, { repId, range });
     const revenue = sales.reduce((sum, sale) => sum + saleTotal(sale), 0);
@@ -236,7 +242,7 @@ function RepSection({
 }
 
 function StorekeeperSection({ userId }: { userId: string }) {
-  const db = useDb();
+  const { db } = useLiveWorkspace({ movements: true });
   const a = getStorekeeperActivity(db, userId);
   return (
     <Panel title="Stock activity" subtitle="From inventory movements and processed requests">
@@ -269,7 +275,7 @@ function ManagerSection({
   month: string;
   range: { from: string; to: string };
 }) {
-  const db = useDb();
+  const { db } = useLiveWorkspace({ movements: true });
   const manager = db.users.find((x) => x.id === managerId)!;
   const team = getManagerTeam(db, manager);
   const revenue = team

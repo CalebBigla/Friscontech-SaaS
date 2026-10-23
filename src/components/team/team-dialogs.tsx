@@ -10,13 +10,22 @@ import { Label } from "@/components/ui/label";
 import { FieldError, FilterSelect } from "@/components/shared";
 import type { Role, User, UserStatus } from "@/data/mock-db";
 import { useAuth } from "@/contexts/auth-context";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useRequestTeamMember, useSetTeamMemberStatus, useUpdateTeamMember } from "@/hooks/use-users";
+import {
+  runWrite,
+  splitName,
+  validateMemberStatus,
+  validateTeamMemberRequest,
+  validateTeamMemberUpdate,
+  type FieldErrors,
+} from "@/lib/validation";
 import { getAccessScope, type AccessScope } from "@/lib/session";
 import { roleLabel } from "@/lib/format";
 import { assignableRoles, roleNeedsBranch, userStatusLabel } from "@/lib/team";
 import { onboardingUrl } from "@/lib/onboarding";
 import { copyText } from "@/components/team/onboarding-panel";
-import { teamService, onboardingService, type FieldErrors } from "@/services/services";
+import { onboardingService } from "@/services/onboarding-service";
 
 const NONE = "none";
 const roleTone: Record<Role, string> = { owner: "status-violet", manager: "status-brand", storekeeper: "status-warning", sales_rep: "status-success" };
@@ -28,7 +37,7 @@ export function MemberStatusBadge({ status }: { status: UserStatus }) {
   return <span className={`status whitespace-nowrap ${statusTone[status]}`}>{userStatusLabel[status]}</span>;
 }
 
-/** Add (member = null) creates a Supabase invite. Edit passes through teamService.update. */
+/** Add (member = null): owner creates a Supabase invite, manager requests approval. Edit calls update_team_member. */
 export function TeamMemberDialog({
   open,
   onOpenChange,
@@ -40,8 +49,10 @@ export function TeamMemberDialog({
   scope: AccessScope;
   member?: User | null | undefined;
 }) {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
   const { user: authUser } = useAuth();
+  const updateMember = useUpdateTeamMember();
+  const requestMember = useRequestTeamMember();
   const roles = assignableRoles(scope);
 
   // ---- form state ----
@@ -79,9 +90,21 @@ export function TeamMemberDialog({
     const branchId = form.branchId === NONE ? "" : form.branchId;
     setSaving(true);
 
-    // ---- EDIT path (unchanged, goes through teamService.update) ----
+    // ---- EDIT path ----
     if (member) {
-      const r = await teamService.update(member.id, { ...form, branchId }, scope.user.id);
+      const input = { ...form, branchId };
+      const names = splitName(form.name);
+      const r = await runWrite(validateTeamMemberUpdate(db, scope, member, input), () =>
+        updateMember.mutateAsync({
+          p_user_id: member.id,
+          p_first_name: names.firstName,
+          p_last_name: names.lastName,
+          p_email: form.email.trim().toLowerCase(),
+          p_role: form.role,
+          p_branch_id: branchId || null,
+          p_status: form.status === "inactive" ? "inactive" : form.status === "pending" ? "pending" : "active",
+        }),
+      );
       setSaving(false);
       if (!r.ok) { setErrors(r.errors); toast.error(r.errors.form ?? "Please fix the highlighted fields"); return; }
       toast.success(`${r.data.name} updated`);
@@ -89,9 +112,17 @@ export function TeamMemberDialog({
       return;
     }
 
-    // ---- CREATE path: manager requests via teamService, owner creates an invite ----
+    // ---- CREATE path: manager requests approval, owner creates an invite ----
     if (scope.user.role !== "owner") {
-      const r = await teamService.requestMember({ ...form, branchId, status: "pending" as UserStatus }, scope.user.id);
+      const input = { ...form, branchId, status: "pending" as UserStatus };
+      const r = await runWrite(validateTeamMemberRequest(db, scope, input), () =>
+        requestMember.mutateAsync({
+          p_name: form.name.trim(),
+          p_email: form.email.trim().toLowerCase(),
+          p_role: form.role,
+          p_branch_id: branchId || null,
+        }),
+      );
       setSaving(false);
       if (!r.ok) { setErrors(r.errors); toast.error(r.errors.form ?? "Please fix the highlighted fields"); return; }
       toast.success("Sent to the Owner for approval.", { description: `${form.name} joins the team once approved.` });
@@ -209,9 +240,9 @@ export function TeamMemberDialog({
 
 export function MemberStatusDialog({ member, onClose, actorId }: { member: User | null; onClose: () => void; actorId: string }) {
   const [busy, setBusy] = useState(false);
-  const { user: authUser } = useAuth();
-  const db = useDb();
-  const scope = getAccessScope({ ...db, users: authUser ? [authUser] : db.users }, actorId);
+  const { db } = useLiveWorkspace();
+  const setStatus = useSetTeamMemberStatus();
+  const scope = getAccessScope(db, actorId);
   const deactivating = member?.status !== "inactive";
   const deleting = scope.user.role === "owner" && deactivating;
 
@@ -239,7 +270,8 @@ export function MemberStatusDialog({ member, onClose, actorId }: { member: User 
               e.preventDefault();
               if (!member) return;
               setBusy(true);
-              const r = await teamService.setStatus(member.id, deactivating ? "inactive" : "active", actorId);
+              const r = await runWrite(validateMemberStatus(scope, member), () =>
+                setStatus.mutateAsync({ p_user_id: member.id, p_status: deactivating ? "inactive" : "active" }));
               setBusy(false);
               if (r.ok) toast.success(`${member.name} ${deleting ? "deleted" : deactivating ? "deactivated" : "activated"}`);
               else toast.error(r.errors.form ?? "Could not update member");
