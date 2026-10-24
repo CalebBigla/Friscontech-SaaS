@@ -48,6 +48,9 @@ export function OnboardingFormPage({ token }: { token: string }) {
   const [saving, setSaving] = useState(false);
   const [pw, setPw] = useState({ pw: "", confirm: "" });
   const [done, setDone] = useState(false);
+  // Set when Submit sends the member back to fix one earlier step: saving that step
+  // returns straight to the final step instead of walking through the steps between.
+  const [returnTo, setReturnTo] = useState<number | null>(null);
 
   useEffect(() => setNow(new Date().toISOString()), []);
   // Load the invite from Supabase by the raw token (hashed server-side by the RPC).
@@ -121,10 +124,13 @@ export function OnboardingFormPage({ token }: { token: string }) {
       return;
     }
     setSaving(true);
-    const r = await onboardingService.saveProgress(token, d, step + 1);
+    const target = returnTo ?? step + 1;
+    const r = await onboardingService.saveProgress(token, d, Math.max(target, o!.step));
     setSaving(false);
     if (!r.ok) { toast.error(r.errors.form ?? "Could not save"); return; }
-    setStep(step + 1);
+    setO(r.data);
+    setReturnTo(null);
+    setStep(target);
     window.scrollTo({ top: 0 });
   }
   async function onPhoto(file?: File) {
@@ -165,6 +171,20 @@ export function OnboardingFormPage({ token }: { token: string }) {
     toast.success("File removed");
   }
   async function submit() {
+    // Earlier steps were checked when the member left them; if one is still
+    // incomplete (e.g. an older saved draft), open that step with the fields
+    // highlighted and come back here once it is saved.
+    for (let s = 0; s < 5; s++) {
+      const earlier = validateStep(o!, d, s);
+      if (Object.keys(earlier).length) {
+        setErrors(earlier);
+        setReturnTo(5);
+        setStep(s);
+        window.scrollTo({ top: 0 });
+        toast.error(`Step ${s + 1} (${ONBOARDING_STEPS[s]}) needs a correction`, { description: "Fix the highlighted fields, then use “Save & return to submit”." });
+        return;
+      }
+    }
     const e = validateStep(o!, d, 5, pw);
     setErrors(e);
     if (Object.keys(e).length) return;
@@ -287,8 +307,8 @@ export function OnboardingFormPage({ token }: { token: string }) {
         </>}
       </div>
       <div className="mt-4 flex justify-between gap-2">
-        <Button variant="outline" disabled={step === 0} onClick={() => setStep(step - 1)}>Back</Button>
-        {step < 5 ? <Button onClick={next} disabled={saving}>{saving && <Loader2 className="size-4 animate-spin" />}Save & continue</Button>
+        <Button variant="outline" disabled={step === 0} onClick={() => { setReturnTo(null); setStep(step - 1); }}>Back</Button>
+        {step < 5 ? <Button onClick={next} disabled={saving}>{saving && <Loader2 className="size-4 animate-spin" />}{returnTo !== null ? "Save & return to submit" : "Save & continue"}</Button>
           : <Button onClick={submit} disabled={saving}>{saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}Submit form</Button>}
       </div>
     </PublicFrame>
