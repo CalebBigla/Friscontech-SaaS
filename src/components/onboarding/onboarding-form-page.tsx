@@ -211,7 +211,8 @@ export function OnboardingFormPage({ token }: { token: string }) {
             {F({ k: "stateOfOrigin", label: "State of origin" })}
             {F({ k: "lga", label: "LGA" })}
           </div>
-          {F({ k: "preferredEmailId", label: "Preferred company e-mail name ID", required: false, placeholder: "e.g. ngozi.umeh" })}
+          {/* Company e-mail ID is generated as firstname.surname when the form is saved (companyEmailId).
+          {F({ k: "preferredEmailId", label: "Preferred company e-mail name ID", required: false, placeholder: "e.g. ngozi.umeh" })} */}
         </>}
         {step === 1 && <>
           <p className="text-xs font-semibold">Job details (set by the Owner)</p>

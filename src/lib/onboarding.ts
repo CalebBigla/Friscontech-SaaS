@@ -29,6 +29,18 @@ function phone(d: EmployeeData, e: StepErrors, k: EmployeeField, required = true
 }
 
 export const isMarried = (d: EmployeeData) => d.maritalStatus === "Married";
+
+/**
+ * Company e-mail ID generated from the member's names: firstname.surname,
+ * lower-case, letters and digits only (accents removed). Replaces the
+ * "Preferred company e-mail name ID" field the member used to type.
+ */
+export function companyEmailId(d: Pick<EmployeeData, "firstName" | "lastName">): string {
+  const part = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return [part(d.firstName), part(d.lastName)].filter(Boolean).join(".");
+}
+/** The data with its company e-mail ID filled from the names. */
+export const withCompanyEmailId = (d: EmployeeData): EmployeeData => ({ ...d, preferredEmailId: companyEmailId(d) });
 export const needsSecondContact = (d: EmployeeData) => isMarried(d) && d.spouseIsEmergency === "Yes";
 
 export function validateStep(o: Pick<Onboarding, "photo">, d: EmployeeData, step: number, password?: { pw: string; confirm: string }): StepErrors {
@@ -37,7 +49,8 @@ export function validateStep(o: Pick<Onboarding, "photo">, d: EmployeeData, step
     req(d, e, ["lastName", "firstName", "address", "gender", "birthDate", "maritalStatus", "nationality", "stateOfOrigin", "lga"]);
     phone(d, e, "phone");
     email(d, e, "email");
-    if (d.preferredEmailId && !/^[a-z0-9._-]+$/i.test(d.preferredEmailId)) e.preferredEmailId = "Letters, numbers, dots or dashes only";
+    // Company e-mail ID is generated from the names (see companyEmailId), not typed.
+    // if (d.preferredEmailId && !/^[a-z0-9._-]+$/i.test(d.preferredEmailId)) e.preferredEmailId = "Letters, numbers, dots or dashes only";
     if (d.birthDate && d.birthDate > new Date(Date.now() - 16 * 365.25 * 864e5).toISOString().slice(0, 10)) e.birthDate = "Enter a valid birth date";
   }
   if (step === 1) {

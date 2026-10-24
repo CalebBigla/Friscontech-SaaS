@@ -29,7 +29,7 @@ import {
   type Onboarding,
   type StoredFile,
 } from "@/data/onboarding";
-import { validateStep, type StepErrors } from "@/lib/onboarding";
+import { validateStep, withCompanyEmailId, type StepErrors } from "@/lib/onboarding";
 
 type R<T> = { ok: true; data: T } | { ok: false; errors: StepErrors };
 const fail = (form: string): R<never> => ({ ok: false, errors: { form } });
@@ -287,7 +287,7 @@ export const onboardingService = {
   async saveProgress(rawToken: string, data: EmployeeData, step: number): Promise<R<Onboarding>> {
     const { error } = await supabase.rpc("save_onboarding_progress", {
       p_token: rawToken,
-      p_data: data,
+      p_data: withCompanyEmailId(data),
       p_step: step,
     });
     if (error) return fail(error.message);
@@ -316,7 +316,8 @@ export const onboardingService = {
   },
 
   /** Final submit: persist the form, then create the auth account (which creates the pending profile). */
-  async submit(rawToken: string, data: EmployeeData, password: { pw: string; confirm: string }): Promise<R<Onboarding>> {
+  async submit(rawToken: string, form: EmployeeData, password: { pw: string; confirm: string }): Promise<R<Onboarding>> {
+    const data = withCompanyEmailId(form);
     // Re-run all step validations so we never submit incomplete data.
     for (let s = 0; s < 6; s++) {
       const e = validateStep({ photo: null }, data, s, s === 5 ? password : undefined);
