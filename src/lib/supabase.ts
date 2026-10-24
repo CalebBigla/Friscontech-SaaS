@@ -72,16 +72,3 @@ export async function signOut() {
     throw error
   }
 }
-
-/**
- * Untyped Supabase client for mutations (insert/update/delete).
- *
- * The strongly-typed `supabase` client requires exact Insert/Update shapes from
- * the generated Database types.  When hooks build objects dynamically, TypeScript
- * infers the argument as `never`.  Using `db` here avoids that while keeping
- * typed reads (selects) on the main `supabase` export.
- *
- * This is intentional and safe: RLS policies enforce access control server-side.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const db = supabase as any;

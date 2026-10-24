@@ -24,7 +24,7 @@ export function usePreferences() {
     queryFn: async (): Promise<UserPreference | null> => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await (supabase as any).from('user_preferences')
+      const { data, error } = await supabase.from('user_preferences')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
@@ -32,7 +32,7 @@ export function usePreferences() {
       if (error) handleSupabaseError(error);
 
       // No row yet: callers use defaultPreferences(), which mirrors the column defaults.
-      return data ? transformPreference(data) : null;
+      return data ? transformPreference(data as Parameters<typeof transformPreference>[0]) : null;
     },
     enabled: !!user?.id,
   });

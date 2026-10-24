@@ -98,7 +98,7 @@ export function useApprovalRequest(id: string) {
   return useQuery({
     queryKey: queryKeys.approvals.detail(id),
     queryFn: async (): Promise<ApprovalRequest> => {
-      const { data, error } = await (supabase as any).from('approval_requests')
+      const { data, error } = await supabase.from('approval_requests')
         .select('*')
         .eq('id', id)
         .single();
@@ -125,7 +125,7 @@ export function useApproveRequests() {
   return useMutation({
     mutationFn: async (args: PlannedRpcs['approve_requests']): Promise<ApprovalRequest[]> => {
       const rows = await callRpc('approve_requests', args);
-      return ((rows ?? []) as ApprovalRequestMigrationRow[]).map(transformApprovalRequest);
+      return ((rows ?? []) as ApprovalRequestMigrationRow[]).map((row) => transformApprovalRequest(row as Parameters<typeof transformApprovalRequest>[0]));
     },
     onSuccess: () => invalidateApprovals(queryClient, user?.tenantId ?? ''),
   });

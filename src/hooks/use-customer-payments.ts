@@ -24,14 +24,14 @@ export function useAllCustomerPayments() {
     queryFn: async (): Promise<CustomerPayment[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
 
-      const { data, error } = await (supabase as any).from('customer_payments')
+      const { data, error } = await supabase.from('customer_payments')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('submitted_at', { ascending: false });
 
       if (error) handleSupabaseError(error);
 
-      return (data || []).map(transformCustomerPayment);
+      return (data || []).map((row) => transformCustomerPayment(row as Parameters<typeof transformCustomerPayment>[0]));
     },
     enabled: !!user?.tenantId,
   });
@@ -46,14 +46,14 @@ export function useCustomerPayments(customerId: string | undefined) {
     queryFn: async (): Promise<CustomerPayment[]> => {
       if (!customerId) throw new Error('Customer ID required');
       
-      const { data, error } = await (supabase as any).from('customer_payments')
+      const { data, error } = await supabase.from('customer_payments')
         .select('*')
         .eq('customer_id', customerId)
         .order('payment_date', { ascending: false });
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformCustomerPayment);
+      return (data || []).map((row) => transformCustomerPayment(row as Parameters<typeof transformCustomerPayment>[0]));
     },
     enabled: !!customerId,
   });

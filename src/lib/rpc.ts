@@ -13,6 +13,7 @@
  */
 import { supabase } from "@/lib/supabase";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
+import type { Database } from "@/types/database.types";
 
 export type PlannedRpcs = {
   /**
@@ -406,8 +407,12 @@ export type PlannedRpcs = {
   };
 };
 
-export async function callRpc<N extends keyof PlannedRpcs>(name: N, args: PlannedRpcs[N]): Promise<unknown> {
-  const { data, error } = await (supabase as any).rpc(name, args);
+type Functions = Database["public"]["Functions"];
+
+export async function callRpc<N extends keyof PlannedRpcs & keyof Functions>(name: N, args: PlannedRpcs[N]): Promise<unknown> {
+  // PlannedRpcs is the stricter contract (exact values, explicit NULLs). Generated Args
+  // type nullable SQL arguments as non-null, so the call narrows to them here.
+  const { data, error } = await supabase.rpc(name, args as unknown as Functions[N]["Args"]);
   if (error) handleSupabaseError(error);
   return data;
 }

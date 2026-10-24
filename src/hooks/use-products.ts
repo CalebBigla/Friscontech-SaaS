@@ -25,14 +25,14 @@ export function useProducts() {
     queryFn: async (): Promise<Product[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await (supabase as any).from('products')
+      const { data, error } = await supabase.from('products')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('name');
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformProduct);
+      return (data || []).map((row) => transformProduct(row as Parameters<typeof transformProduct>[0]));
     },
     enabled: !!user?.tenantId,
   });
@@ -49,7 +49,7 @@ export function useActiveProducts() {
     queryFn: async () => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await (supabase as any).from('products')
+      const { data, error } = await supabase.from('products')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .eq('status', 'active')
@@ -57,7 +57,7 @@ export function useActiveProducts() {
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformProduct);
+      return (data || []).map((row) => transformProduct(row as Parameters<typeof transformProduct>[0]));
     },
     enabled: !!user?.tenantId,
   });
@@ -72,14 +72,14 @@ export function useProduct(productId: string | undefined) {
     queryFn: async () => {
       if (!productId) throw new Error('Product ID required');
       
-      const { data, error } = await (supabase as any).from('products')
+      const { data, error } = await supabase.from('products')
         .select('*')
         .eq('id', productId)
         .single();
       
       if (error) handleSupabaseError(error);
       
-      return transformProduct(data);
+      return transformProduct(data as Parameters<typeof transformProduct>[0]);
     },
     enabled: !!productId,
   });

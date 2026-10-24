@@ -18,10 +18,13 @@
  * inactive / suspended), so an unapproved staff member cannot reach the app.
  */
 import { supabase } from "@/lib/supabase";
+import type { Database } from "@/types/database.types";
 
-async function writeAuditBestEffort(action: string, params: Record<string, unknown>) {
+type AuditArgs = Database["public"]["Functions"]["create_audit_log"]["Args"];
+
+async function writeAuditBestEffort(action: string, params: AuditArgs) {
   try {
-    const { error } = await (supabase as any).rpc("create_audit_log", params);
+    const { error } = await supabase.rpc("create_audit_log", params);
     if (error) console.warn(`[AUDIT] ${action} log failed`, error);
   } catch (error) {
     console.warn(`[AUDIT] ${action} log failed`, error);
@@ -45,7 +48,7 @@ export const passwordProblem = (pw: string) =>
  */
 export async function ownerHasAccount(): Promise<boolean> {
   try {
-    const { data, error } = await (supabase as any).rpc("owner_account_exists");
+    const { data, error } = await supabase.rpc("owner_account_exists");
     if (error) {
       // Fall back to assuming an owner exists so we don't accidentally open sign-up.
       console.error("owner_account_exists failed", error);
@@ -143,7 +146,7 @@ export async function signIn(email: string, password: string): Promise<AuthResul
     if (!authData.user) return { ok: false, error: "Failed to sign in." };
 
     // The profile id IS the auth user id (users.id references auth.users(id)).
-    const { data: profile, error: profileError } = await (supabase as any)
+    const { data: profile, error: profileError } = await supabase
       .from("users")
       .select("id, status, role, tenant_id")
       .eq("id", authData.user.id)

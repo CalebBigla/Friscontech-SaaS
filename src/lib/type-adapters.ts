@@ -2,8 +2,10 @@
  * Type Adapters
  *
  * Transform between database rows (snake_case) and app objects (camelCase).
- * Column names follow supabase/migrations/, not the generated database.types.ts,
- * which is stale. Where they differ, the row type is declared locally below.
+ * Column names follow supabase/migrations/. database.types.ts is generated from the
+ * live project (npx supabase gen types typescript --linked) and matches them; it types
+ * CHECK-constrained columns as plain strings, so the local row types below keep the
+ * exact value lists.
  */
 
 import type { Row } from "@/lib/supabase-helpers";
@@ -387,7 +389,8 @@ export function transformSale(dbRow: Row<"sales">): Sale {
     unitPrice:   dbRow['unit_price'],
     saleDate:    dbRow['sale_date'],
     createdAt:   dbRow['created_at'],
-    status:      dbRow['status'],
+    // sales.status CHECK: completed | pending | voided (generated types say string).
+    status:      dbRow['status'] as Sale['status'],
     ...(dbRow['walk_in_name'] ? { walkInName: dbRow['walk_in_name'] } : {}),
     ...(dbRow['walk_in_phone'] ? { walkInPhone: dbRow['walk_in_phone'] } : {}),
   };
@@ -697,7 +700,8 @@ export function transformTarget(dbRow: Row<"targets">): Target {
   return {
     id:           dbRow['id'],
     tenantId:     dbRow['tenant_id'],
-    scope:        dbRow['scope'],
+    // targets.scope CHECK: branch | rep (generated types say string).
+    scope:        dbRow['scope'] as Target['scope'],
     branchId:     dbRow['branch_id'],
     userId:       dbRow['user_id']     ?? null,
     month:        dbRow['month'],
@@ -809,7 +813,8 @@ export function transformActivity(dbRow: Row<"activities">): Activity {
     actorId:    dbRow['actor_id'],
     action:     dbRow['action'],
     subject:    dbRow['subject'],
-    entity:     dbRow['entity'],
+    // activities.entity CHECK lists the AuditEntity values (generated types say string).
+    entity:     dbRow['entity'] as Activity['entity'],
     ...(dbRow['entity_id'] ? { entityId: dbRow['entity_id'] } : {}),
     emergency:  dbRow['emergency'] ?? false,
     ...(dbRow['metadata'] && typeof dbRow['metadata'] === "object" ? { metadata: dbRow['metadata'] as NonNullable<Activity["metadata"]> } : {}),

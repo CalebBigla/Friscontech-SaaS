@@ -68,12 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       // users.id references auth.users.id; there is no separate auth_id column.
-      const { data: row, error, status: queryStatus } = await (supabase as any)
+      const { data: row, error, status: queryStatus } = await supabase
         .from("users")
-        .select(
-          "id, tenant_id, first_name, last_name, email, phone, role, status, " +
-            "branch_id, manager_id, joined_at, deactivated_at, created_at",
-        )
+        .select("id, tenant_id, first_name, last_name, email, phone, role, status, branch_id, manager_id, joined_at, deactivated_at, created_at")
         .eq("id", authUserId)
         .maybeSingle();
 

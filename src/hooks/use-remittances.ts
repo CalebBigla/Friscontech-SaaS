@@ -42,7 +42,7 @@ export function useManagerRemittances(
   return useQuery({
     queryKey: queryKeys.remittances.manager.list(tenantId, filters),
     queryFn: async () => {
-      let query = (supabase as any)
+      let query = supabase
         .from('manager_remittances')
         .select('*')
         .eq('tenant_id', tenantId)
@@ -63,7 +63,7 @@ export function useManagerRemittances(
 
       const { data, error } = await query;
       if (error) throw handleSupabaseError(error);
-      return ((data ?? []) as ManagerRemittanceMigrationRow[]).map(transformManagerRemittance);
+      return ((data ?? []) as ManagerRemittanceMigrationRow[]).map((row) => transformManagerRemittance(row as Parameters<typeof transformManagerRemittance>[0]));
     },
     enabled: !!tenantId,
   });
@@ -76,7 +76,7 @@ export function useManagerRemittance(id: string) {
   return useQuery({
     queryKey: queryKeys.remittances.manager.detail(id),
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('manager_remittances')
+      const { data, error } = await supabase.from('manager_remittances')
         .select('*')
         .eq('id', id)
         .single();
@@ -109,7 +109,7 @@ export function useOwnerRemittances(
   return useQuery({
     queryKey: queryKeys.remittances.owner.list(tenantId, filters),
     queryFn: async () => {
-      let query = (supabase as any)
+      let query = supabase
         .from('owner_remittances')
         .select('*')
         .eq('tenant_id', tenantId)
@@ -130,7 +130,7 @@ export function useOwnerRemittances(
 
       const { data, error } = await query;
       if (error) throw handleSupabaseError(error);
-      return ((data ?? []) as OwnerRemittanceMigrationRow[]).map(transformOwnerRemittance);
+      return ((data ?? []) as OwnerRemittanceMigrationRow[]).map((row) => transformOwnerRemittance(row as Parameters<typeof transformOwnerRemittance>[0]));
     },
     enabled: !!tenantId,
   });
@@ -143,7 +143,7 @@ export function useOwnerRemittance(id: string) {
   return useQuery({
     queryKey: queryKeys.remittances.owner.detail(id),
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('owner_remittances')
+      const { data, error } = await supabase.from('owner_remittances')
         .select('*')
         .eq('id', id)
         .single();

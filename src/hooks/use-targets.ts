@@ -49,7 +49,7 @@ export function useTargets(tenantId: string, filters: TargetFilters = {}) {
 
       const { data, error } = await query;
       if (error) throw handleSupabaseError(error);
-      return ((data ?? []) as TargetRow[]).map(transformTarget);
+      return ((data ?? []) as TargetRow[]).map((row) => transformTarget(row as Parameters<typeof transformTarget>[0]));
     },
     enabled: !!tenantId,
   });
@@ -62,7 +62,7 @@ export function useTarget(id: string) {
   return useQuery({
     queryKey: queryKeys.targets.detail(id),
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('targets')
+      const { data, error } = await supabase.from('targets')
         .select('*')
         .eq('id', id)
         .single();
@@ -81,14 +81,14 @@ export function useRepTargets(userId: string, month: string) {
   return useQuery({
     queryKey: queryKeys.targets.byUser(userId, month),
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('targets')
+      const { data, error } = await supabase.from('targets')
         .select('*')
         .eq('user_id', userId)
         .eq('month', month)
         .order('created_at', { ascending: false });
 
       if (error) throw handleSupabaseError(error);
-      return ((data ?? []) as TargetRow[]).map(transformTarget);
+      return ((data ?? []) as TargetRow[]).map((row) => transformTarget(row as Parameters<typeof transformTarget>[0]));
     },
     enabled: !!userId && !!month,
   });
@@ -101,14 +101,14 @@ export function useBranchTargets(branchId: string, month: string) {
   return useQuery({
     queryKey: queryKeys.targets.byBranch(branchId, month),
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('targets')
+      const { data, error } = await supabase.from('targets')
         .select('*')
         .eq('branch_id', branchId)
         .eq('month', month)
         .order('created_at', { ascending: false });
 
       if (error) throw handleSupabaseError(error);
-      return ((data ?? []) as TargetRow[]).map(transformTarget);
+      return ((data ?? []) as TargetRow[]).map((row) => transformTarget(row as Parameters<typeof transformTarget>[0]));
     },
     enabled: !!branchId && !!month,
   });

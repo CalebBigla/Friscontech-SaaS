@@ -24,7 +24,7 @@ export function useUsers() {
     queryFn: async (): Promise<User[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await (supabase as any).from('users')
+      const { data, error } = await supabase.from('users')
         .select('*')
         .eq('tenant_id', user.tenantId)
         // All statuses: deactivated staff stay visible (soft-deactivation).
@@ -34,7 +34,7 @@ export function useUsers() {
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformUser);
+      return (data || []).map((row) => transformUser(row as Parameters<typeof transformUser>[0]));
     },
     enabled: !!user?.tenantId,
   });
@@ -49,14 +49,14 @@ export function useUsersByBranch(branchId: string | undefined) {
     queryFn: async () => {
       if (!branchId) throw new Error('Branch ID required');
       
-      const { data, error } = await (supabase as any).from('users')
+      const { data, error } = await supabase.from('users')
         .select('*')
         .eq('branch_id', branchId)
         .order('first_name');
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformUser);
+      return (data || []).map((row) => transformUser(row as Parameters<typeof transformUser>[0]));
     },
     enabled: !!branchId,
   });
@@ -73,7 +73,7 @@ export function useUsersByRole(role: Role) {
     queryFn: async () => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await (supabase as any).from('users')
+      const { data, error } = await supabase.from('users')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .eq('role', role)
@@ -81,7 +81,7 @@ export function useUsersByRole(role: Role) {
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformUser);
+      return (data || []).map((row) => transformUser(row as Parameters<typeof transformUser>[0]));
     },
     enabled: !!user?.tenantId,
   });
@@ -96,14 +96,14 @@ export function useUser(userId: string | undefined) {
     queryFn: async () => {
       if (!userId) throw new Error('User ID required');
       
-      const { data, error } = await (supabase as any).from('users')
+      const { data, error } = await supabase.from('users')
         .select('*')
         .eq('id', userId)
         .single();
       
       if (error) handleSupabaseError(error);
       
-      return transformUser(data);
+      return transformUser(data as Parameters<typeof transformUser>[0]);
     },
     enabled: !!userId,
   });

@@ -24,14 +24,14 @@ export function useCustomers() {
     queryFn: async (): Promise<Customer[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await (supabase as any).from('customers')
+      const { data, error } = await supabase.from('customers')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('name');
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformCustomer);
+      return (data || []).map((row) => transformCustomer(row as Parameters<typeof transformCustomer>[0]));
     },
     enabled: !!user?.tenantId,
   });
@@ -46,14 +46,14 @@ export function useCustomersByBranch(branchId: string | undefined) {
     queryFn: async () => {
       if (!branchId) throw new Error('Branch ID required');
       
-      const { data, error } = await (supabase as any).from('customers')
+      const { data, error } = await supabase.from('customers')
         .select('*')
         .eq('branch_id', branchId)
         .order('name');
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformCustomer);
+      return (data || []).map((row) => transformCustomer(row as Parameters<typeof transformCustomer>[0]));
     },
     enabled: !!branchId,
   });
@@ -68,14 +68,14 @@ export function useCustomer(customerId: string | undefined) {
     queryFn: async (): Promise<Customer> => {
       if (!customerId) throw new Error('Customer ID required');
       
-      const { data, error } = await (supabase as any).from('customers')
+      const { data, error } = await supabase.from('customers')
         .select('*')
         .eq('id', customerId)
         .single();
       
       if (error) handleSupabaseError(error);
       
-      return transformCustomer(data);
+      return transformCustomer(data as Parameters<typeof transformCustomer>[0]);
     },
     enabled: !!customerId,
   });

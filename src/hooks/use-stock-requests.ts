@@ -25,14 +25,14 @@ export function useStockRequests() {
     queryFn: async (): Promise<StockRequest[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await (supabase as any).from('stock_requests')
+      const { data, error } = await supabase.from('stock_requests')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('created_at', { ascending: false });
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformStockRequest);
+      return (data || []).map((row) => transformStockRequest(row as Parameters<typeof transformStockRequest>[0]));
     },
     enabled: !!user?.tenantId,
   });
@@ -47,14 +47,14 @@ export function useStockRequestsByBranch(branchId: string | undefined) {
     queryFn: async () => {
       if (!branchId) throw new Error('Branch ID required');
       
-      const { data, error } = await (supabase as any).from('stock_requests')
+      const { data, error } = await supabase.from('stock_requests')
         .select('*')
         .eq('branch_id', branchId)
         .order('created_at', { ascending: false });
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformStockRequest);
+      return (data || []).map((row) => transformStockRequest(row as Parameters<typeof transformStockRequest>[0]));
     },
     enabled: !!branchId,
   });
@@ -69,14 +69,14 @@ export function useStockRequestsByRequester(requesterId: string | undefined) {
     queryFn: async () => {
       if (!requesterId) throw new Error('Requester ID required');
       
-      const { data, error } = await (supabase as any).from('stock_requests')
+      const { data, error } = await supabase.from('stock_requests')
         .select('*')
         .eq('rep_id', requesterId)
         .order('created_at', { ascending: false });
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformStockRequest);
+      return (data || []).map((row) => transformStockRequest(row as Parameters<typeof transformStockRequest>[0]));
     },
     enabled: !!requesterId,
   });
@@ -91,14 +91,14 @@ export function useStockRequest(requestId: string | undefined) {
     queryFn: async (): Promise<StockRequest> => {
       if (!requestId) throw new Error('Request ID required');
       
-      const { data, error } = await (supabase as any).from('stock_requests')
+      const { data, error } = await supabase.from('stock_requests')
         .select('*')
         .eq('id', requestId)
         .single();
       
       if (error) handleSupabaseError(error);
       
-      return transformStockRequest(data);
+      return transformStockRequest(data as Parameters<typeof transformStockRequest>[0]);
     },
     enabled: !!requestId,
   });
@@ -133,7 +133,7 @@ export function useCreateStockRequests() {
   return useMutation({
     mutationFn: async (args: PlannedRpcs["create_stock_requests"]): Promise<StockRequest[]> => {
       const rows = await callRpc("create_stock_requests", args);
-      return ((rows ?? []) as StockRequestMigrationRow[]).map(transformStockRequest);
+      return ((rows ?? []) as StockRequestMigrationRow[]).map((row) => transformStockRequest(row as Parameters<typeof transformStockRequest>[0]));
     },
     onSuccess: () => invalidateStockRequests(queryClient, user?.tenantId ?? "", false),
   });

@@ -121,7 +121,7 @@ function rowToOnboarding(row: OnbRow, rawToken: string, files: { photo: StoredFi
 
 /** Fetch the onboarding's files (photo + credentials) as the view-model expects, with signed URLs. */
 async function fetchFiles(onboardingId: string): Promise<{ photo: StoredFile | null; credentials: StoredFile[] }> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("onboarding_files")
     .select("id, file_type, file_name, cloudinary_url, file_size, mime_type")
     .eq("onboarding_id", onboardingId)
@@ -142,7 +142,7 @@ async function fetchFiles(onboardingId: string): Promise<{ photo: StoredFile | n
 
 /** Fetch via the public RPC (anon, by raw token). Returns the view model with files. */
 async function fetchByToken(rawToken: string): Promise<Onboarding | null> {
-  const { data, error } = await (supabase as any).rpc("get_onboarding_by_token", { p_token: rawToken });
+  const { data, error } = await supabase.rpc("get_onboarding_by_token", { p_token: rawToken });
   if (error || !data || !Array.isArray(data) || data.length === 0) return null;
   const row = data[0] as OnbRow;
   const files = await fetchFiles(row.id);
@@ -151,7 +151,7 @@ async function fetchByToken(rawToken: string): Promise<Onboarding | null> {
 
 /** Fetch by id for the owner (authenticated, owner RLS). */
 async function fetchById(id: string): Promise<Onboarding | null> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("onboardings")
     .select("*")
     .eq("id", id)
@@ -181,7 +181,7 @@ export const onboardingService = {
     if (!input.jobTitle.trim() || !input.department.trim() || !input.startDate) return fail("Job title, department and start date are required.");
 
     // Resolve the owner's tenant.
-    const { data: me, error: meErr } = await (supabase as any)
+    const { data: me, error: meErr } = await supabase
       .from("users")
       .select("tenant_id, role, status")
       .eq("id", actorId)
@@ -212,18 +212,18 @@ export const onboardingService = {
       data,
     };
 
-    const { data: row, error } = await (supabase as any).from("onboardings").insert(insert).select("*").single();
+    const { data: row, error } = await supabase.from("onboardings").insert(insert).select("*").single();
     if (error) return fail(error.message || "Could not create the invite.");
 
-    return { ok: true, data: { onboarding: rowToOnboarding(row, rawToken, { photo: null, credentials: [] }), token: rawToken } };
+    return { ok: true, data: { onboarding: rowToOnboarding(row as OnbRow, rawToken, { photo: null, credentials: [] }), token: rawToken } };
   },
 
   /** Generate a fresh token for an existing invite (the old token stops working). */
   async regenerate(id: string, actorId: string): Promise<R<string>> {
-    const { data: me } = await (supabase as any).from("users").select("tenant_id, role").eq("id", actorId).maybeSingle();
+    const { data: me } = await supabase.from("users").select("tenant_id, role").eq("id", actorId).maybeSingle();
     if (!me || me.role !== "owner") return fail("Only the Owner can manage onboarding links.");
 
-    const { data: existing } = await (supabase as any)
+    const { data: existing } = await supabase
       .from("onboardings")
       .select("status, user_id, tenant_id")
       .eq("id", id)
@@ -235,7 +235,7 @@ export const onboardingService = {
 
     const rawToken = newRawToken();
     const tokenHash = await sha256Hex(rawToken);
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("onboardings")
       .update({ token_hash: tokenHash, token_expires_at: expiryIso(), token_revoked: false, used_at: null })
       .eq("id", id);
@@ -244,10 +244,10 @@ export const onboardingService = {
   },
 
   async revoke(id: string, actorId: string): Promise<R<Onboarding>> {
-    const { data: me } = await (supabase as any).from("users").select("tenant_id, role").eq("id", actorId).maybeSingle();
+    const { data: me } = await supabase.from("users").select("tenant_id, role").eq("id", actorId).maybeSingle();
     if (!me || me.role !== "owner") return fail("Only the Owner can manage onboarding links.");
 
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("onboardings")
       .update({ token_revoked: true })
       .eq("id", id)
@@ -259,9 +259,9 @@ export const onboardingService = {
 
   async updateJob(id: string, job: { jobTitle: string; department: string; startDate: string }, actorId: string): Promise<R<Onboarding>> {
     if (!job.jobTitle.trim() || !job.department.trim() || !job.startDate) return fail("Job title, department and start date are required.");
-    const { data: me } = await (supabase as any).from("users").select("tenant_id, role").eq("id", actorId).maybeSingle();
+    const { data: me } = await supabase.from("users").select("tenant_id, role").eq("id", actorId).maybeSingle();
     if (!me || me.role !== "owner") return fail("Only the Owner can set job details.");
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("onboardings")
       .update({ job_title: job.jobTitle.trim(), department: job.department.trim(), start_date: job.startDate })
       .eq("id", id)
@@ -285,7 +285,7 @@ export const onboardingService = {
 
   /** Save form progress (data + step). */
   async saveProgress(rawToken: string, data: EmployeeData, step: number): Promise<R<Onboarding>> {
-    const { error } = await (supabase as any).rpc("save_onboarding_progress", {
+    const { error } = await supabase.rpc("save_onboarding_progress", {
       p_token: rawToken,
       p_data: data,
       p_step: step,
@@ -297,7 +297,7 @@ export const onboardingService = {
 
   /** Create / refresh the guarantor link. Returns the raw guarantor token. */
   async sendGuarantor(rawToken: string): Promise<R<string>> {
-    const { data, error } = await (supabase as any).rpc("send_guarantor_link", { p_token: rawToken });
+    const { data, error } = await supabase.rpc("send_guarantor_link", { p_token: rawToken });
     if (error) return fail(error.message);
     if (!data) return fail("Could not create the guarantor link.");
     return { ok: true, data: data as string };
@@ -305,7 +305,7 @@ export const onboardingService = {
 
   /** Submit the guarantor reference (by guarantor token). */
   async submitGuarantor(rawToken: string, resp: Omit<GuarantorResponse, "submittedAt">): Promise<R<Onboarding>> {
-    const { error } = await (supabase as any).rpc("submit_guarantor", {
+    const { error } = await supabase.rpc("submit_guarantor", {
       p_guarantor_token: rawToken,
       p_response: { ...resp, submittedAt: new Date().toISOString() },
     });
@@ -335,7 +335,7 @@ export const onboardingService = {
 
     // 1. mark the onboarding submitted (RPC validates the token; a submitted invite
     //    without an account can be submitted again, so a failed sign-up is retryable)
-    const { error: submitErr } = await (supabase as any).rpc("submit_onboarding", {
+    const { error: submitErr } = await supabase.rpc("submit_onboarding", {
       p_token: rawToken,
       p_data: data,
       p_email: email,
@@ -390,7 +390,7 @@ export const onboardingService = {
     const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
     if (upErr) return fail(upErr.message || "Upload failed.");
 
-    const { data: fileId, error: regErr } = await (supabase as any).rpc("register_onboarding_file", {
+    const { data: fileId, error: regErr } = await supabase.rpc("register_onboarding_file", {
       p_token: rawToken,
       p_file_type: fileType,
       p_file_name: file.name,
@@ -409,7 +409,7 @@ export const onboardingService = {
 
   /** Remove an uploaded file (by its storage path). */
   async removeFile(rawToken: string, fileId: string, storagePath: string): Promise<R<true>> {
-    const { error } = await (supabase as any).rpc("delete_onboarding_file", { p_token: rawToken, p_file_id: fileId });
+    const { error } = await supabase.rpc("delete_onboarding_file", { p_token: rawToken, p_file_id: fileId });
     if (error) return fail(error.message);
     await supabase.storage.from(BUCKET).remove([storagePath]).catch(() => {});
     return { ok: true, data: true };
@@ -418,7 +418,7 @@ export const onboardingService = {
   // ---------------- owner review ----------------
 
   async reviewGuarantor(id: string, decision: "accepted" | "declined", reason: string, actorId: string): Promise<R<Onboarding>> {
-    const { error } = await (supabase as any).rpc("review_guarantor", {
+    const { error } = await supabase.rpc("review_guarantor", {
       p_onboarding_id: id,
       p_decision: decision,
       p_reason: reason || "",
@@ -429,10 +429,11 @@ export const onboardingService = {
   },
 
   async approve(id: string, role: "manager" | "storekeeper" | "sales_rep", branchId: string | null, _actorId: string): Promise<R<Onboarding>> {
-    const { error } = await (supabase as any).rpc("approve_onboarding", {
+    const { error } = await supabase.rpc("approve_onboarding", {
       p_onboarding_id: id,
       p_role: role,
-      p_branch_id: branchId,
+      // Generated Args type this as string; the function accepts NULL (no branch).
+      p_branch_id: branchId as string,
     });
     if (error) return fail(error.message);
     const o = await fetchById(id);
@@ -440,7 +441,7 @@ export const onboardingService = {
   },
 
   async reject(id: string, reason: string, _actorId: string): Promise<R<Onboarding>> {
-    const { error } = await (supabase as any).rpc("reject_onboarding", {
+    const { error } = await supabase.rpc("reject_onboarding", {
       p_onboarding_id: id,
       p_reason: reason,
     });

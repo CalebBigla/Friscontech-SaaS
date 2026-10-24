@@ -20,7 +20,7 @@ export function useOnboardings(tenantId: string, filters: OnboardingFilters = {}
   return useQuery({
     queryKey: queryKeys.onboardings.list(tenantId, filters as any),
     queryFn: async (): Promise<Onboarding[]> => {
-      let q = (supabase as any)
+      let q = supabase
         .from("onboardings")
         .select("*")
         .eq("tenant_id", tenantId)
@@ -28,7 +28,7 @@ export function useOnboardings(tenantId: string, filters: OnboardingFilters = {}
       if (filters.status) q = q.eq("status", filters.status);
       const { data, error } = await q;
       if (error) throw handleSupabaseError(error);
-      return (data || []).map(transformOnboarding);
+      return (data || []).map((row) => transformOnboarding(row as Parameters<typeof transformOnboarding>[0]));
     },
     enabled: !!tenantId,
   });
@@ -39,14 +39,14 @@ export function usePendingOnboardings(tenantId: string) {
   return useQuery({
     queryKey: queryKeys.onboardings.pending(tenantId),
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("onboardings")
         .select("*")
         .eq("tenant_id", tenantId)
         .eq("status", "submitted")
         .order("submitted_at", { ascending: true });
       if (error) throw handleSupabaseError(error);
-      return (data || []).map(transformOnboarding);
+      return (data || []).map((row) => transformOnboarding(row as Parameters<typeof transformOnboarding>[0]));
     },
     enabled: !!tenantId,
   });
@@ -60,13 +60,13 @@ export function useMemberOnboarding(userId: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.onboardings.byUser(userId),
     queryFn: async (): Promise<Onboarding | null> => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("onboardings")
         .select("*")
         .eq("user_id", userId)
         .maybeSingle();
       if (error) throw handleSupabaseError(error);
-      return data ? transformOnboarding(data) : null;
+      return data ? transformOnboarding(data as Parameters<typeof transformOnboarding>[0]) : null;
     },
     enabled: enabled && !!userId,
   });
@@ -77,13 +77,13 @@ export function useOnboarding(id: string) {
   return useQuery({
     queryKey: queryKeys.onboardings.detail(id),
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("onboardings")
         .select("*")
         .eq("id", id)
         .single();
       if (error) throw handleSupabaseError(error);
-      return transformOnboarding(data);
+      return transformOnboarding(data as Parameters<typeof transformOnboarding>[0]);
     },
     enabled: !!id,
   });

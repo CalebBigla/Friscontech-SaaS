@@ -24,14 +24,14 @@ export function useExpenses() {
     queryFn: async (): Promise<Expense[]> => {
       if (!user?.tenantId) throw new Error("Not authenticated");
 
-      const { data, error } = await (supabase as any).from("expenses")
+      const { data, error } = await supabase.from("expenses")
         .select("*")
         .eq("tenant_id", user.tenantId)
         .order("expense_date", { ascending: false });
 
       if (error) throw handleSupabaseError(error);
 
-      return (data ?? []).map(transformExpense);
+      return (data ?? []).map((row) => transformExpense(row as Parameters<typeof transformExpense>[0]));
     },
     enabled: !!user?.tenantId,
   });
@@ -46,14 +46,14 @@ export function useExpensesByBranch(branchId: string | undefined) {
     queryFn: async () => {
       if (!branchId) throw new Error("Branch ID required");
 
-      const { data, error } = await (supabase as any).from("expenses")
+      const { data, error } = await supabase.from("expenses")
         .select("*")
         .eq("branch_id", branchId)
         .order("expense_date", { ascending: false });
 
       if (error) throw handleSupabaseError(error);
 
-      return (data ?? []).map(transformExpense);
+      return (data ?? []).map((row) => transformExpense(row as Parameters<typeof transformExpense>[0]));
     },
     enabled: !!branchId,
   });
@@ -68,14 +68,14 @@ export function useExpensesByManager(managerId: string | undefined) {
     queryFn: async () => {
       if (!managerId) throw new Error("Manager ID required");
 
-      const { data, error } = await (supabase as any).from("expenses")
+      const { data, error } = await supabase.from("expenses")
         .select("*")
         .eq("manager_id", managerId)
         .order("expense_date", { ascending: false });
 
       if (error) throw handleSupabaseError(error);
 
-      return (data ?? []).map(transformExpense);
+      return (data ?? []).map((row) => transformExpense(row as Parameters<typeof transformExpense>[0]));
     },
     enabled: !!managerId,
   });

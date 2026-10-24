@@ -34,7 +34,7 @@ export function GuarantorFormPage({ token }: { token: string }) {
     let active = true;
     (async () => {
       setLoading(true);
-      const { data, error } = await (supabase as any).rpc("get_onboarding_for_guarantor", {
+      const { data, error } = await supabase.rpc("get_onboarding_for_guarantor", {
         p_guarantor_token: token,
       });
       if (!active) return;

@@ -11,6 +11,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { transformSale, saleToDb } from "@/lib/type-adapters";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
 import type { Sale } from "@/data/mock-db";
+import type { TablesInsert } from "@/types/database.types";
 
 /**
  * Fetch all sales for tenant
@@ -23,7 +24,7 @@ export function useSales() {
     queryFn: async (): Promise<Sale[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await (supabase as any).from('sales')
+      const { data, error } = await supabase.from('sales')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('sale_date', { ascending: false })
@@ -31,7 +32,7 @@ export function useSales() {
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformSale);
+      return (data || []).map((row) => transformSale(row as Parameters<typeof transformSale>[0]));
     },
     enabled: !!user?.tenantId,
   });
@@ -46,7 +47,7 @@ export function useSalesByBranch(branchId: string | undefined) {
     queryFn: async () => {
       if (!branchId) throw new Error('Branch ID required');
       
-      const { data, error } = await (supabase as any).from('sales')
+      const { data, error } = await supabase.from('sales')
         .select('*')
         .eq('branch_id', branchId)
         .order('sale_date', { ascending: false })
@@ -54,7 +55,7 @@ export function useSalesByBranch(branchId: string | undefined) {
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformSale);
+      return (data || []).map((row) => transformSale(row as Parameters<typeof transformSale>[0]));
     },
     enabled: !!branchId,
   });
@@ -69,7 +70,7 @@ export function useSalesByRep(repId: string | undefined) {
     queryFn: async () => {
       if (!repId) throw new Error('Rep ID required');
       
-      const { data, error } = await (supabase as any).from('sales')
+      const { data, error } = await supabase.from('sales')
         .select('*')
         .eq('sales_rep_id', repId)
         .order('sale_date', { ascending: false })
@@ -77,7 +78,7 @@ export function useSalesByRep(repId: string | undefined) {
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformSale);
+      return (data || []).map((row) => transformSale(row as Parameters<typeof transformSale>[0]));
     },
     enabled: !!repId,
   });
@@ -90,7 +91,7 @@ export function useSalesByPeriod(startDate: string, endDate: string) {
   return useQuery({
     queryKey: queryKeys.sales.byPeriod(startDate, endDate),
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('sales')
+      const { data, error } = await supabase.from('sales')
         .select('*')
         .gte('sale_date', startDate)
         .lte('sale_date', endDate)
@@ -98,7 +99,7 @@ export function useSalesByPeriod(startDate: string, endDate: string) {
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformSale);
+      return (data || []).map((row) => transformSale(row as Parameters<typeof transformSale>[0]));
     },
     enabled: !!startDate && !!endDate,
   });
@@ -115,16 +116,16 @@ export function useCreateSale() {
     mutationFn: async (input: Partial<Sale>) => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const dbData = saleToDb(input, user.tenantId);
+      const dbData = saleToDb(input, user.tenantId) as TablesInsert<"sales">;
       
-      const { data, error } = await (supabase as any).from('sales')
+      const { data, error } = await supabase.from('sales')
         .insert(dbData)
         .select()
         .single();
       
       if (error) handleSupabaseError(error);
       
-      return transformSale(data);
+      return transformSale(data as Parameters<typeof transformSale>[0]);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ 
@@ -155,15 +156,15 @@ export function useBulkCreateSales() {
     mutationFn: async (sales: Partial<Sale>[]) => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const dbData = sales.map(s => saleToDb(s, user.tenantId));
+      const dbData = sales.map(s => saleToDb(s, user.tenantId) as TablesInsert<"sales">);
       
-      const { data, error } = await (supabase as any).from('sales')
+      const { data, error } = await supabase.from('sales')
         .insert(dbData)
         .select();
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformSale);
+      return (data || []).map((row) => transformSale(row as Parameters<typeof transformSale>[0]));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ 

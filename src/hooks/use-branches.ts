@@ -12,6 +12,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { transformBranch, branchToDb } from "@/lib/type-adapters";
 import { handleSupabaseError } from "@/lib/supabase-helpers";
 import type { Branch } from "@/data/mock-db";
+import type { TablesInsert, TablesUpdate } from "@/types/database.types";
 
 /**
  * Fetch all branches for the current tenant
@@ -24,14 +25,14 @@ export function useBranches() {
     queryFn: async (): Promise<Branch[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await (supabase as any).from('branches')
+      const { data, error } = await supabase.from('branches')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('name');
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformBranch);
+      return (data || []).map((row) => transformBranch(row as Parameters<typeof transformBranch>[0]));
     },
     enabled: !!user?.tenantId,
   });
@@ -46,14 +47,14 @@ export function useBranch(branchId: string | undefined) {
     queryFn: async (): Promise<Branch> => {
       if (!branchId) throw new Error('Branch ID required');
       
-      const { data, error } = await (supabase as any).from('branches')
+      const { data, error } = await supabase.from('branches')
         .select('*')
         .eq('id', branchId)
         .single();
       
       if (error) handleSupabaseError(error);
       
-      return transformBranch(data);
+      return transformBranch(data as Parameters<typeof transformBranch>[0]);
     },
     enabled: !!branchId,
   });
@@ -72,14 +73,14 @@ export function useCreateBranch() {
       
       const dbData = branchToDb(input, user.tenantId);
       
-      const { data, error } = await (supabase as any).from('branches')
-        .insert(dbData)
+      const { data, error } = await supabase.from('branches')
+        .insert(dbData as TablesInsert<"branches">)
         .select()
         .single();
       
       if (error) handleSupabaseError(error);
       
-      return transformBranch(data);
+      return transformBranch(data as Parameters<typeof transformBranch>[0]);
     },
     onSuccess: () => {
       // Invalidate branches cache to refetch
@@ -103,15 +104,15 @@ export function useUpdateBranch() {
       
       const dbData = branchToDb(updates, user.tenantId);
       
-      const { data, error } = await (supabase as any).from('branches')
-        .update(dbData)
+      const { data, error } = await supabase.from('branches')
+        .update(dbData as TablesUpdate<"branches">)
         .eq('id', id)
         .select()
         .single();
       
       if (error) handleSupabaseError(error);
       
-      return transformBranch(data);
+      return transformBranch(data as Parameters<typeof transformBranch>[0]);
     },
     onSuccess: (data) => {
       // Invalidate both list and detail caches
@@ -136,7 +137,7 @@ export function useDeactivateBranch() {
     mutationFn: async (branchId: string) => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await (supabase as any).from('branches')
+      const { data, error } = await supabase.from('branches')
         .update({ 
           status: 'inactive',
         })
@@ -146,7 +147,7 @@ export function useDeactivateBranch() {
       
       if (error) handleSupabaseError(error);
       
-      return transformBranch(data);
+      return transformBranch(data as Parameters<typeof transformBranch>[0]);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ 
@@ -170,7 +171,7 @@ export function useReactivateBranch() {
     mutationFn: async (branchId: string) => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await (supabase as any).from('branches')
+      const { data, error } = await supabase.from('branches')
         .update({ 
           status: 'active',
         })
@@ -180,7 +181,7 @@ export function useReactivateBranch() {
       
       if (error) handleSupabaseError(error);
       
-      return transformBranch(data);
+      return transformBranch(data as Parameters<typeof transformBranch>[0]);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ 

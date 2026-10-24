@@ -37,7 +37,7 @@ export function useTenant() {
   return useQuery({
     queryKey: queryKeys.tenant.detail(tenantId),
     queryFn: async (): Promise<Tenant | null> => {
-      const { data, error } = await (supabase as any).from("tenants")
+      const { data, error } = await supabase.from("tenants")
         .select("*")
         .eq("id", tenantId)
         .maybeSingle();

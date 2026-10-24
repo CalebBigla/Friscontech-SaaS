@@ -24,14 +24,14 @@ export function usePayments() {
     queryFn: async (): Promise<Payment[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await (supabase as any).from('payments')
+      const { data, error } = await supabase.from('payments')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('submitted_at', { ascending: false });
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformPayment);
+      return (data || []).map((row) => transformPayment(row as Parameters<typeof transformPayment>[0]));
     },
     enabled: !!user?.tenantId,
   });
@@ -46,14 +46,14 @@ export function usePaymentsByRep(repId: string | undefined) {
     queryFn: async () => {
       if (!repId) throw new Error('Rep ID required');
       
-      const { data, error } = await (supabase as any).from('payments')
+      const { data, error } = await supabase.from('payments')
         .select('*')
         .eq('sales_rep_id', repId)
         .order('submitted_at', { ascending: false });
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformPayment);
+      return (data || []).map((row) => transformPayment(row as Parameters<typeof transformPayment>[0]));
     },
     enabled: !!repId,
   });
@@ -66,14 +66,14 @@ export function usePaymentsByPeriod(period: string) {
   return useQuery({
     queryKey: queryKeys.payments.byPeriod(period),
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('payments')
+      const { data, error } = await supabase.from('payments')
         .select('*')
         .eq('period', period)
         .order('submitted_at', { ascending: false });
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformPayment);
+      return (data || []).map((row) => transformPayment(row as Parameters<typeof transformPayment>[0]));
     },
     enabled: !!period,
   });
@@ -90,7 +90,7 @@ export function usePendingPayments() {
     queryFn: async () => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await (supabase as any).from('payments')
+      const { data, error } = await supabase.from('payments')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .in('status', ['submitted', 'acknowledged'])
@@ -98,7 +98,7 @@ export function usePendingPayments() {
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformPayment);
+      return (data || []).map((row) => transformPayment(row as Parameters<typeof transformPayment>[0]));
     },
     enabled: !!user?.tenantId,
   });

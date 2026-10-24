@@ -32,7 +32,7 @@ interface AuditFilters {
 }
 
 const toActivities = (data: unknown): Activity[] =>
-  ((data ?? []) as ActivityRow[]).map(transformActivity);
+  ((data ?? []) as ActivityRow[]).map((row) => transformActivity(row as Parameters<typeof transformActivity>[0]));
 
 /**
  * Fetch audit logs for a tenant with optional filters
@@ -41,7 +41,7 @@ export function useAuditLogs(tenantId: string, filters: AuditFilters = {}, enabl
   return useQuery({
     queryKey: queryKeys.activities.list(tenantId, filters),
     queryFn: async () => {
-      let query = (supabase as any)
+      let query = supabase
         .from('activities')
         .select('*')
         .eq('tenant_id', tenantId)
@@ -70,7 +70,7 @@ export function useUserAuditLogs(userId: string, limit: number = 50) {
   return useQuery({
     queryKey: queryKeys.activities.byUser(userId, limit),
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('activities')
+      const { data, error } = await supabase.from('activities')
         .select('*')
         .eq('actor_id', userId)
         .order('created_at', { ascending: false })
@@ -90,7 +90,7 @@ export function useEntityAuditLogs(entity: AuditEntity, entityId: string) {
   return useQuery({
     queryKey: queryKeys.activities.byEntity(entity, entityId),
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('activities')
+      const { data, error } = await supabase.from('activities')
         .select('*')
         .eq('entity', entity)
         .eq('entity_id', entityId)
@@ -110,7 +110,7 @@ export function useRecentAuditLogs(tenantId: string, limit: number = 20) {
   return useQuery({
     queryKey: queryKeys.activities.recent(tenantId, limit),
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('activities')
+      const { data, error } = await supabase.from('activities')
         .select('*')
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })

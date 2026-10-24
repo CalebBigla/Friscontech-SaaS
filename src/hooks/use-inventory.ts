@@ -24,14 +24,14 @@ export function useInventory() {
     queryFn: async (): Promise<InventoryRecord[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
-      const { data, error } = await (supabase as any).from('inventory_records')
+      const { data, error } = await supabase.from('inventory_records')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('last_updated', { ascending: false });
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformInventoryRecord);
+      return (data || []).map((row) => transformInventoryRecord(row as Parameters<typeof transformInventoryRecord>[0]));
     },
     enabled: !!user?.tenantId,
   });
@@ -46,14 +46,14 @@ export function useInventoryByBranch(branchId: string | undefined) {
     queryFn: async () => {
       if (!branchId) throw new Error('Branch ID required');
       
-      const { data, error } = await (supabase as any).from('inventory_records')
+      const { data, error } = await supabase.from('inventory_records')
         .select('*')
         .eq('branch_id', branchId)
         .order('last_updated', { ascending: false });
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformInventoryRecord);
+      return (data || []).map((row) => transformInventoryRecord(row as Parameters<typeof transformInventoryRecord>[0]));
     },
     enabled: !!branchId,
   });
@@ -68,14 +68,14 @@ export function useInventoryRecord(recordId: string | undefined) {
     queryFn: async (): Promise<InventoryRecord> => {
       if (!recordId) throw new Error('Record ID required');
       
-      const { data, error } = await (supabase as any).from('inventory_records')
+      const { data, error } = await supabase.from('inventory_records')
         .select('*')
         .eq('id', recordId)
         .single();
       
       if (error) handleSupabaseError(error);
       
-      return transformInventoryRecord(data);
+      return transformInventoryRecord(data as Parameters<typeof transformInventoryRecord>[0]);
     },
     enabled: !!recordId,
   });
@@ -91,13 +91,13 @@ export function useInventoryMovements(recordId: string | undefined) {
       if (!recordId) throw new Error('Record ID required');
 
       // Movements are keyed by branch + product, not by inventory record id.
-      const { data: record, error: recordError } = await (supabase as any).from('inventory_records')
+      const { data: record, error: recordError } = await supabase.from('inventory_records')
         .select('tenant_id, branch_id, product_id')
         .eq('id', recordId)
         .single();
       if (recordError) handleSupabaseError(recordError);
 
-      const { data, error } = await (supabase as any).from('inventory_movements')
+      const { data, error } = await supabase.from('inventory_movements')
         .select('*')
         .eq('tenant_id', record.tenant_id)
         .eq('branch_id', record.branch_id)
@@ -106,7 +106,7 @@ export function useInventoryMovements(recordId: string | undefined) {
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformInventoryMovement);
+      return (data || []).map((row) => transformInventoryMovement(row as Parameters<typeof transformInventoryMovement>[0]));
     },
     enabled: !!recordId,
   });
@@ -123,14 +123,14 @@ export function useAllInventoryMovements(enabled = true) {
     queryFn: async (): Promise<InventoryMovement[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
 
-      const { data, error } = await (supabase as any).from('inventory_movements')
+      const { data, error } = await supabase.from('inventory_movements')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('created_at', { ascending: false });
 
       if (error) handleSupabaseError(error);
 
-      return (data || []).map(transformInventoryMovement);
+      return (data || []).map((row) => transformInventoryMovement(row as Parameters<typeof transformInventoryMovement>[0]));
     },
     enabled: enabled && !!user?.tenantId,
   });
@@ -147,14 +147,14 @@ export function useAllStockBatches(enabled = true) {
     queryFn: async (): Promise<StockBatch[]> => {
       if (!user?.tenantId) throw new Error('Not authenticated');
 
-      const { data, error } = await (supabase as any).from('stock_batches')
+      const { data, error } = await supabase.from('stock_batches')
         .select('*')
         .eq('tenant_id', user.tenantId)
         .order('expiry_date', { ascending: true });
 
       if (error) handleSupabaseError(error);
 
-      return (data || []).map(transformStockBatch);
+      return (data || []).map((row) => transformStockBatch(row as Parameters<typeof transformStockBatch>[0]));
     },
     enabled: enabled && !!user?.tenantId,
   });
@@ -169,7 +169,7 @@ export function useStockBatches(productId: string | undefined, branchId: string 
     queryFn: async (): Promise<StockBatch[]> => {
       if (!productId || !branchId) throw new Error('Product and branch required');
       
-      const { data, error } = await (supabase as any).from('stock_batches')
+      const { data, error } = await supabase.from('stock_batches')
         .select('*')
         .eq('product_id', productId)
         .eq('branch_id', branchId)
@@ -178,7 +178,7 @@ export function useStockBatches(productId: string | undefined, branchId: string 
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map(transformStockBatch);
+      return (data || []).map((row) => transformStockBatch(row as Parameters<typeof transformStockBatch>[0]));
     },
     enabled: !!productId && !!branchId,
   });
