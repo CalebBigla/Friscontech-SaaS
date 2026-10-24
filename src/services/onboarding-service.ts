@@ -34,6 +34,52 @@ import { validateStep, withCompanyEmailId, type StepErrors } from "@/lib/onboard
 type R<T> = { ok: true; data: T } | { ok: false; errors: StepErrors };
 const fail = (form: string): R<never> => ({ ok: false, errors: { form } });
 
+/** Shape shared by PostgREST, Storage and Auth errors. */
+type DbError = {
+  message?: string | undefined;
+  code?: string | undefined;
+  details?: string | null | undefined;
+  hint?: string | null | undefined;
+  status?: number | undefined;
+};
+
+/** Plain-language explanation for the failures the onboarding flow can hit. */
+function explain(error: DbError): string {
+  const message = error.message ?? "";
+  if (error.code === "42702")
+    return "The server needs an update before this can be saved (ambiguous column). Please tell the business owner.";
+  if (error.code === "PGRST202" || error.code === "42883")
+    return "The server is missing an onboarding function. Please tell the business owner.";
+  if (error.code === "42501" || /row-level security/i.test(message)) return "You don't have permission to do this.";
+  if (/failed to fetch|networkerror|load failed/i.test(message))
+    return "Couldn't reach the server. Check your internet connection and try again.";
+  return message || "Something went wrong. Please try again.";
+}
+
+/**
+ * Log a failed onboarding call with everything needed to diagnose it, and return
+ * a user-facing error that carries the same reference. Context must stay free of
+ * tokens and personal data (step numbers and ids only).
+ */
+function dbFail(operation: string, error: DbError, context: Record<string, unknown> = {}): R<never> {
+  const ref = `ONB-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+  console.error(`[onboarding] ${operation} failed · ${ref}`, {
+    operation,
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+    status: error.status,
+    ...context,
+  });
+  return fail(`${explain(error)} (${operation}${error.code ? ` · ${error.code}` : ""} · ref ${ref})`);
+}
+
+/** Log a read that failed but is shown to the user as "not found". */
+function logLookup(operation: string, error: DbError | null) {
+  if (error) console.error(`[onboarding] ${operation} failed`, { code: error.code, message: error.message, details: error.details, hint: error.hint });
+}
+
 const BUCKET = "onboarding-files";
 const PHOTO_MAX_BYTES = 4 * 1024 * 1024;     // 4 MiB hard cap for images
 const CREDENTIAL_MAX_BYTES = 5 * 1024 * 1024; // 5 MiB for credentials
@@ -138,6 +184,7 @@ async function fetchFiles(onboardingId: string): Promise<{ photo: StoredFile | n
  */
 async function fetchFilesByToken(rawToken: string): Promise<{ photo: StoredFile | null; credentials: StoredFile[] }> {
   const { data, error } = await supabase.rpc("list_onboarding_files", { p_token: rawToken });
+  logLookup("list_onboarding_files", error);
   if (error || !data) return { photo: null, credentials: [] };
   return toFiles(data);
 }
@@ -157,6 +204,7 @@ async function toFiles(rows: FileRow[]): Promise<{ photo: StoredFile | null; cre
 /** Fetch via the public RPC (anon, by raw token). Returns the view model with files. */
 async function fetchByToken(rawToken: string): Promise<Onboarding | null> {
   const { data, error } = await supabase.rpc("get_onboarding_by_token", { p_token: rawToken });
+  logLookup("get_onboarding_by_token", error);
   if (error || !data || !Array.isArray(data) || data.length === 0) return null;
   const row = data[0] as OnbRow;
   const files = await fetchFilesByToken(rawToken);
@@ -227,7 +275,7 @@ export const onboardingService = {
     };
 
     const { data: row, error } = await supabase.from("onboardings").insert(insert).select("*").single();
-    if (error) return fail(error.message || "Could not create the invite.");
+    if (error) return dbFail("create invite", error);
 
     return { ok: true, data: { onboarding: rowToOnboarding(row as OnbRow, rawToken, { photo: null, credentials: [] }), token: rawToken } };
   },
@@ -253,7 +301,7 @@ export const onboardingService = {
       .from("onboardings")
       .update({ token_hash: tokenHash, token_expires_at: expiryIso(), token_revoked: false, used_at: null })
       .eq("id", id);
-    if (error) return fail(error.message || "Could not regenerate the link.");
+    if (error) return dbFail("regenerate link", error, { onboardingId: id });
     return { ok: true, data: rawToken };
   },
 
@@ -266,7 +314,7 @@ export const onboardingService = {
       .update({ token_revoked: true })
       .eq("id", id)
       .eq("tenant_id", me.tenant_id);
-    if (error) return fail(error.message);
+    if (error) return dbFail("revoke link", error, { onboardingId: id });
     const o = await fetchById(id);
     return o ? { ok: true, data: o } : fail("Not found");
   },
@@ -280,7 +328,7 @@ export const onboardingService = {
       .update({ job_title: job.jobTitle.trim(), department: job.department.trim(), start_date: job.startDate })
       .eq("id", id)
       .eq("tenant_id", me.tenant_id);
-    if (error) return fail(error.message);
+    if (error) return dbFail("update job details", error, { onboardingId: id });
     const o = await fetchById(id);
     return o ? { ok: true, data: o } : fail("Not found");
   },
@@ -304,7 +352,7 @@ export const onboardingService = {
       p_data: withCompanyEmailId(data),
       p_step: step,
     });
-    if (error) return fail(error.message);
+    if (error) return dbFail("save_onboarding_progress", error, { step });
     const o = await fetchByToken(rawToken);
     return o ? { ok: true, data: o } : fail("Not found");
   },
@@ -312,7 +360,7 @@ export const onboardingService = {
   /** Create / refresh the guarantor link. Returns the raw guarantor token. */
   async sendGuarantor(rawToken: string): Promise<R<string>> {
     const { data, error } = await supabase.rpc("send_guarantor_link", { p_token: rawToken });
-    if (error) return fail(error.message);
+    if (error) return dbFail("send_guarantor_link", error);
     if (!data) return fail("Could not create the guarantor link.");
     return { ok: true, data: data as string };
   },
@@ -323,7 +371,7 @@ export const onboardingService = {
       p_guarantor_token: rawToken,
       p_response: { ...resp, submittedAt: new Date().toISOString() },
     });
-    if (error) return fail(error.message);
+    if (error) return dbFail("submit_guarantor", error);
     // The guarantor token is different from the invite token; return the invite as-is via fetchById is not possible here.
     // Callers (the guarantor page) only need the ok status.
     return { ok: true, data: {} as Onboarding };
@@ -355,7 +403,7 @@ export const onboardingService = {
       p_data: data,
       p_email: email,
     });
-    if (submitErr) return fail(submitErr.message);
+    if (submitErr) return dbFail("submit_onboarding", submitErr);
 
     // 2. look up the onboarding id (so we can pass it to signUp metadata)
     const onb = await fetchByToken(rawToken); // after submit, get_onboarding_by_token still returns it (status submitted, user_id NULL)
@@ -377,7 +425,7 @@ export const onboardingService = {
     });
     if (authError) {
       // The onboarding is 'submitted' but no account. The owner can still see the data.
-      return fail(authError.message || "Could not create your account. Contact the Owner.");
+      return dbFail("create account (sign-up)", authError);
     }
     if (!authData.user) return fail("Could not create your account.");
 
@@ -403,7 +451,7 @@ export const onboardingService = {
   async _uploadFile(rawToken: string, onboardingId: string, fileType: "photo" | "credential", file: File): Promise<R<StoredFile>> {
     const path = `${onboardingId}/${fileType}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName(file.name)}`;
     const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
-    if (upErr) return fail(upErr.message || "Upload failed.");
+    if (upErr) return dbFail("upload file", upErr, { fileType });
 
     const { data: fileId, error: regErr } = await supabase.rpc("register_onboarding_file", {
       p_token: rawToken,
@@ -416,7 +464,7 @@ export const onboardingService = {
     if (regErr) {
       // Clean up the orphaned storage object if registration failed.
       await supabase.storage.from(BUCKET).remove([path]).catch(() => {});
-      return fail(regErr.message);
+      return dbFail("register_onboarding_file", regErr, { fileType });
     }
     const url = await signedUrl(path);
     return { ok: true, data: { name: file.name, type: file.type, size: file.size, dataUrl: url, id: fileId as unknown as string, path } };
@@ -425,7 +473,7 @@ export const onboardingService = {
   /** Remove an uploaded file (by its storage path). */
   async removeFile(rawToken: string, fileId: string, storagePath: string): Promise<R<true>> {
     const { error } = await supabase.rpc("delete_onboarding_file", { p_token: rawToken, p_file_id: fileId });
-    if (error) return fail(error.message);
+    if (error) return dbFail("delete_onboarding_file", error);
     await supabase.storage.from(BUCKET).remove([storagePath]).catch(() => {});
     return { ok: true, data: true };
   },
@@ -438,7 +486,7 @@ export const onboardingService = {
       p_decision: decision,
       p_reason: reason || "",
     });
-    if (error) return fail(error.message);
+    if (error) return dbFail("review_guarantor", error, { onboardingId: id });
     const o = await fetchById(id);
     return o ? { ok: true, data: o } : fail("Not found");
   },
@@ -450,7 +498,7 @@ export const onboardingService = {
       // Generated Args type this as string; the function accepts NULL (no branch).
       p_branch_id: branchId as string,
     });
-    if (error) return fail(error.message);
+    if (error) return dbFail("approve_onboarding", error, { onboardingId: id });
     const o = await fetchById(id);
     return o ? { ok: true, data: o } : fail("Not found");
   },
@@ -460,7 +508,7 @@ export const onboardingService = {
       p_onboarding_id: id,
       p_reason: reason,
     });
-    if (error) return fail(error.message);
+    if (error) return dbFail("reject_onboarding", error, { onboardingId: id });
     const o = await fetchById(id);
     return o ? { ok: true, data: o } : fail("Not found");
   },
