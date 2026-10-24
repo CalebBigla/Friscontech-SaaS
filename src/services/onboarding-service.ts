@@ -119,7 +119,9 @@ function rowToOnboarding(row: OnbRow, rawToken: string, files: { photo: StoredFi
   } as Onboarding;
 }
 
-/** Fetch the onboarding's files (photo + credentials) as the view-model expects, with signed URLs. */
+type FileRow = { id: string; file_type: string; file_name: string; cloudinary_url: string; file_size: number; mime_type: string };
+
+/** Owner route: the owner and the linked member may read onboarding_files directly (RLS). */
 async function fetchFiles(onboardingId: string): Promise<{ photo: StoredFile | null; credentials: StoredFile[] }> {
   const { data, error } = await supabase
     .from("onboarding_files")
@@ -127,8 +129,20 @@ async function fetchFiles(onboardingId: string): Promise<{ photo: StoredFile | n
     .eq("onboarding_id", onboardingId)
     .order("uploaded_at", { ascending: true });
   if (error || !data) return { photo: null, credentials: [] };
+  return toFiles(data);
+}
 
-  const rows = data as Array<{ id: string; file_type: "photo" | "credential"; file_name: string; cloudinary_url: string; file_size: number; mime_type: string }>;
+/**
+ * Invite route: the invitee is not signed in and RLS gives anonymous visitors no
+ * read access to onboarding_files, so files are listed through the token RPC.
+ */
+async function fetchFilesByToken(rawToken: string): Promise<{ photo: StoredFile | null; credentials: StoredFile[] }> {
+  const { data, error } = await supabase.rpc("list_onboarding_files", { p_token: rawToken });
+  if (error || !data) return { photo: null, credentials: [] };
+  return toFiles(data);
+}
+
+async function toFiles(rows: FileRow[]): Promise<{ photo: StoredFile | null; credentials: StoredFile[] }> {
   let photo: StoredFile | null = null;
   const credentials: StoredFile[] = [];
   for (const r of rows) {
@@ -145,7 +159,7 @@ async function fetchByToken(rawToken: string): Promise<Onboarding | null> {
   const { data, error } = await supabase.rpc("get_onboarding_by_token", { p_token: rawToken });
   if (error || !data || !Array.isArray(data) || data.length === 0) return null;
   const row = data[0] as OnbRow;
-  const files = await fetchFiles(row.id);
+  const files = await fetchFilesByToken(rawToken);
   return rowToOnboarding(row, rawToken, files);
 }
 
@@ -318,21 +332,21 @@ export const onboardingService = {
   /** Final submit: persist the form, then create the auth account (which creates the pending profile). */
   async submit(rawToken: string, form: EmployeeData, password: { pw: string; confirm: string }): Promise<R<Onboarding>> {
     const data = withCompanyEmailId(form);
-    // Re-run all step validations so we never submit incomplete data.
+    // The invite as stored, with its uploaded files. Null once the account exists:
+    // the token route closes at sign-up.
+    const before = await fetchByToken(rawToken);
+    if (!before)
+      return fail("This link can no longer be used. If you already submitted, confirm your email and wait for the Owner to approve you.");
+
+    // Re-run all step validations against the stored files so we never submit incomplete data.
     for (let s = 0; s < 6; s++) {
-      const e = validateStep({ photo: null }, data, s, s === 5 ? password : undefined);
+      const e = validateStep({ photo: before.photo }, data, s, s === 5 ? password : undefined);
       if (Object.keys(e).length) return { ok: false, errors: { ...e, form: `Please complete step ${s + 1}.` } };
     }
     if (password.pw !== password.confirm) return fail("Passwords don't match.");
 
     const email = (data.email || "").trim().toLowerCase();
     if (!email) return fail("Email is required.");
-
-    // A retry after the account was already created (e.g. the first response was
-    // lost): nothing to redo, the member only confirms their email and waits.
-    const before = await fetchByToken(rawToken);
-    if (before?.passwordSet)
-      return fail("Your account was already created. Confirm your email, then wait for the Owner to approve you.");
 
     // 1. mark the onboarding submitted (RPC validates the token; a submitted invite
     //    without an account can be submitted again, so a failed sign-up is retryable)

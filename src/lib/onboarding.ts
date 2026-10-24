@@ -96,7 +96,9 @@ export type LinkState = "valid" | "expired" | "revoked" | "used" | "missing";
 export function onboardingLinkState(o: Pick<Onboarding, "tokenRevoked" | "tokenUsed" | "tokenExpiresAt" | "status"> | undefined, now = new Date().toISOString()): LinkState {
   if (!o) return "missing";
   if (o.tokenRevoked) return "revoked";
-  if (o.tokenUsed || o.status === "submitted" || o.status === "approved") return "used";
+  // The link is used once the account exists (sign-up consumes the token) or the
+  // owner approved. A submitted form without an account can retry the sign-up step.
+  if (o.tokenUsed || o.status === "approved") return "used";
   if (o.tokenExpiresAt < now) return "expired";
   return "valid";
 }
