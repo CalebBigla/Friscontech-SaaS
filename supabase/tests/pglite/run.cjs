@@ -81,6 +81,9 @@ async function main() {
     const tests = require(path.join(__dirname, "rpc.test.cjs"));
     await tests(db);
     failed = tests.result.failed;
+    const onboarding = require(path.join(__dirname, "onboarding.test.cjs"));
+    await onboarding(db, tests.result);
+    failed += onboarding.result.failed;
     if (process.argv.includes("--rls")) await require(path.join(__dirname, "rls-survey.cjs"))(db, tests.result);
   }
   await db.close();
