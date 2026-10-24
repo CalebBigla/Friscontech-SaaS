@@ -76,6 +76,33 @@ module.exports = async function onboarding(db, { ID, tenantA }) {
   ok("reject_onboarding", await call("authenticated", ID.owner,
     `SELECT * FROM public.reject_onboarding($1, 'Incomplete documents')`, [invite2?.id]));
 
+  // Company e-mail ID: same names → first to submit keeps it, later ones get 01, 02.
+  async function inviteNamed(n) {
+    const rawN = `dup-token-${n}`;
+    const h = (await db.query(`SELECT public.hash_token($1) h`, [rawN])).rows[0].h;
+    const row = ok(`create duplicate-name invite ${n}`, await call("authenticated", ID.owner,
+      `INSERT INTO public.onboardings (tenant_id, created_by, employee_id, job_title, department, start_date, status,
+         token_hash, token_expires_at, step, data)
+       VALUES ($1,$2,$3,'Sales Rep','Sales',CURRENT_DATE,'invited',$4, now() + interval '7 days', 0, '{}'::jsonb) RETURNING id`,
+      [tenantA, ID.owner, `FT-DUP-${n}`, h]));
+    return { raw: rawN, id: row?.id };
+  }
+  const submitAs = (inv, email) => call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Ngozi","lastName":"Umeh","preferredEmailId":"ngozi.umeh"}'::jsonb, $2)`,
+    [inv.raw, email]);
+  const idOf = async (inv) => (await db.query(`SELECT data ->> 'preferredEmailId' v FROM public.onboardings WHERE id = $1`, [inv.id])).rows[0]?.v;
+  const [first, second, third] = [await inviteNamed(1), await inviteNamed(2), await inviteNamed(3)];
+  ok("same names: first submits", await submitAs(first, "ngozi1@a.test"));
+  check("same names: first keeps ngozi.umeh", (await idOf(first)) === "ngozi.umeh", await idOf(first));
+  ok("same names: second submits", await submitAs(second, "ngozi2@a.test"));
+  check("same names: second gets ngozi.umeh01", (await idOf(second)) === "ngozi.umeh01", await idOf(second));
+  ok("same names: second resubmits", await submitAs(second, "ngozi2@a.test"));
+  check("same names: resubmit keeps ngozi.umeh01", (await idOf(second)) === "ngozi.umeh01", await idOf(second));
+  ok("same names: first rejected", await call("authenticated", ID.owner,
+    `SELECT * FROM public.reject_onboarding($1, 'Duplicate application')`, [first.id]));
+  ok("same names: third submits", await submitAs(third, "ngozi3@a.test"));
+  check("same names: a rejected onboarding frees ngozi.umeh", (await idOf(third)) === "ngozi.umeh", await idOf(third));
+
   console.log(`\nOnboarding tests: ${passed} passed, ${failures.length} failed`);
   for (const f of failures) console.log("  FAIL " + f);
   module.exports.result = { passed, failed: failures.length };
