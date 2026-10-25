@@ -2950,6 +2950,13 @@ export type Database = {
           id: string
         }[]
       }
+      submit_guarantor_on_behalf: {
+        Args: { p_token: string; p_response: Json }
+        Returns: {
+          guarantor_status: string
+          id: string
+        }[]
+      }
       submit_manager_remittance: {
         Args: {
           p_cash_amount: number

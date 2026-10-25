@@ -39,6 +39,8 @@ export type GuarantorResponse = {
   signature: string;
   signedDate: string;
   submittedAt: string;
+  /** "staff" when the applicant filled the form on the guarantor's behalf. */
+  filledBy?: "staff" | undefined;
 };
 
 export type Onboarding = {

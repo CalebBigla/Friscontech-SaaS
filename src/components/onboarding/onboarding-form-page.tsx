@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Check, Copy, FileText, Loader2, Upload, X } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, FileText, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { FieldError, FilterSelect } from "@/components/shared";
 import { copyText } from "@/components/team/onboarding-panel";
 import {
@@ -37,6 +38,25 @@ export function InvalidLink({ message }: { message: string }) {
   return <PublicFrame title="Link unavailable"><div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">{message}</div></PublicFrame>;
 }
 
+/** Password field with a show / hide toggle. */
+function PasswordInput({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (v: string) => void }) {
+  const [shown, setShown] = useState(false);
+  return (
+    <div>
+      <Label htmlFor={id} className="text-xs">{label} *</Label>
+      <div className="relative mt-1.5">
+        <Input id={id} type={shown ? "text" : "password"} autoComplete="new-password" value={value} onChange={(e) => onChange(e.target.value)} className="h-10 pr-10" />
+        <button type="button" onClick={() => setShown(!shown)} aria-label={shown ? "Hide password" : "Show password"} aria-pressed={shown}
+          className="absolute inset-y-0 right-0 grid w-10 place-items-center text-muted-foreground hover:text-foreground">
+          {shown ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const emptyGuarantorAnswers = { yearsKnown: "", relationship: "", character: "", comments: "", signature: "", signedDate: "" };
+
 export function OnboardingFormPage({ token }: { token: string }) {
   const [o, setO] = useState<Onboarding | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,6 +71,10 @@ export function OnboardingFormPage({ token }: { token: string }) {
   // Set when Submit sends the member back to fix one earlier step: saving that step
   // returns straight to the final step instead of walking through the steps between.
   const [returnTo, setReturnTo] = useState<number | null>(null);
+  // Guarantor form: sent to the guarantor as a link, or filled in here on their behalf.
+  const [guarantorMode, setGuarantorMode] = useState<"link" | "behalf">("link");
+  const [gAnswers, setGAnswers] = useState(emptyGuarantorAnswers);
+  const [gError, setGError] = useState("");
 
   useEffect(() => setNow(new Date().toISOString()), []);
   // Load the invite from Supabase by the raw token (hashed server-side by the RPC).
@@ -185,6 +209,16 @@ export function OnboardingFormPage({ token }: { token: string }) {
         return;
       }
     }
+    // The guarantor may have answered through their link since this page loaded.
+    const fresh = await onboardingService.getInviteByToken(token);
+    if (fresh) setO(fresh);
+    if ((fresh ?? o!).guarantorStatus !== "completed") {
+      setReturnTo(5);
+      setStep(3);
+      window.scrollTo({ top: 0 });
+      toast.error("Your guarantor form is not complete yet", { description: "Send the link to your guarantor and wait for their response, or fill it in on their behalf." });
+      return;
+    }
     const e = validateStep(o!, d, 5, pw);
     setErrors(e);
     if (Object.keys(e).length) return;
@@ -194,6 +228,25 @@ export function OnboardingFormPage({ token }: { token: string }) {
     if (!r.ok) { setErrors(r.errors); toast.error(r.errors.form ?? "Please fix the highlighted fields"); return; }
     setPw({ pw: "", confirm: "" });
     setDone(true);
+  }
+  async function fillGuarantorOnBehalf() {
+    const e = validateStep(o!, d, 3);
+    setErrors(e);
+    if (Object.keys(e).length) { setGError("Complete the guarantor's details above first."); return; }
+    const g = gAnswers;
+    if (!g.yearsKnown.trim() || !g.relationship.trim() || !g.character.trim() || g.signature.trim().length < 3 || !g.signedDate) {
+      setGError("Answer every required question, then sign and date the form.");
+      return;
+    }
+    setGError("");
+    setSaving(true);
+    const saved = await onboardingService.saveProgress(token, d, Math.max(step, o!.step));
+    const r = saved.ok ? await onboardingService.submitGuarantorOnBehalf(token, g) : saved;
+    setSaving(false);
+    if (!r.ok) { setGError(r.errors.form ?? "Could not save the guarantor form"); return; }
+    setO(r.data);
+    setGAnswers(emptyGuarantorAnswers);
+    toast.success("Guarantor form saved");
   }
   async function sendGuarantor() {
     const e = validateStep(o!, d, 3);
@@ -265,11 +318,39 @@ export function OnboardingFormPage({ token }: { token: string }) {
           <div className="grid gap-3 sm:grid-cols-2">{F({ k: "guarantorFirstName", label: "First name" })}{F({ k: "guarantorSurname", label: "Surname" })}</div>
           {F({ k: "guarantorAddress", label: "Residential / office address" })}
           <div className="grid gap-3 sm:grid-cols-2">{F({ k: "guarantorEmail", label: "Email", type: "email" })}{F({ k: "guarantorPhone", label: "Phone", type: "tel" })}</div>
-          <div className="rounded-md border border-border p-3">
-            <p className="text-xs">Guarantor form: <b>{guarantorStatusLabel[o.guarantorStatus]}</b></p>
-            {o.guarantorToken ? (
-              <div className="mt-2 flex gap-2"><Input readOnly value={guarantorUrl(o.guarantorToken)} className="h-9 font-mono text-xs" /><Button type="button" size="sm" variant="outline" onClick={() => copyText(guarantorUrl(o.guarantorToken!), "Guarantor link copied")}><Copy className="size-4" />Copy</Button></div>
-            ) : <Button type="button" size="sm" variant="outline" className="mt-2" onClick={sendGuarantor}>Create guarantor link</Button>}
+          <div className="space-y-3 rounded-md border border-border p-3">
+            <p className="text-xs">Guarantor form *: <b>{guarantorStatusLabel[o.guarantorStatus]}</b>
+              {o.guarantorStatus === "completed" && (o.guarantorResponse?.filledBy === "staff" ? " (filled in by you on your guarantor's behalf)" : " (by your guarantor)")}
+            </p>
+            {o.guarantorStatus !== "completed" && <>
+              <p className="text-[11px] text-muted-foreground">Required before you can submit. Choose how it is completed:</p>
+              <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="How the guarantor form is completed">
+                {([["link", "Send a link to my guarantor"], ["behalf", "Fill it in on their behalf"]] as const).map(([mode, label]) => (
+                  <button key={mode} type="button" role="radio" aria-checked={guarantorMode === mode} onClick={() => { setGuarantorMode(mode); setGError(""); }}
+                    className={`rounded-md border px-3 py-2 text-left text-xs font-semibold ${guarantorMode === mode ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>{label}</button>
+                ))}
+              </div>
+              {guarantorMode === "link" ? (
+                o.guarantorToken ? <>
+                  <div className="flex gap-2"><Input readOnly value={guarantorUrl(o.guarantorToken)} className="h-9 font-mono text-xs" /><Button type="button" size="sm" variant="outline" onClick={() => copyText(guarantorUrl(o.guarantorToken!), "Guarantor link copied")}><Copy className="size-4" />Copy</Button></div>
+                  <p className="text-[11px] text-muted-foreground">Send this link to your guarantor. You can continue your form meanwhile and submit once they have responded.</p>
+                </> : <Button type="button" size="sm" variant="outline" onClick={sendGuarantor}>Create guarantor link</Button>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-[11px] text-muted-foreground">Answer as your guarantor would. The Owner will see that you filled this in on their behalf.</p>
+                  <div><Label htmlFor="gYears" className="text-xs">How long has the guarantor known you? *</Label><Input id="gYears" value={gAnswers.yearsKnown} placeholder="e.g. 6 years" onChange={(e) => setGAnswers({ ...gAnswers, yearsKnown: e.target.value })} className="mt-1.5 h-10" /></div>
+                  <div><Label htmlFor="gRel" className="text-xs">Nature of relationship *</Label><Textarea id="gRel" rows={2} value={gAnswers.relationship} onChange={(e) => setGAnswers({ ...gAnswers, relationship: e.target.value })} className="mt-1.5" /></div>
+                  <div><Label htmlFor="gChar" className="text-xs">Description of your character *</Label><Textarea id="gChar" rows={2} value={gAnswers.character} onChange={(e) => setGAnswers({ ...gAnswers, character: e.target.value })} className="mt-1.5" /></div>
+                  <div><Label htmlFor="gCom" className="text-xs">Additional comments</Label><Textarea id="gCom" rows={2} value={gAnswers.comments} onChange={(e) => setGAnswers({ ...gAnswers, comments: e.target.value })} className="mt-1.5" /></div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div><Label htmlFor="gSig" className="text-xs">Guarantor's full name as signature *</Label><Input id="gSig" value={gAnswers.signature} onChange={(e) => setGAnswers({ ...gAnswers, signature: e.target.value })} className="mt-1.5 h-10" /></div>
+                    <div><Label htmlFor="gDate" className="text-xs">Date *</Label><Input id="gDate" type="date" value={gAnswers.signedDate} onChange={(e) => setGAnswers({ ...gAnswers, signedDate: e.target.value })} className="mt-1.5 h-10" /></div>
+                  </div>
+                  <Button type="button" size="sm" onClick={fillGuarantorOnBehalf} disabled={saving}>{saving && <Loader2 className="size-4 animate-spin" />}Save guarantor form</Button>
+                </div>
+              )}
+              <FieldError message={gError} />
+            </>}
           </div>
         </>}
         {step === 4 && <>
@@ -299,8 +380,8 @@ export function OnboardingFormPage({ token }: { token: string }) {
           <div className="grid gap-3 sm:grid-cols-2">{F({ k: "signature", label: "Signature (type your full name)" })}{F({ k: "signedDate", label: "Date", type: "date" })}</div>
           <p className="pt-2 text-xs font-semibold">Set your account password</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div><Label htmlFor="pw" className="text-xs">Password *</Label><Input id="pw" type="password" autoComplete="new-password" value={pw.pw} onChange={(e) => setPw({ ...pw, pw: e.target.value })} className="mt-1.5 h-10" /></div>
-            <div><Label htmlFor="pw2" className="text-xs">Confirm password *</Label><Input id="pw2" type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} className="mt-1.5 h-10" /></div>
+            <PasswordInput id="pw" label="Password" value={pw.pw} onChange={(v) => setPw({ ...pw, pw: v })} />
+            <PasswordInput id="pw2" label="Confirm password" value={pw.confirm} onChange={(v) => setPw({ ...pw, confirm: v })} />
           </div>
           <FieldError message={errors.password} />
           <FieldError message={errors.form} />

@@ -377,6 +377,17 @@ export const onboardingService = {
     return { ok: true, data: {} as Onboarding };
   },
 
+  /**
+   * The applicant fills in the guarantor form on the guarantor's behalf (by invite
+   * token). Stored like a guarantor's response, marked as filled by the applicant.
+   */
+  async submitGuarantorOnBehalf(rawToken: string, resp: Omit<GuarantorResponse, "submittedAt" | "filledBy">): Promise<R<Onboarding>> {
+    const { error } = await supabase.rpc("submit_guarantor_on_behalf", { p_token: rawToken, p_response: resp });
+    if (error) return dbFail("submit_guarantor_on_behalf", error);
+    const o = await fetchByToken(rawToken);
+    return o ? { ok: true, data: o } : fail("Could not reload your form.");
+  },
+
   /** Final submit: persist the form, then create the auth account (which creates the pending profile). */
   async submit(rawToken: string, form: EmployeeData, password: { pw: string; confirm: string }): Promise<R<Onboarding>> {
     const data = withCompanyEmailId(form);

@@ -18,6 +18,9 @@ module.exports = async function onboarding(db, { ID, tenantA }) {
     }
   }
   const ok = (name, r) => { check(name, !r.error, r.error); return r.rows?.[0]; };
+  const refused = (name, r, pattern) => check(name, pattern.test(r.error ?? ""), r.error ?? "succeeded");
+  const GUARANTOR = `'{"yearsKnown":"5","relationship":"Uncle","character":"Honest","signature":"G. Uncle","signedDate":"2026-10-24"}'::jsonb`;
+  const onBehalf = (rawToken) => call("anon", null, `SELECT * FROM public.submit_guarantor_on_behalf($1, ${GUARANTOR})`, [rawToken]);
 
   // Invite exactly as onboardingService.createInvite does (direct insert by the owner).
   const raw = "invite-token-raw-0001";
@@ -35,12 +38,30 @@ module.exports = async function onboarding(db, { ID, tenantA }) {
     `SELECT public.register_onboarding_file($1, 'photo', 'me.jpg', $2 || '/me.jpg', 1000, 'image/jpeg')`, [raw, invite?.id]));
   const files = ok("list_onboarding_files", await call("anon", null, `SELECT * FROM public.list_onboarding_files($1)`, [raw]));
   if (files) ok("delete_onboarding_file", await call("anon", null, `SELECT public.delete_onboarding_file($1, $2)`, [raw, files.id]));
+  // Invitee files in the onboarding-files bucket, as the storage API does them (anon).
+  const obj = `${invite?.id}/photo/me.jpg`;
+  ok("storage: invitee uploads to their onboarding folder", await call("anon", null,
+    `INSERT INTO storage.objects (bucket_id, name) VALUES ('onboarding-files', $1) RETURNING id`, [obj]));
+  const seen = await call("anon", null, `SELECT name FROM storage.objects WHERE name = $1`, [obj]);
+  check("storage: invitee can preview their file", seen.rows?.length === 1, seen.error ?? JSON.stringify(seen.rows));
+  const del = await call("anon", null, `DELETE FROM storage.objects WHERE name = $1 RETURNING id`, [obj]);
+  check("storage: invitee can remove their file", del.rows?.length === 1, del.error ?? JSON.stringify(del.rows));
+  const stray = await call("anon", null,
+    `INSERT INTO storage.objects (bucket_id, name) VALUES ('onboarding-files', '00000000-0000-0000-0000-00000000dead/photo/x.jpg')`);
+  check("storage: upload to an unknown onboarding is refused", /row-level security/.test(stray.error ?? ""), stray.error);
+  const leak = await call("anon", null, `SELECT count(*)::int n FROM public.onboardings`);
+  check("storage fix does not let anon read onboardings", leak.error || leak.rows?.[0]?.n === 0, JSON.stringify(leak));
+
+  refused("submit_onboarding: refused before the guarantor responds", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Nia","lastName":"New","email":"nia@a.test"}'::jsonb, 'nia@a.test')`, [raw]),
+    /guarantor form is not complete/);
   const gToken = ok("send_guarantor_link", await call("anon", null, `SELECT public.send_guarantor_link($1) t`, [raw]))?.t;
   if (gToken) {
     ok("get_onboarding_for_guarantor", await call("anon", null, `SELECT * FROM public.get_onboarding_for_guarantor($1)`, [gToken]));
     ok("submit_guarantor", await call("anon", null,
       `SELECT * FROM public.submit_guarantor($1, '{"yearsKnown":"5","relationship":"Uncle","character":"Honest","signature":"G. Uncle","signedDate":"2026-10-24"}'::jsonb)`, [gToken]));
   }
+  refused("on behalf: refused once the guarantor responded", await onBehalf(raw), /already completed/);
   ok("submit_onboarding", await call("anon", null,
     `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Nia","lastName":"New","email":"nia@a.test"}'::jsonb, 'nia@a.test')`, [raw]));
   ok("submit_onboarding: retry before sign-up", await call("anon", null,
@@ -53,6 +74,9 @@ module.exports = async function onboarding(db, { ID, tenantA }) {
     `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, 'nia@a.test',
        jsonb_build_object('onboarding_id', $2::text, 'onboarding_token_hash', $3::text, 'first_name', 'Nia', 'last_name', 'New')) RETURNING id`,
     [newUser, invite?.id, hash]));
+  const late = await call("anon", null,
+    `INSERT INTO storage.objects (bucket_id, name) VALUES ('onboarding-files', $1)`, [`${invite?.id}/photo/late.jpg`]);
+  check("storage: no uploads once the account exists", /row-level security/.test(late.error ?? ""), late.error);
   const profile = (await db.query(`SELECT status, role FROM public.users WHERE id = $1`, [newUser])).rows[0];
   check("pending until the owner approves", profile?.status === "pending" && profile?.role === null, JSON.stringify(profile));
 
@@ -71,6 +95,12 @@ module.exports = async function onboarding(db, { ID, tenantA }) {
        token_hash, token_expires_at, step, data)
      VALUES ($1,$2,'FT-000002','Storekeeper','Ops',CURRENT_DATE,'invited',$3, now() + interval '7 days', 0, '{}'::jsonb) RETURNING id`,
     [tenantA, ID.owner, hash2]));
+  refused("on behalf: incomplete answers refused", await call("anon", null,
+    `SELECT * FROM public.submit_guarantor_on_behalf($1, '{"yearsKnown":"5"}'::jsonb)`, [raw2]), /answer every required/);
+  ok("on behalf: applicant fills the guarantor form", await onBehalf(raw2));
+  const g2 = (await db.query(`SELECT guarantor_status, guarantor_response ->> 'filledBy' AS by FROM public.onboardings WHERE id = $1`, [invite2?.id])).rows[0];
+  check("on behalf: completed and marked as filled by staff", g2?.guarantor_status === "completed" && g2?.by === "staff", JSON.stringify(g2));
+  refused("on behalf: second time refused", await onBehalf(raw2), /already completed/);
   ok("submit second onboarding", await call("anon", null,
     `SELECT * FROM public.submit_onboarding($1, '{"email":"x@a.test"}'::jsonb, 'x@a.test')`, [raw2]));
   ok("reject_onboarding", await call("authenticated", ID.owner,
@@ -85,6 +115,7 @@ module.exports = async function onboarding(db, { ID, tenantA }) {
          token_hash, token_expires_at, step, data)
        VALUES ($1,$2,$3,'Sales Rep','Sales',CURRENT_DATE,'invited',$4, now() + interval '7 days', 0, '{}'::jsonb) RETURNING id`,
       [tenantA, ID.owner, `FT-DUP-${n}`, h]));
+    ok(`duplicate-name guarantor ${n}`, await onBehalf(rawN));
     return { raw: rawN, id: row?.id };
   }
   const submitAs = (inv, email) => call("anon", null,

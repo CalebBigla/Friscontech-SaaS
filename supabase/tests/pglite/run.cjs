@@ -44,6 +44,7 @@ CREATE TABLE storage.buckets (
 CREATE TABLE storage.objects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(), bucket_id TEXT, name TEXT, owner UUID, metadata JSONB
 );
+GRANT ALL ON storage.objects TO anon, authenticated, service_role;
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 CREATE FUNCTION storage.foldername(name TEXT) RETURNS TEXT[] LANGUAGE sql IMMUTABLE AS
   $$ SELECT string_to_array(name, '/') $$;
