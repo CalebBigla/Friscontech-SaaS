@@ -71,11 +71,13 @@ export function TeamDetailPage({ userId: memberId }: { userId: string }) {
   const reportsTo = db.users.find((x) => x.id === u.managerId);
   const last = getLastActivity(db, u.id);
   const editable = canEditMember(scope, u);
+  // No role or branch until the owner approves the onboarding.
+  const pending = u.status === "pending";
 
   return (
     <AppShell
       title={u.name}
-      subtitle={`${roleLabel[u.role]} · ${branch?.name ?? "Unassigned"}`}
+      subtitle={pending ? "Awaiting onboarding approval" : `${roleLabel[u.role]} · ${branch?.name ?? "Unassigned"}`}
       actions={
         editable ? (
           <div className="flex gap-2">
@@ -113,7 +115,7 @@ export function TeamDetailPage({ userId: memberId }: { userId: string }) {
           <div className="grid flex-1 grid-cols-2 gap-4 lg:grid-cols-4">
             <DetailItem label="Email">{u.email}</DetailItem>
             <DetailItem label="Role">
-              <RoleBadge role={u.role} />
+              {pending ? "Assigned on approval" : <RoleBadge role={u.role} />}
             </DetailItem>
             <DetailItem label="Branch">
               {branch ? (
@@ -140,7 +142,7 @@ export function TeamDetailPage({ userId: memberId }: { userId: string }) {
         </div>
       </Panel>
       <OnboardingPanel member={u} scope={scope} />
-      {u.role === "sales_rep" && (
+      {!pending && u.role === "sales_rep" && (
         <RepSection
           repId={u.id}
           month={month}
@@ -148,8 +150,8 @@ export function TeamDetailPage({ userId: memberId }: { userId: string }) {
           managerView={scope.user.role === "manager"}
         />
       )}
-      {u.role === "storekeeper" && <StorekeeperSection userId={u.id} />}
-      {u.role === "manager" && <ManagerSection managerId={u.id} month={month} range={range} />}
+      {!pending && u.role === "storekeeper" && <StorekeeperSection userId={u.id} />}
+      {!pending && u.role === "manager" && <ManagerSection managerId={u.id} month={month} range={range} />}
       <TeamMemberDialog open={editing} onOpenChange={setEditing} scope={scope} member={u} />
       <MemberStatusDialog
         member={toggling ? u : null}

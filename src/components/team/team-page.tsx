@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ALL, DataGate, EmptyState, FilterSelect, MetricCard, Panel, SearchBox } from "@/components/shared";
 import { MemberStatusBadge, MemberStatusDialog, RoleBadge, TeamMemberDialog } from "@/components/team/team-dialogs";
 import { OnboardingStatusBadge } from "@/components/team/onboarding-panel";
+import { OnboardingReviewDialog } from "@/components/team/onboarding-review";
 import type { Role, User, UserStatus } from "@/data/mock-db";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { useAuth } from "@/contexts/auth-context";
@@ -34,6 +35,7 @@ export function TeamPage() {
   const [editing, setEditing] = useState<User | null>(null);
   const [creating, setCreating] = useState(false);
   const [toggling, setToggling] = useState<User | null>(null);
+  const [reviewing, setReviewing] = useState<string | null>(null);
 
   const summary = getTeamSummary(all);
   const branches = db.branches.filter((b) => all.some((u) => u.branchId === b.id));
@@ -66,6 +68,8 @@ export function TeamPage() {
       <span className="min-w-0"><span className="block truncate text-sm font-semibold">{u.name}</span><span className="block truncate text-[11px] text-muted-foreground">{u.email}</span></span>
     </Link>
   );
+  // A pending member has no role until the owner approves their onboarding.
+  const Role = ({ u }: { u: User }) => u.status === "pending" ? <span className="text-[11px] text-muted-foreground">Assigned on approval</span> : <RoleBadge role={u.role} />;
   const last = (u: User) => { const at = getLastActivity(db, u.id); return at ? formatDayTime(at, db.tenant.referenceDate) : "No activity yet"; };
 
   return (
@@ -90,11 +94,7 @@ export function TeamPage() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <OnboardingStatusBadge status={o.status} />
-                  {o.userId && (
-                    <Button size="sm" variant="outline" asChild>
-                      <Link to="/team/$userId" params={{ userId: o.userId }}><Eye className="size-4" />Review</Link>
-                    </Button>
-                  )}
+                  <Button size="sm" variant="outline" onClick={() => setReviewing(o.id)}><Eye className="size-4" />Review</Button>
                 </div>
               </div>
             ))}
@@ -113,7 +113,7 @@ export function TeamPage() {
           <thead><tr className="text-[10px] uppercase text-muted-foreground"><th className="px-5 py-3"><Sort k="name" label="Member" /></th><th className="px-5 py-3"><Sort k="role" label="Role" /></th><th className="px-5 py-3">Branch</th><th className="px-5 py-3">Status</th><th className="px-5 py-3"><Sort k="joined" label="Joined" /></th><th className="px-5 py-3"><Sort k="activity" label="Last activity" /></th><th className="px-5 py-3 text-right">Actions</th></tr></thead>
           <tbody>{rows.map((u) => (
             <tr key={u.id} className="border-t border-border text-xs">
-              <td className="px-5 py-3"><Member u={u} /></td><td className="px-5 py-3"><RoleBadge role={u.role} /></td>
+              <td className="px-5 py-3"><Member u={u} /></td><td className="px-5 py-3"><Role u={u} /></td>
               <td className={`px-5 py-3 ${u.branchId ? "" : "text-muted-foreground"}`}>{branchName(u.branchId)}</td>
               <td className="px-5 py-3"><MemberStatusBadge status={u.status} /></td>
               <td className="px-5 py-3 text-muted-foreground">{formatDate(u.createdAt.slice(0, 10))}</td>
@@ -124,7 +124,7 @@ export function TeamPage() {
         <div className="divide-y divide-border md:hidden">{rows.map((u) => (
           <div key={u.id} className="p-4">
             <div className="flex items-start justify-between gap-3"><Member u={u} /><Actions u={u} /></div>
-            <div className="mt-3 flex flex-wrap items-center gap-2"><RoleBadge role={u.role} /><MemberStatusBadge status={u.status} /></div>
+            <div className="mt-3 flex flex-wrap items-center gap-2"><Role u={u} /><MemberStatusBadge status={u.status} /></div>
             <p className="mt-2 text-[11px] text-muted-foreground">{branchName(u.branchId)} · Joined {formatDate(u.createdAt.slice(0, 10))} · {last(u)}</p>
           </div>))}</div>
         {!rows.length && <EmptyState title="No team members found." detail={all.length ? "Try a different search or filter." : "Use Add Team Member to invite someone."} />}
@@ -133,6 +133,7 @@ export function TeamPage() {
       <TeamMemberDialog open={creating} onOpenChange={setCreating} scope={scope} />
       <TeamMemberDialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)} scope={scope} member={editing} />
       <MemberStatusDialog member={toggling} onClose={() => setToggling(null)} actorId={userId} />
+      <OnboardingReviewDialog onboardingId={reviewing} onClose={() => setReviewing(null)} scope={scope} />
     </AppShell>
   );
 }

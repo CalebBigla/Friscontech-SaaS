@@ -17,8 +17,12 @@ export function canAccessMember(scope: AccessScope, u: User) {
   if (u.role !== "storekeeper" && u.role !== "sales_rep") return false;
   return u.managerId === scope.user.id || (!!u.branchId && !!scope.branchIds?.includes(u.branchId));
 }
-/** Can `scope` edit/deactivate this user (never themselves, never the owner). */
-export const canEditMember = (scope: AccessScope, u: User) => u.id !== scope.user.id && u.role !== "owner" && canAccessMember(scope, u);
+/**
+ * Can `scope` edit/deactivate this user (never themselves, never the owner).
+ * A pending member has no role yet: the owner approves or rejects their onboarding instead.
+ */
+export const canEditMember = (scope: AccessScope, u: User) =>
+  u.id !== scope.user.id && u.role !== "owner" && u.status !== "pending" && canAccessMember(scope, u);
 
 export function getTeamMembers(db: Db, scope: AccessScope): User[] {
   return db.users.filter((u) => canAccessMember(scope, u));
