@@ -23,6 +23,8 @@ import { onboardingService } from "@/services/onboarding-service";
 
 type Outcome = { ok: boolean; errors?: { form?: string } };
 
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
 /** The onboarding with signed links to its photo and documents (owner RLS). */
 function useOnboardingReview(id: string) {
   return useQuery({
@@ -77,7 +79,7 @@ export function OnboardingReview({ onboardingId, scope, onDecided }: { onboardin
   async function download() {
     setBusy("pdf");
     try { await downloadOnboardingPdf(o); }
-    catch (e) { console.error("[onboarding] PDF failed", e); toast.error("Could not create the PDF. Try again."); }
+    catch (e) { console.error("[onboarding] PDF failed", e); toast.error("Could not create the PDF", { description: errorText(e) }); }
     setBusy("");
   }
 
@@ -192,15 +194,15 @@ export function OnboardingReviewDialog({ onboardingId, onClose, scope }: { onboa
 /** The full employee data form as a PDF, shown in a modal with a download button. */
 function OnboardingPdfDialog({ o, open, onOpenChange }: { o: Onboarding; open: boolean; onOpenChange: (open: boolean) => void }) {
   const [url, setUrl] = useState("");
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState("");
   useEffect(() => {
     if (!open) return;
     let objectUrl = "";
     let active = true;
-    setUrl(""); setFailed(false);
+    setUrl(""); setFailed("");
     buildOnboardingPdf(o)
       .then((blob) => { objectUrl = URL.createObjectURL(blob); if (active) setUrl(objectUrl); })
-      .catch((e) => { console.error("[onboarding] PDF failed", e); if (active) setFailed(true); });
+      .catch((e) => { console.error("[onboarding] PDF failed", e); if (active) setFailed(errorText(e)); });
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [open, o]);
 
@@ -211,7 +213,7 @@ function OnboardingPdfDialog({ o, open, onOpenChange }: { o: Onboarding; open: b
           <DialogTitle>Employee data form</DialogTitle>
           <DialogDescription className="text-xs">{onboardingPdfName(o)}</DialogDescription>
         </DialogHeader>
-        {failed ? <p className="text-sm text-destructive">Could not create the PDF. Close this window and try again.</p>
+        {failed ? <p className="text-sm text-destructive">Could not create the PDF: {failed}. Close this window and try again; if it keeps failing, restart the app.</p>
           : url ? <iframe src={url} title="Employee data form" className="h-[70vh] w-full rounded-md border border-border" />
           : <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="size-4 animate-spin" />Preparing the PDF…</p>}
         <DialogFooter>
