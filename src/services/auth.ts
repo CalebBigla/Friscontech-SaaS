@@ -158,7 +158,15 @@ export async function signIn(email: string, password: string): Promise<AuthResul
     }
 
     if (profile.status === "pending") {
+      // Tell the member when the owner sent their form back for corrections.
+      const { data: onb } = await supabase
+        .from("onboardings")
+        .select("correction_note")
+        .eq("user_id", profile.id)
+        .maybeSingle();
       await supabase.auth.signOut();
+      if (onb?.correction_note)
+        return { ok: false, error: `The Owner asked you to correct your onboarding form: "${onb.correction_note}". Open the new link the Owner sent you to update it.` };
       return { ok: false, error: "Your account is waiting for the Owner to activate it." };
     }
     if (profile.status === "rejected") {

@@ -155,7 +155,7 @@ export function OnboardingPanel({ member, scope }: { member: User; scope: Access
         )}
 
         {/* ---- Review: summary, PDF, guarantor decision, approve / reject ---- */}
-        {owner && (o.status === "submitted" || o.status === "approved" || o.status === "rejected") && (
+        {owner && (o.status === "submitted" || o.status === "approved" || o.status === "rejected" || !!o.correctionNote) && (
           <div className="border-t border-border pt-4"><OnboardingReview onboardingId={o.id} scope={scope} /></div>
         )}
       </div>

@@ -1,22 +1,24 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, CheckCircle2, Download, Eye, FileText, Loader2 } from "lucide-react";
+import { Ban, CheckCircle2, Copy, Download, Eye, FileText, Loader2, Mail, MessageCircle, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { DetailItem, ErrorState, FilterSelect } from "@/components/shared";
-import { OnboardingStatusBadge } from "@/components/team/onboarding-panel";
+import { copyText, OnboardingStatusBadge } from "@/components/team/onboarding-panel";
 import { buildOnboardingPdf, downloadOnboardingPdf, onboardingPdfName } from "@/components/team/onboarding-pdf";
 import type { Branch } from "@/data/mock-db";
 import { guarantorStatusLabel, type Onboarding } from "@/data/onboarding";
 import { useBranches } from "@/hooks/use-branches";
 import { formatDate, roleLabel } from "@/lib/format";
-import { fullName } from "@/lib/onboarding";
+import { fullName, onboardingUrl } from "@/lib/onboarding";
 import { queryKeys } from "@/lib/query-keys";
 import type { AccessScope } from "@/lib/session";
 import { onboardingService } from "@/services/onboarding-service";
@@ -61,6 +63,7 @@ export function OnboardingReview({ onboardingId, scope, onDecided }: { onboardin
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [pdfOpen, setPdfOpen] = useState(false);
+  const [correctionsOpen, setCorrectionsOpen] = useState(false);
 
   if (review.isLoading) return <p className="flex items-center gap-2 p-5 text-xs text-muted-foreground"><Loader2 className="size-4 animate-spin" />Loading the submission…</p>;
   if (review.error || !review.data) return <ErrorState title="Could not load the submission" error={review.error} />;
@@ -154,8 +157,12 @@ export function OnboardingReview({ onboardingId, scope, onDecided }: { onboardin
           <Button size="sm" disabled={!!busy || o.guarantorDecision !== "accepted" || !o.userId}
             title={!o.userId ? "The staff member has not created their account yet" : o.guarantorDecision !== "accepted" ? "Accept the guarantor response first" : undefined}
             onClick={() => setApproveOpen(true)}><CheckCircle2 className="size-4" />Approve</Button>
+          <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setCorrectionsOpen(true)}><Undo2 className="size-4" />Request corrections</Button>
           <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setRejectOpen(true)}><Ban className="size-4" />Reject</Button>
         </>}
+        {o.status === "rejected" && (
+          <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setCorrectionsOpen(true)}><Undo2 className="size-4" />Reopen for corrections</Button>
+        )}
       </div>
       {o.status === "submitted" && (!o.userId || o.guarantorDecision !== "accepted") && (
         <p className="text-[11px] text-muted-foreground">
@@ -171,6 +178,7 @@ export function OnboardingReview({ onboardingId, scope, onDecided }: { onboardin
       <ReasonDialog open={rejectOpen} onOpenChange={setRejectOpen} title="Reject onboarding" confirm="Reject"
         description="Provide a reason. The staff member will not be granted access."
         onSubmit={async (reason) => { const r = await onboardingService.reject(o.id, reason, scope.user.id); if (r.ok) { toast.success("Onboarding rejected"); await decided(); } return r; }} />
+      <CorrectionsDialog open={correctionsOpen} onOpenChange={setCorrectionsOpen} o={o} onDone={refresh} />
       <ApproveDialog open={approveOpen} onOpenChange={setApproveOpen} o={o} scope={scope} onDone={decided} />
     </div>
   );
@@ -219,6 +227,89 @@ function OnboardingPdfDialog({ o, open, onOpenChange }: { o: Onboarding; open: b
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
           {url && <Button asChild><a href={url} download={onboardingPdfName(o)}><Download className="size-4" />Download PDF</a></Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Send the form back to the staff member. The new link is shown with ways to
+ * send it: the member cannot sign in while pending, so the owner shares it.
+ */
+function CorrectionsDialog({ open, onOpenChange, o, onDone }: {
+  open: boolean; onOpenChange: (open: boolean) => void; o: Onboarding; onDone: () => Promise<unknown>;
+}) {
+  const declined = o.guarantorDecision === "declined";
+  const [note, setNote] = useState("");
+  const [redo, setRedo] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [link, setLink] = useState("");
+  useEffect(() => { if (open) { setNote(""); setRedo(declined); setErr(""); setLink(""); } }, [open, declined]);
+
+  const name = o.data.firstName || "there";
+  const message = `Hello ${name}, please update your Friscontech onboarding form. What to correct: ${note.trim()}\n\nOpen this link (valid for 7 days): ${link}`;
+  const email = o.data.email;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{link ? "Send the corrections link" : "Request corrections"}</DialogTitle>
+          <DialogDescription className="text-xs">
+            {link
+              ? "The staff member can't sign in until approved, so send them this link. The old link no longer works."
+              : "The form goes back to the staff member with your note. Their answers, documents and account are kept; they fix what you ask and submit again."}
+          </DialogDescription>
+        </DialogHeader>
+        {link ? (
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input readOnly value={link} className="h-9 font-mono text-xs" />
+              <Button size="sm" variant="outline" onClick={() => copyText(link)}><Copy className="size-4" />Copy</Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" asChild>
+                <a href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer"><MessageCircle className="size-4" />Send on WhatsApp</a>
+              </Button>
+              {email && (
+                <Button size="sm" variant="outline" asChild>
+                  <a href={`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("Please update your onboarding form")}&body=${encodeURIComponent(message)}`}><Mail className="size-4" />Send by email</a>
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={() => copyText(message, "Message copied")}><Copy className="size-4" />Copy message</Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">If they try to sign in meanwhile, they see your note and are told to use the link.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">What needs correcting? *</Label>
+              <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={4} className="mt-1.5"
+                placeholder="e.g. Your guarantor could not be reached — provide another guarantor. Upload a clearer passport photo." />
+            </div>
+            <label className="flex items-start gap-2 text-xs">
+              <Checkbox checked={redo} disabled={declined} onCheckedChange={(c) => setRedo(!!c)} className="mt-0.5" />
+              <span>The guarantor form must be completed again{declined ? " (required: you declined the guarantor)" : ""}</span>
+            </label>
+            {err && <p className="text-[11px] font-medium text-destructive">{err}</p>}
+          </div>
+        )}
+        <DialogFooter>
+          {link ? <Button onClick={() => onOpenChange(false)}>Done</Button> : <>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button disabled={busy} onClick={async () => {
+              if (note.trim().length < 5) { setErr("Describe what the staff member needs to correct."); return; }
+              setBusy(true);
+              const r = await onboardingService.requestCorrections(o.id, note.trim(), redo);
+              setBusy(false);
+              if (!r.ok) { setErr(r.errors.form ?? "Could not request corrections"); return; }
+              setLink(onboardingUrl(r.data));
+              toast.success("Form sent back for corrections");
+              await onDone();
+            }}>{busy && <Loader2 className="size-4 animate-spin" />}Send back for corrections</Button>
+          </>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

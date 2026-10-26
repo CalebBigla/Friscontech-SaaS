@@ -99,7 +99,9 @@ export function OnboardingFormPage({ token }: { token: string }) {
 
   if (loading || !now) return <PublicFrame title="Loading…"><Loader2 className="size-5 animate-spin" /></PublicFrame>;
   if (loadError) return <InvalidLink message={loadError} />;
-  if (done) return <PublicFrame title="Thank you!" subtitle="Your onboarding form has been submitted."><div className="rounded-lg border border-border bg-card p-6 text-sm">Your account is now waiting for the Owner to review your details and your guarantor. Once approved, you can sign in with your email and the password you just set.</div></PublicFrame>;
+  if (done) return <PublicFrame title="Thank you!" subtitle="Your onboarding form has been submitted."><div className="rounded-lg border border-border bg-card p-6 text-sm">{o?.passwordSet
+    ? "Your corrections were sent to the Owner for review. Once approved, you can sign in with your email and the password you set before."
+    : "Your account is now waiting for the Owner to review your details and your guarantor. Once approved, you can sign in with your email and the password you just set."}</div></PublicFrame>;
 
   const state = onboardingLinkState(o ? {
     tokenRevoked: o.tokenRevoked,
@@ -219,7 +221,8 @@ export function OnboardingFormPage({ token }: { token: string }) {
       toast.error("Your guarantor form is not complete yet", { description: "Send the link to your guarantor and wait for their response, or fill it in on their behalf." });
       return;
     }
-    const e = validateStep(o!, d, 5, pw);
+    // After a corrections request the account already exists: no new password.
+    const e = validateStep(o!, d, 5, o!.passwordSet ? undefined : pw);
     setErrors(e);
     if (Object.keys(e).length) return;
     setSaving(true);
@@ -263,7 +266,7 @@ export function OnboardingFormPage({ token }: { token: string }) {
 
   return (
     <PublicFrame title={`Welcome, ${welcomeName}`} subtitle="Complete your employee data form. Your progress is saved each time you continue.">
-      {o.correctionNote && <p className="mb-4 rounded-md border border-border bg-muted/40 p-3 text-xs"><b>The Owner asked for corrections:</b> {o.correctionNote}</p>}
+      {o.correctionNote && <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs"><p><b>The Owner asked for corrections:</b> {o.correctionNote}</p><p className="mt-1 text-muted-foreground">Your earlier answers are kept. Use the step bar or Back to open the step to fix, save it, then submit again from the last step.</p></div>}
       <ol className="mb-5 flex gap-1.5" aria-label="Progress">
         {ONBOARDING_STEPS.map((s, i) => (
           <li key={s} className="flex-1"><button type="button" disabled={i > o.step} onClick={() => setStep(i)} className={`h-1.5 w-full rounded-full ${i <= step ? "bg-primary" : "bg-muted"}`} aria-label={s} /></li>
@@ -320,7 +323,7 @@ export function OnboardingFormPage({ token }: { token: string }) {
           <div className="grid gap-3 sm:grid-cols-2">{F({ k: "guarantorEmail", label: "Email", type: "email" })}{F({ k: "guarantorPhone", label: "Phone", type: "tel" })}</div>
           <div className="space-y-3 rounded-md border border-border p-3">
             <p className="text-xs">Guarantor form *: <b>{guarantorStatusLabel[o.guarantorStatus]}</b>
-              {o.guarantorStatus === "completed" && (o.guarantorResponse?.filledBy === "staff" ? " (filled in by you on your guarantor's behalf)" : " (by your guarantor)")}
+              {o.guarantorStatus === "completed" && o.guarantorResponse?.filledBy === "staff" && " (filled in by you on your guarantor's behalf)"}
             </p>
             {o.guarantorStatus !== "completed" && <>
               <p className="text-[11px] text-muted-foreground">Required before you can submit. Choose how it is completed:</p>
@@ -378,11 +381,15 @@ export function OnboardingFormPage({ token }: { token: string }) {
           <label className="flex items-start gap-2 text-sm"><Checkbox checked={d.declarationAccepted === "yes"} onCheckedChange={(c) => set("declarationAccepted", c ? "yes" : "")} className="mt-0.5" />I accept this declaration *</label>
           <FieldError message={errors.declarationAccepted} />
           <div className="grid gap-3 sm:grid-cols-2">{F({ k: "signature", label: "Signature (type your full name)" })}{F({ k: "signedDate", label: "Date", type: "date" })}</div>
-          <p className="pt-2 text-xs font-semibold">Set your account password</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <PasswordInput id="pw" label="Password" value={pw.pw} onChange={(v) => setPw({ ...pw, pw: v })} />
-            <PasswordInput id="pw2" label="Confirm password" value={pw.confirm} onChange={(v) => setPw({ ...pw, confirm: v })} />
-          </div>
+          {o.passwordSet ? (
+            <p className="pt-2 text-xs text-muted-foreground">Your account already exists — keep using the password you set before.</p>
+          ) : <>
+            <p className="pt-2 text-xs font-semibold">Set your account password</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <PasswordInput id="pw" label="Password" value={pw.pw} onChange={(v) => setPw({ ...pw, pw: v })} />
+              <PasswordInput id="pw2" label="Confirm password" value={pw.confirm} onChange={(v) => setPw({ ...pw, confirm: v })} />
+            </div>
+          </>}
           <FieldError message={errors.password} />
           <FieldError message={errors.form} />
         </>}

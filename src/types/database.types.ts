@@ -2825,6 +2825,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      request_onboarding_corrections: {
+        Args: {
+          p_note: string
+          p_onboarding_id: string
+          p_redo_guarantor?: boolean
+        }
+        Returns: string
+      }
       review_guarantor: {
         Args: { p_decision: string; p_onboarding_id: string; p_reason: string }
         Returns: {

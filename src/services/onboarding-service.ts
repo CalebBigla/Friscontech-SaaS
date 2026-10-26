@@ -397,12 +397,14 @@ export const onboardingService = {
     if (!before)
       return fail("This link can no longer be used. If you already submitted, confirm your email and wait for the Owner to approve you.");
 
+    // A resubmission after the owner asked for corrections: the account already exists.
+    const hasAccount = before.passwordSet;
     // Re-run all step validations against the stored files so we never submit incomplete data.
     for (let s = 0; s < 6; s++) {
-      const e = validateStep({ photo: before.photo }, data, s, s === 5 ? password : undefined);
+      const e = validateStep({ photo: before.photo }, data, s, s === 5 && !hasAccount ? password : undefined);
       if (Object.keys(e).length) return { ok: false, errors: { ...e, form: `Please complete step ${s + 1}.` } };
     }
-    if (password.pw !== password.confirm) return fail("Passwords don't match.");
+    if (!hasAccount && password.pw !== password.confirm) return fail("Passwords don't match.");
 
     const email = (data.email || "").trim().toLowerCase();
     if (!email) return fail("Email is required.");
@@ -415,6 +417,7 @@ export const onboardingService = {
       p_email: email,
     });
     if (submitErr) return dbFail("submit_onboarding", submitErr);
+    if (hasAccount) return { ok: true, data: before };
 
     // 2. look up the onboarding id (so we can pass it to signUp metadata)
     const onb = await fetchByToken(rawToken); // after submit, get_onboarding_by_token still returns it (status submitted, user_id NULL)
@@ -512,6 +515,21 @@ export const onboardingService = {
     if (error) return dbFail("approve_onboarding", error, { onboardingId: id });
     const o = await fetchById(id);
     return o ? { ok: true, data: o } : fail("Not found");
+  },
+
+  /**
+   * Owner: send a submitted or rejected onboarding back to the staff member with a
+   * note. Returns the new raw invite token (the old link stops working).
+   */
+  async requestCorrections(id: string, note: string, redoGuarantor: boolean): Promise<R<string>> {
+    const { data, error } = await supabase.rpc("request_onboarding_corrections", {
+      p_onboarding_id: id,
+      p_note: note,
+      p_redo_guarantor: redoGuarantor,
+    });
+    if (error) return dbFail("request_onboarding_corrections", error, { onboardingId: id });
+    if (!data) return fail("Could not create the corrections link.");
+    return { ok: true, data };
   },
 
   async reject(id: string, reason: string, _actorId: string): Promise<R<Onboarding>> {

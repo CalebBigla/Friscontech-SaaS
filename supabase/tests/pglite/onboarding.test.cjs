@@ -134,6 +134,60 @@ module.exports = async function onboarding(db, { ID, tenantA }) {
   ok("same names: third submits", await submitAs(third, "ngozi3@a.test"));
   check("same names: a rejected onboarding frees ngozi.umeh", (await idOf(third)) === "ngozi.umeh", await idOf(third));
 
+  // Corrections: a signed-up, rejected member is sent back to fix their form.
+  const raw4 = "invite-token-raw-0004";
+  const hash4 = (await db.query(`SELECT public.hash_token($1) h`, [raw4])).rows[0].h;
+  const inv4 = ok("corrections: create invite", await call("authenticated", ID.owner,
+    `INSERT INTO public.onboardings (tenant_id, created_by, employee_id, job_title, department, start_date, status,
+       token_hash, token_expires_at, step, data)
+     VALUES ($1,$2,'FT-COR-1','Sales Rep','Sales',CURRENT_DATE,'invited',$3, now() + interval '7 days', 0, '{}'::jsonb) RETURNING id`,
+    [tenantA, ID.owner, hash4]));
+  const DATA4 = `'{"firstName":"Cora","lastName":"Fix","email":"cora@a.test"}'::jsonb`;
+  ok("corrections: guarantor on behalf", await onBehalf(raw4));
+  ok("corrections: first submit", await call("anon", null, `SELECT * FROM public.submit_onboarding($1, ${DATA4}, 'cora@a.test')`, [raw4]));
+  const cora = "00000000-0000-0000-0000-000000000098";
+  ok("corrections: sign-up", await call("postgres", null,
+    `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, 'cora@a.test',
+       jsonb_build_object('onboarding_id', $2::text, 'onboarding_token_hash', $3::text, 'first_name', 'Cora', 'last_name', 'Fix')) RETURNING id`,
+    [cora, inv4?.id, hash4]));
+  ok("corrections: owner declines the guarantor", await call("authenticated", ID.owner,
+    `SELECT * FROM public.review_guarantor($1, 'declined', 'Guarantor unreachable')`, [inv4?.id]));
+  ok("corrections: owner rejects", await call("authenticated", ID.owner, `SELECT * FROM public.reject_onboarding($1, 'Guarantor not valid')`, [inv4?.id]));
+  check("corrections: link closed after sign-up", (await call("anon", null, `SELECT * FROM public.get_onboarding_by_token($1)`, [raw4])).rows?.length === 0);
+
+  refused("corrections: only the owner can request", await call("authenticated", ID.mgrA1,
+    `SELECT public.request_onboarding_corrections($1, 'Fix your guarantor')`, [inv4?.id]), /Only the owner/);
+  refused("corrections: a note is required", await call("authenticated", ID.owner,
+    `SELECT public.request_onboarding_corrections($1, ' ')`, [inv4?.id]), /Describe what/);
+  const newRaw = ok("corrections: owner requests corrections", await call("authenticated", ID.owner,
+    `SELECT public.request_onboarding_corrections($1, 'Provide a reachable guarantor') AS t`, [inv4?.id]))?.t;
+  const after = (await db.query(`SELECT o.status, o.correction_note, o.used_at, o.guarantor_status, o.guarantor_decision, u.status AS user_status
+     FROM public.onboardings o JOIN public.users u ON u.id = o.user_id WHERE o.id = $1`, [inv4?.id])).rows[0];
+  check("corrections: back in progress with the note, member pending again",
+    after?.status === "in_progress" && after?.correction_note === "Provide a reachable guarantor" && after?.used_at === null && after?.user_status === "pending",
+    JSON.stringify(after));
+  check("corrections: declined guarantor is reset", after?.guarantor_status === "not_sent" && after?.guarantor_decision === null, JSON.stringify(after));
+  check("corrections: old link no longer works", (await call("anon", null, `SELECT * FROM public.get_onboarding_by_token($1)`, [raw4])).rows?.length === 0);
+  check("corrections: new link opens the form", (await call("anon", null, `SELECT * FROM public.get_onboarding_by_token($1)`, [newRaw])).rows?.length === 1);
+  ok("corrections: member saves changes", await call("anon", null, `SELECT * FROM public.save_onboarding_progress($1, ${DATA4}, 5, NULL)`, [newRaw]));
+  ok("corrections: member can upload files again", await call("anon", null,
+    `INSERT INTO storage.objects (bucket_id, name) VALUES ('onboarding-files', $1) RETURNING id`, [`${inv4?.id}/photo/new.jpg`]));
+  refused("corrections: resubmit refused until the guarantor form is redone", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, ${DATA4}, 'cora@a.test')`, [newRaw]), /guarantor form is not complete/);
+  ok("corrections: guarantor redone on behalf", await onBehalf(newRaw));
+  refused("corrections: email cannot change", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, ${DATA4}, 'other@a.test')`, [newRaw]), /cannot be changed/);
+  ok("corrections: resubmit", await call("anon", null, `SELECT * FROM public.submit_onboarding($1, ${DATA4}, 'cora@a.test')`, [newRaw]));
+  const re = (await db.query(`SELECT status, correction_note, used_at FROM public.onboardings WHERE id = $1`, [inv4?.id])).rows[0];
+  check("corrections: resubmitted, note cleared, link closed", re?.status === "submitted" && re?.correction_note === null && re?.used_at !== null, JSON.stringify(re));
+  check("corrections: link closed after resubmit", (await call("anon", null, `SELECT * FROM public.get_onboarding_by_token($1)`, [newRaw])).rows?.length === 0);
+  ok("corrections: owner accepts the new guarantor", await call("authenticated", ID.owner,
+    `SELECT * FROM public.review_guarantor($1, 'accepted', NULL)`, [inv4?.id]));
+  ok("corrections: owner approves", await call("authenticated", ID.owner,
+    `SELECT * FROM public.approve_onboarding($1, 'sales_rep', $2)`, [inv4?.id, ID.brA1]));
+  refused("corrections: not for an approved onboarding", await call("authenticated", ID.owner,
+    `SELECT public.request_onboarding_corrections($1, 'Too late now')`, [inv4?.id]), /submitted or rejected/);
+
   console.log(`\nOnboarding tests: ${passed} passed, ${failures.length} failed`);
   for (const f of failures) console.log("  FAIL " + f);
   module.exports.result = { passed, failed: failures.length };
