@@ -101,7 +101,7 @@ export function OnboardingFormPage({ token }: { token: string }) {
   if (loadError) return <InvalidLink message={loadError} />;
   if (done) return <PublicFrame title="Thank you!" subtitle="Your onboarding form has been submitted."><div className="rounded-lg border border-border bg-card p-6 text-sm">{o?.passwordSet
     ? "Your corrections were sent to the Owner for review. Once approved, you can sign in with your email and the password you set before."
-    : "Your account is now waiting for the Owner to review your details and your guarantor. Once approved, you can sign in with your email and the password you just set."}</div></PublicFrame>;
+    : "We've sent a confirmation email to your inbox — open it and confirm your email address (check spam if you don't see it). Your account is now waiting for the Owner to review your details and your guarantor. Once approved, you can sign in with your email and the password you just set."}</div></PublicFrame>;
 
   const state = onboardingLinkState(o ? {
     tokenRevoked: o.tokenRevoked,
