@@ -20,7 +20,7 @@
  *
  * All reads/writes are Supabase.
  */
-import { supabase } from "@/lib/supabase";
+import { publicSupabase, supabase } from "@/lib/supabase";
 import {
   emptyEmployeeData,
   LINK_VALID_DAYS,
@@ -96,9 +96,16 @@ async function sha256Hex(text: string): Promise<string> {
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** Create a signed Storage URL for an uploaded file. */
-async function signedUrl(storagePath: string): Promise<string> {
-  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, SIGNED_URL_TTL);
+/**
+ * Storage as the invitee: always signed out, even when someone (e.g. the owner)
+ * is signed in on this browser. The invitee storage policies admit anon only.
+ */
+const inviteeStorage = () => publicSupabase.storage.from(BUCKET);
+
+/** Create a signed Storage URL for an uploaded file (as the owner, or `asInvitee`). */
+async function signedUrl(storagePath: string, asInvitee = false): Promise<string> {
+  const bucket = asInvitee ? inviteeStorage() : supabase.storage.from(BUCKET);
+  const { data, error } = await bucket.createSignedUrl(storagePath, SIGNED_URL_TTL);
   if (error || !data?.signedUrl) return "";
   return data.signedUrl;
 }
@@ -186,14 +193,14 @@ async function fetchFilesByToken(rawToken: string): Promise<{ photo: StoredFile 
   const { data, error } = await supabase.rpc("list_onboarding_files", { p_token: rawToken });
   logLookup("list_onboarding_files", error);
   if (error || !data) return { photo: null, credentials: [] };
-  return toFiles(data);
+  return toFiles(data, true);
 }
 
-async function toFiles(rows: FileRow[]): Promise<{ photo: StoredFile | null; credentials: StoredFile[] }> {
+async function toFiles(rows: FileRow[], asInvitee = false): Promise<{ photo: StoredFile | null; credentials: StoredFile[] }> {
   let photo: StoredFile | null = null;
   const credentials: StoredFile[] = [];
   for (const r of rows) {
-    const url = await signedUrl(r.cloudinary_url);
+    const url = await signedUrl(r.cloudinary_url, asInvitee);
     const f: StoredFile = { name: r.file_name, type: r.mime_type, size: r.file_size, dataUrl: url, id: r.id, path: r.cloudinary_url };
     if (r.file_type === "photo") photo = f;
     else credentials.push(f);
@@ -469,7 +476,7 @@ export const onboardingService = {
 
   async _uploadFile(rawToken: string, onboardingId: string, fileType: "photo" | "credential", file: File): Promise<R<StoredFile>> {
     const path = `${onboardingId}/${fileType}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName(file.name)}`;
-    const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+    const { error: upErr } = await inviteeStorage().upload(path, file, { contentType: file.type, upsert: false });
     if (upErr) return dbFail("upload file", upErr, { fileType });
 
     const { data: fileId, error: regErr } = await supabase.rpc("register_onboarding_file", {
@@ -482,10 +489,10 @@ export const onboardingService = {
     });
     if (regErr) {
       // Clean up the orphaned storage object if registration failed.
-      await supabase.storage.from(BUCKET).remove([path]).catch(() => {});
+      await inviteeStorage().remove([path]).catch(() => {});
       return dbFail("register_onboarding_file", regErr, { fileType });
     }
-    const url = await signedUrl(path);
+    const url = await signedUrl(path, true);
     return { ok: true, data: { name: file.name, type: file.type, size: file.size, dataUrl: url, id: fileId as unknown as string, path } };
   },
 
@@ -493,7 +500,7 @@ export const onboardingService = {
   async removeFile(rawToken: string, fileId: string, storagePath: string): Promise<R<true>> {
     const { error } = await supabase.rpc("delete_onboarding_file", { p_token: rawToken, p_file_id: fileId });
     if (error) return dbFail("delete_onboarding_file", error);
-    await supabase.storage.from(BUCKET).remove([storagePath]).catch(() => {});
+    await inviteeStorage().remove([storagePath]).catch(() => {});
     return { ok: true, data: true };
   },
 

@@ -37,6 +37,21 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 })
 
 /**
+ * Signed-out client for the public invite pages (onboarding form files).
+ * The onboarding-files storage policies admit anonymous visitors only, so an
+ * invite opened in a browser where someone (e.g. the owner) is signed in must
+ * not send that session. It never reads or stores a session.
+ */
+export const publicSupabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+    storageKey: 'friscontech-public',
+  },
+})
+
+/**
  * Helper to get the current authenticated user.
  * Returns null if not authenticated.
  */
