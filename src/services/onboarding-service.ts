@@ -537,13 +537,25 @@ export const onboardingService = {
     return { ok: true, data };
   },
 
-  async reject(id: string, reason: string, _actorId: string): Promise<R<Onboarding>> {
+  /**
+   * Owner: reject a submission. Deletes the onboarding and the staff member's
+   * login (reject_onboarding). The uploaded files are removed from storage first,
+   * since the database cannot delete storage objects.
+   */
+  async reject(id: string, reason: string, _actorId: string): Promise<R<null>> {
+    if (reason.trim().length < 5) return fail("Give a reason for rejecting.");
+    const files = await fetchFiles(id);
+    const paths = [files.photo, ...files.credentials].flatMap((f) => (f?.path ? [f.path] : []));
+    if (paths.length) {
+      const { error: rmErr } = await supabase.storage.from(BUCKET).remove(paths);
+      // Leftover files are harmless; the rejection still goes ahead.
+      if (rmErr) console.error("[onboarding] could not remove files before reject", { onboardingId: id, message: rmErr.message });
+    }
     const { error } = await supabase.rpc("reject_onboarding", {
       p_onboarding_id: id,
       p_reason: reason,
     });
     if (error) return dbFail("reject_onboarding", error, { onboardingId: id });
-    const o = await fetchById(id);
-    return o ? { ok: true, data: o } : fail("Not found");
+    return { ok: true, data: null };
   },
 };

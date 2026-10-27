@@ -19,6 +19,7 @@ import {
 } from "@/lib/onboarding";
 import type { AccessScope } from "@/lib/session";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useMemberOnboarding } from "@/hooks/use-onboardings";
 import { queryKeys } from "@/lib/query-keys";
 import { onboardingService } from "@/services/onboarding-service";
@@ -41,6 +42,8 @@ export function OnboardingStatusBadge({ status }: { status: OnboardingStatus }) 
 export function OnboardingPanel({ member, scope }: { member: User; scope: AccessScope }) {
   const owner = canViewOnboardingDetails(scope);
   const queryClient = useQueryClient();
+  // Rejecting deletes the member, so leave their page afterwards.
+  const navigate = useNavigate();
   const onboarding = useMemberOnboarding(member.id, owner || member.status === "pending");
   const o = owner || member.status === "pending" ? onboarding.data : null;
   const [busy, setBusy] = useState("");
@@ -156,7 +159,7 @@ export function OnboardingPanel({ member, scope }: { member: User; scope: Access
 
         {/* ---- Review: summary, PDF, guarantor decision, approve / reject ---- */}
         {owner && (o.status === "submitted" || o.status === "approved" || o.status === "rejected" || !!o.correctionNote) && (
-          <div className="border-t border-border pt-4"><OnboardingReview onboardingId={o.id} scope={scope} /></div>
+          <div className="border-t border-border pt-4"><OnboardingReview onboardingId={o.id} scope={scope} onDeleted={() => void navigate({ to: "/team" })} /></div>
         )}
       </div>
 

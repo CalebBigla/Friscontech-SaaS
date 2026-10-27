@@ -55,7 +55,11 @@ function useRefreshOnboarding(scope: AccessScope) {
  * guarantor and documents, the full form as a PDF (view or download), the
  * guarantor decision, and approve / reject.
  */
-export function OnboardingReview({ onboardingId, scope, onDecided }: { onboardingId: string; scope: AccessScope; onDecided?: () => void }) {
+export function OnboardingReview({ onboardingId, scope, onDecided, onDeleted }: {
+  onboardingId: string; scope: AccessScope; onDecided?: () => void;
+  /** Called after Reject, which deletes the onboarding and the member. */
+  onDeleted?: () => void;
+}) {
   const review = useOnboardingReview(onboardingId);
   const refresh = useRefreshOnboarding(scope);
   const [busy, setBusy] = useState("");
@@ -160,13 +164,10 @@ export function OnboardingReview({ onboardingId, scope, onDecided }: { onboardin
           <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setCorrectionsOpen(true)}><Undo2 className="size-4" />Request corrections</Button>
           <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setRejectOpen(true)}><Ban className="size-4" />Reject</Button>
         </>}
-        {o.status === "rejected" && (
-          <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setCorrectionsOpen(true)}><Undo2 className="size-4" />Reopen for corrections</Button>
-        )}
       </div>
       {o.status === "submitted" && (!o.userId || o.guarantorDecision !== "accepted") && (
         <p className="text-[11px] text-muted-foreground">
-          {!o.userId ? "No account is linked to this submission, so it can't be approved. Usually the email already belongs to another account (for example yours). Use Request corrections and ask them to submit with their own email. " : ""}
+          {!o.userId ? "This submission has no login account, so there is nothing to approve. Request corrections so they submit again, or reject it. " : ""}
           {o.guarantorDecision !== "accepted" ? "Accept the guarantor response before approving." : ""}
         </p>
       )}
@@ -176,8 +177,8 @@ export function OnboardingReview({ onboardingId, scope, onDecided }: { onboardin
         description="The reason is saved in the audit log. The member cannot be activated."
         onSubmit={async (note) => { const r = await onboardingService.reviewGuarantor(o.id, "declined", note, scope.user.id); if (r.ok) { toast.success("Guarantor declined"); await refresh(); } return r; }} />
       <ReasonDialog open={rejectOpen} onOpenChange={setRejectOpen} title="Reject onboarding" confirm="Reject"
-        description="Provide a reason. The staff member will not be granted access."
-        onSubmit={async (reason) => { const r = await onboardingService.reject(o.id, reason, scope.user.id); if (r.ok) { toast.success("Onboarding rejected"); await decided(); } return r; }} />
+        description="This permanently deletes the submission, its documents and the staff member's login. The reason is kept in the audit log. To onboard them later, send a new invite."
+        onSubmit={async (reason) => { const r = await onboardingService.reject(o.id, reason, scope.user.id); if (r.ok) { toast.success("Onboarding rejected and deleted"); onDeleted?.(); await refresh(); } return r; }} />
       <CorrectionsDialog open={correctionsOpen} onOpenChange={setCorrectionsOpen} o={o} onDone={refresh} />
       <ApproveDialog open={approveOpen} onOpenChange={setApproveOpen} o={o} scope={scope} onDone={decided} />
     </div>
@@ -193,7 +194,7 @@ export function OnboardingReviewDialog({ onboardingId, onClose, scope }: { onboa
           <DialogTitle>Review onboarding</DialogTitle>
           <DialogDescription className="text-xs">Check the summary and the full form, review the guarantor, then approve or reject.</DialogDescription>
         </DialogHeader>
-        {onboardingId && <OnboardingReview onboardingId={onboardingId} scope={scope} onDecided={onClose} />}
+        {onboardingId && <OnboardingReview onboardingId={onboardingId} scope={scope} onDecided={onClose} onDeleted={onClose} />}
       </DialogContent>
     </Dialog>
   );

@@ -134,7 +134,7 @@ module.exports = async function onboarding(db, { ID, tenantA }) {
   ok("same names: third submits", await submitAs(third, "ngozi3@a.test"));
   check("same names: a rejected onboarding frees ngozi.umeh", (await idOf(third)) === "ngozi.umeh", await idOf(third));
 
-  // Corrections: a signed-up, rejected member is sent back to fix their form.
+  // Corrections: a signed-up member is sent back to fix their form.
   const raw4 = "invite-token-raw-0004";
   const hash4 = (await db.query(`SELECT public.hash_token($1) h`, [raw4])).rows[0].h;
   const inv4 = ok("corrections: create invite", await call("authenticated", ID.owner,
@@ -152,7 +152,6 @@ module.exports = async function onboarding(db, { ID, tenantA }) {
     [cora, inv4?.id, hash4]));
   ok("corrections: owner declines the guarantor", await call("authenticated", ID.owner,
     `SELECT * FROM public.review_guarantor($1, 'declined', 'Guarantor unreachable')`, [inv4?.id]));
-  ok("corrections: owner rejects", await call("authenticated", ID.owner, `SELECT * FROM public.reject_onboarding($1, 'Guarantor not valid')`, [inv4?.id]));
   check("corrections: link closed after sign-up", (await call("anon", null, `SELECT * FROM public.get_onboarding_by_token($1)`, [raw4])).rows?.length === 0);
 
   refused("corrections: only the owner can request", await call("authenticated", ID.mgrA1,
@@ -208,6 +207,37 @@ module.exports = async function onboarding(db, { ID, tenantA }) {
     `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Te","lastName":"St"}'::jsonb, 'own@a.test')`, [raw5b]));
   const n5 = (await db.query(`SELECT correction_note, status FROM public.onboardings WHERE id = $1`, [inv5])).rows[0];
   check("no account yet: resubmit clears the note", n5?.correction_note === null && n5?.status === "submitted", JSON.stringify(n5));
+
+  // Reject deletes the onboarding and the pending login; the audit log keeps it.
+  const raw7 = "invite-token-raw-0007";
+  const hash7 = (await db.query(`SELECT public.hash_token($1) h`, [raw7])).rows[0].h;
+  const inv7 = ok("reject: create invite", await call("authenticated", ID.owner,
+    `INSERT INTO public.onboardings (tenant_id, created_by, employee_id, job_title, department, start_date, status,
+       token_hash, token_expires_at, step, data)
+     VALUES ($1,$2,'FT-REJ-1','Sales Rep','Sales',CURRENT_DATE,'invited',$3, now() + interval '7 days', 0, '{}'::jsonb) RETURNING id`,
+    [tenantA, ID.owner, hash7]))?.id;
+  ok("reject: guarantor on behalf", await onBehalf(raw7));
+  ok("reject: submit", await call("anon", null, `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Re","lastName":"Ject"}'::jsonb, 'reject@a.test')`, [raw7]));
+  const rejUser = "00000000-0000-0000-0000-000000000096";
+  ok("reject: sign-up", await call("postgres", null,
+    `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, 'reject@a.test',
+       jsonb_build_object('onboarding_id', $2::text, 'onboarding_token_hash', $3::text, 'first_name', 'Re', 'last_name', 'Ject')) RETURNING id`,
+    [rejUser, inv7, hash7]));
+  await db.query(`INSERT INTO public.onboarding_files (onboarding_id, file_type, file_name, cloudinary_public_id, cloudinary_url, file_size, mime_type)
+     VALUES ($1::uuid, 'photo', 'p.jpg', $1::text || '/p.jpg', $1::text || '/p.jpg', 10, 'image/jpeg')`, [inv7]);
+  refused("reject: a reason is required", await call("authenticated", ID.owner, `SELECT * FROM public.reject_onboarding($1, 'no')`, [inv7]), /reason/);
+  refused("reject: only the owner", await call("authenticated", ID.mgrA1, `SELECT * FROM public.reject_onboarding($1, 'Not suitable')`, [inv7]), /Only the owner/);
+  ok("reject: owner rejects", await call("authenticated", ID.owner, `SELECT * FROM public.reject_onboarding($1, 'Not suitable for the role')`, [inv7]));
+  const gone = (await db.query(`SELECT
+      (SELECT count(*)::int FROM public.onboardings WHERE id = $1) AS onb,
+      (SELECT count(*)::int FROM public.onboarding_files WHERE onboarding_id = $1) AS files,
+      (SELECT count(*)::int FROM public.users WHERE id = $2) AS profile,
+      (SELECT count(*)::int FROM auth.users WHERE id = $2) AS login,
+      (SELECT count(*)::int FROM public.activities WHERE entity_id = $1::text AND action = 'Team onboarding rejected and deleted') AS audit`, [inv7, rejUser])).rows[0];
+  check("reject: onboarding, files, profile and login deleted; audit kept",
+    gone?.onb === 0 && gone?.files === 0 && gone?.profile === 0 && gone?.login === 0 && gone?.audit === 1, JSON.stringify(gone));
+  const ownerStill = (await db.query(`SELECT count(*)::int n FROM public.users WHERE id = $1 AND role = 'owner'`, [ID.owner])).rows[0]?.n;
+  check("reject: the owner account is untouched", ownerStill === 1);
 
   console.log(`\nOnboarding tests: ${passed} passed, ${failures.length} failed`);
   for (const f of failures) console.log("  FAIL " + f);

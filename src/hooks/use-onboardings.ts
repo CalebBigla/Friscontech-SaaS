@@ -34,7 +34,10 @@ export function useOnboardings(tenantId: string, filters: OnboardingFilters = {}
   });
 }
 
-/** Pending reviews: status = submitted, awaiting the owner. */
+/**
+ * Pending reviews: submitted and linked to the staff member's login (auth + users).
+ * Only those can be approved, so only those are shown for review.
+ */
 export function usePendingOnboardings(tenantId: string) {
   return useQuery({
     queryKey: queryKeys.onboardings.pending(tenantId),
@@ -44,6 +47,7 @@ export function usePendingOnboardings(tenantId: string) {
         .select("*")
         .eq("tenant_id", tenantId)
         .eq("status", "submitted")
+        .not("user_id", "is", null)
         .order("submitted_at", { ascending: true });
       if (error) throw handleSupabaseError(error);
       return (data || []).map((row) => transformOnboarding(row as Parameters<typeof transformOnboarding>[0]));
