@@ -442,6 +442,11 @@ export const onboardingService = {
       return dbFail("create account (sign-up)", authError);
     }
     if (!authData.user) return fail("Could not create your account.");
+    // An already-registered email returns a user with no identities and creates nothing.
+    if (authData.user.identities?.length === 0) {
+      console.error("[onboarding] sign-up created no account: email already registered");
+      return fail("An account with this email already exists. Ask the Owner to request corrections so you can use your own email address.");
+    }
 
     return { ok: true, data: onb };
   },

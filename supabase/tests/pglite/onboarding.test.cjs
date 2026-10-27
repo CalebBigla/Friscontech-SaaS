@@ -188,6 +188,27 @@ module.exports = async function onboarding(db, { ID, tenantA }) {
   refused("corrections: not for an approved onboarding", await call("authenticated", ID.owner,
     `SELECT public.request_onboarding_corrections($1, 'Too late now')`, [inv4?.id]), /submitted or rejected/);
 
+  // An email that already has an account (the owner's) is refused at submit.
+  const raw5 = "invite-token-raw-0005";
+  const hash5 = (await db.query(`SELECT public.hash_token($1) h`, [raw5])).rows[0].h;
+  ok("taken email: create invite", await call("authenticated", ID.owner,
+    `INSERT INTO public.onboardings (tenant_id, created_by, employee_id, job_title, department, start_date, status,
+       token_hash, token_expires_at, step, data)
+     VALUES ($1,$2,'FT-EML-1','Sales Rep','Sales',CURRENT_DATE,'invited',$3, now() + interval '7 days', 0, '{}'::jsonb) RETURNING id`,
+    [tenantA, ID.owner, hash5]));
+  ok("taken email: guarantor on behalf", await onBehalf(raw5));
+  refused("taken email: the owner's email is refused", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Te","lastName":"St"}'::jsonb, 'OWNER@a.test')`, [raw5]), /already exists/);
+  ok("taken email: a new email is accepted", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Te","lastName":"St"}'::jsonb, 'fresh@a.test')`, [raw5]));
+  const inv5 = (await db.query(`SELECT id FROM public.onboardings WHERE employee_id = 'FT-EML-1'`)).rows[0]?.id;
+  const raw5b = ok("no account yet: owner requests corrections", await call("authenticated", ID.owner,
+    `SELECT public.request_onboarding_corrections($1, 'Use your own email address') AS t`, [inv5]))?.t;
+  ok("no account yet: resubmit", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Te","lastName":"St"}'::jsonb, 'own@a.test')`, [raw5b]));
+  const n5 = (await db.query(`SELECT correction_note, status FROM public.onboardings WHERE id = $1`, [inv5])).rows[0];
+  check("no account yet: resubmit clears the note", n5?.correction_note === null && n5?.status === "submitted", JSON.stringify(n5));
+
   console.log(`\nOnboarding tests: ${passed} passed, ${failures.length} failed`);
   for (const f of failures) console.log("  FAIL " + f);
   module.exports.result = { passed, failed: failures.length };

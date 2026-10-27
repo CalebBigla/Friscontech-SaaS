@@ -40,6 +40,9 @@ import { getPeriodRange, isoWeek, previousRange, type PeriodKey } from "@/lib/da
 import { formatCompactNaira, formatDate, formatNumber, formatPercent, formatTime } from "@/lib/format";
 import { getManagerRemittances } from "@/lib/remittance-calculations";
 import { canReviewApproval } from "@/lib/approvals";
+import { OnboardingReviewDialog } from "@/components/team/onboarding-review";
+import { usePendingOnboardings } from "@/hooks/use-onboardings";
+import { fullName } from "@/lib/onboarding";
 
 type Period = "Day" | "Week" | "Month" | "Quarter";
 const periodKey: Record<Period, PeriodKey> = {
@@ -73,8 +76,11 @@ function OwnerDashboardContent() {
   const pendingApprovals = getApprovals(db, scope).filter(
     (item) => item.status === "pending" && canReviewApproval(db, userId, item),
   );
-  const approvalCount = pendingApprovals.length + pendingRemittances.length;
-  const approvalTarget = pendingRemittances.length ? "/remittance" : "/approvals";
+  // Staff onboardings submitted and waiting for the owner (reviewed in a modal).
+  const { data: pendingOnboardings = [] } = usePendingOnboardings(scope.user.tenantId);
+  const [reviewing, setReviewing] = useState<string | null>(null);
+  const approvalCount = pendingApprovals.length + pendingRemittances.length + pendingOnboardings.length;
+  const approvalTarget = pendingRemittances.length ? "/remittance" : pendingApprovals.length || !pendingOnboardings.length ? "/approvals" : "/team";
 
   const data = useMemo(() => {
     const active = db.branches.filter((b) => b.status === "active");
@@ -208,7 +214,7 @@ function OwnerDashboardContent() {
             tone="warning"
             label="Approvals"
             value={String(approvalCount)}
-            detail={`${pendingRemittances.length} Manager remittances · ${pendingApprovals.length} other requests`}
+            detail={`${pendingRemittances.length} Manager remittances · ${pendingOnboardings.length} new staff · ${pendingApprovals.length} other requests`}
             badge={approvalCount ? "Action" : undefined}
           />
         </Link>
@@ -261,8 +267,19 @@ function OwnerDashboardContent() {
         </Panel>
       </section>
 
-      <Panel title="Approvals" subtitle="Manager remittances and requests requiring Owner review" className="mt-4">
+      <Panel title="Approvals" subtitle="Manager remittances, new staff and requests requiring Owner review" className="mt-4">
         <div className="divide-y divide-border">
+          {pendingOnboardings.map((o) => (
+            <div key={o.id} className="flex flex-col gap-2 p-4 text-xs sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">New staff · {fullName(o.data) || o.employeeId}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {[o.employeeId, o.jobTitle].filter(Boolean).join(" · ")} · Submitted {o.submittedAt ? formatDate(o.submittedAt.slice(0, 10)) : "—"}
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setReviewing(o.id)}>Review &amp; approve</Button>
+            </div>
+          ))}
           {pendingRemittances.map((remittance) => (
             <Link key={remittance.id} to="/remittance" className="flex flex-col gap-2 p-4 text-xs hover:bg-muted/50 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
@@ -375,6 +392,7 @@ function OwnerDashboardContent() {
         <ShieldCheck className="size-3" />
         Viewing tenant-scoped data for {db.tenant.name}
       </div>
+      <OnboardingReviewDialog onboardingId={reviewing} onClose={() => setReviewing(null)} scope={scope} />
     </AppShell>
   );
 }

@@ -166,7 +166,7 @@ export function OnboardingReview({ onboardingId, scope, onDecided }: { onboardin
       </div>
       {o.status === "submitted" && (!o.userId || o.guarantorDecision !== "accepted") && (
         <p className="text-[11px] text-muted-foreground">
-          {!o.userId ? "Approval opens once the staff member has created their account. " : ""}
+          {!o.userId ? "No account is linked to this submission, so it can't be approved. Usually the email already belongs to another account (for example yours). Use Request corrections and ask them to submit with their own email. " : ""}
           {o.guarantorDecision !== "accepted" ? "Accept the guarantor response before approving." : ""}
         </p>
       )}
