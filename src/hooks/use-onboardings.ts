@@ -76,6 +76,44 @@ export function useMemberOnboarding(userId: string, enabled = true) {
   });
 }
 
+/**
+ * Profile photos: each member's onboarding passport photo, as signed URLs keyed
+ * by user id. The owner can read every member's photo; others see what RLS and
+ * the storage policies allow (usually none, so avatars fall back to initials).
+ * Photos are cosmetic, so a failure returns no photos instead of an error.
+ */
+export function useMemberPhotos(enabled = true) {
+  return useQuery({
+    queryKey: [...queryKeys.onboardings.root(), "photos"] as const,
+    queryFn: async (): Promise<Record<string, string>> => {
+      const { data, error } = await supabase
+        .from("onboardings")
+        .select("user_id, onboarding_files(file_type, cloudinary_url, uploaded_at)")
+        .not("user_id", "is", null);
+      if (error) { console.warn("[photos] could not list onboarding photos", error.message); return {}; }
+      const pathByUser = new Map<string, string>();
+      for (const row of data ?? []) {
+        const latest = (row.onboarding_files ?? [])
+          .filter((f) => f.file_type === "photo")
+          .sort((a, b) => (b.uploaded_at ?? "").localeCompare(a.uploaded_at ?? ""))[0];
+        if (row.user_id && latest) pathByUser.set(row.user_id, latest.cloudinary_url);
+      }
+      if (!pathByUser.size) return {};
+      const { data: signed, error: signErr } = await supabase.storage
+        .from("onboarding-files")
+        .createSignedUrls([...pathByUser.values()], 60 * 60 * 6);
+      if (signErr || !signed) return {};
+      const urlByPath = new Map(signed.flatMap((s) => (s.signedUrl && s.path ? [[s.path, s.signedUrl] as const] : [])));
+      return Object.fromEntries([...pathByUser].flatMap(([userId, path]) => {
+        const url = urlByPath.get(path);
+        return url ? [[userId, url]] : [];
+      }));
+    },
+    enabled,
+    staleTime: 60 * 60 * 1000,
+  });
+}
+
 /** A single onboarding by id (owner RLS). */
 export function useOnboarding(id: string) {
   return useQuery({

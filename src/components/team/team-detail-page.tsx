@@ -4,7 +4,7 @@ import { ArrowLeft, Pencil, Power, Trash2 } from "lucide-react";
 
 import { AppShell, RestrictedNotice } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { DataGate, DetailItem, MetricCard, Panel } from "@/components/shared";
+import { DataGate, DetailItem, MetricCard, Panel, UserAvatar } from "@/components/shared";
 import {
   MemberStatusBadge,
   MemberStatusDialog,
@@ -21,6 +21,7 @@ import {
   Users,
 } from "lucide-react";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useMemberPhotos } from "@/hooks/use-onboardings";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { filterSales, monthRange, saleTotal, getSalesRevenue } from "@/lib/calculations";
@@ -30,7 +31,6 @@ import {
   formatMonth,
   formatNaira,
   formatNumber,
-  initials,
   roleLabel,
 } from "@/lib/format";
 import {
@@ -51,6 +51,7 @@ export function TeamDetailPage({ userId: memberId }: { userId: string }) {
   const [editing, setEditing] = useState(false);
   const [toggling, setToggling] = useState(false);
   const u = getTeamMember(db, scope, memberId);
+  const { data: photos = {} } = useMemberPhotos();
   if (isLoading || error)
     return (
       <AppShell title="Team member">
@@ -109,9 +110,7 @@ export function TeamDetailPage({ userId: memberId }: { userId: string }) {
       </Link>
       <Panel title="Profile" className="mb-5">
         <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center">
-          <span className="grid size-14 shrink-0 place-items-center rounded-full bg-avatar text-base font-bold text-primary">
-            {initials(u.name)}
-          </span>
+          <UserAvatar name={u.name} src={photos[u.id]} size="xl" />
           <div className="grid flex-1 grid-cols-2 gap-4 lg:grid-cols-4">
             <DetailItem label="Email">{u.email}</DetailItem>
             <DetailItem label="Role">

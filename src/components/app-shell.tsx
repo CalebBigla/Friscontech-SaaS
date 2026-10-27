@@ -47,7 +47,9 @@ import {
   useCurrentUserId,
   type AccessScope,
 } from "@/lib/session";
-import { initials, roleLabel } from "@/lib/format";
+import { roleLabel } from "@/lib/format";
+import { UserAvatar } from "@/components/shared";
+import { useMemberPhotos } from "@/hooks/use-onboardings";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 
 /** Phone tab bar for field roles; "More" opens the full menu. */
@@ -247,6 +249,7 @@ export function AppShell({
   const { data: tenant } = useTenant();
   const branch = branches.find((b) => b.id === scope.user.branchId);
   const tabs = mobileTabs[scope.user.role];
+  const { data: photos = {} } = useMemberPhotos(!!authUser);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -259,14 +262,14 @@ export function AppShell({
         <div
           className={`flex h-16 items-center justify-between border-b border-border ${sidebarCollapsed ? "px-2" : "px-5"}`}
         >
-          <div className={`flex items-center gap-3 ${sidebarCollapsed ? "lg:mx-auto" : ""}`}>
-            <span className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground">
+          <div className={`flex min-w-0 items-center gap-2.5 ${sidebarCollapsed ? "lg:mx-auto" : ""}`}>
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/75 text-primary-foreground shadow-sm">
               <Activity className="size-4" />
             </span>
-            <div className={sidebarCollapsed ? "lg:hidden" : ""}>
-              <p className="text-sm font-bold">Friscontech</p>
-              <p className="text-[10px] uppercase text-muted-foreground">
-                {roleLabel[scope.user.role]} console
+            <div className={`min-w-0 ${sidebarCollapsed ? "lg:hidden" : ""}`}>
+              <p className="truncate text-[15px] font-semibold tracking-tight">Friscontech</p>
+              <p className="truncate text-[11px] text-muted-foreground">
+                {tenant?.name ?? `${roleLabel[scope.user.role]} console`}
               </p>
             </div>
           </div>
@@ -308,11 +311,11 @@ export function AppShell({
               return (
                 <div key={section.title}>
                   <p
-                    className={`px-3 pb-2 pt-4 text-[10px] font-bold uppercase text-muted-foreground first:pt-2 ${sidebarCollapsed ? "lg:hidden" : ""}`}
+                    className={`px-3 pb-1.5 pt-5 text-[11px] font-medium tracking-wide text-muted-foreground/80 first:pt-1 ${sidebarCollapsed ? "lg:hidden" : ""}`}
                   >
                     {section.title}
                   </p>
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     {items.map(({ label, icon: Icon, to }) =>
                       to ? (
                         <Tooltip key={label}>
@@ -321,8 +324,8 @@ export function AppShell({
                               to={to}
                               onClick={() => setOpen(false)}
                               activeOptions={{ exact: to === "/" }}
-                              className={`flex h-10 items-center gap-2 rounded-md px-4 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${sidebarCollapsed ? "lg:justify-center lg:px-0" : ""}`}
-                              activeProps={{ className: "!bg-primary !text-primary-foreground" }}
+                              className={`group relative flex h-9 items-center gap-2.5 rounded-lg px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${sidebarCollapsed ? "lg:justify-center lg:px-0" : ""}`}
+                              activeProps={{ className: "!bg-sidebar-accent !text-sidebar-accent-foreground !font-semibold before:absolute before:inset-y-2 before:-left-3 before:w-[3px] before:rounded-r-full before:bg-primary" }}
                               aria-label={sidebarCollapsed ? label : undefined}
                             >
                               <Icon className="size-4 shrink-0" />
@@ -356,18 +359,16 @@ export function AppShell({
             })}
           </nav>
         </TooltipProvider>
-        <div className="border-t border-border p-4">
+        <div className="border-t border-border p-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className={`flex w-full items-center gap-3 rounded-md bg-muted p-3 text-left ${sidebarCollapsed ? "lg:justify-center lg:p-2" : ""}`}
+                className={`flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted ${sidebarCollapsed ? "lg:justify-center" : ""}`}
                 aria-label="Account menu"
               >
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-avatar text-xs font-bold text-primary">
-                  {initials(scope.user.name ?? "")}
-                </span>
+                <UserAvatar name={scope.user.name ?? ""} src={photos[userId]} />
                 <div className={sidebarCollapsed ? "min-w-0 lg:hidden" : "min-w-0"}>
-                  <p className="truncate text-xs font-bold">{scope.user.name ?? "—"}</p>
+                  <p className="truncate text-[13px] font-semibold">{scope.user.name ?? "—"}</p>
                   <p className="truncate text-[11px] text-muted-foreground">
                     {roleLabel[scope.user.role]} · {branch?.name ?? tenant?.name ?? ""}
                   </p>
@@ -395,7 +396,7 @@ export function AppShell({
       </aside>
 
       <div className={sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"}>
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur sm:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/70 sm:px-6 lg:px-8">
           <Button
             variant="ghost"
             size="icon"
@@ -406,9 +407,9 @@ export function AppShell({
             <Menu className="size-5" />
           </Button>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold sm:text-base">{title}</p>
+            <h1 className="truncate text-[15px] font-semibold tracking-tight sm:text-lg">{title}</h1>
             {subtitle && (
-              <p className="hidden truncate text-xs text-muted-foreground sm:block">{subtitle}</p>
+              <p className="hidden truncate text-[13px] text-muted-foreground sm:block">{subtitle}</p>
             )}
           </div>
           {headerExtra}
@@ -416,7 +417,7 @@ export function AppShell({
           {actions}
         </header>
         <main
-          className={`mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-7 ${tabs ? "pb-24 lg:pb-7" : ""}`}
+          className={`page-enter mx-auto max-w-[1440px] p-4 sm:p-6 lg:px-8 lg:py-7 ${tabs ? "pb-24 lg:pb-7" : ""}`}
         >
           {children}
         </main>
@@ -431,8 +432,8 @@ export function AppShell({
               key={to}
               to={to}
               activeOptions={{ exact: to === "/" }}
-              className="flex min-h-14 flex-col items-center justify-center gap-1 text-[10px] font-semibold text-muted-foreground"
-              activeProps={{ className: "!text-primary" }}
+              className="relative flex min-h-14 flex-col items-center justify-center gap-1 text-[10px] font-medium text-muted-foreground transition-colors"
+              activeProps={{ className: "!text-primary before:absolute before:inset-x-5 before:top-0 before:h-0.5 before:rounded-b-full before:bg-primary" }}
             >
               <Icon className="size-5" />
               {label}
@@ -479,8 +480,8 @@ export function RoleGate({
 
 export function RestrictedNotice({ message }: { message: string }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-10 text-center shadow-panel">
-      <p className="text-sm font-bold">Access restricted</p>
+    <div className="rounded-xl border border-border bg-card p-10 text-center shadow-panel">
+      <p className="text-sm font-semibold">Access restricted</p>
       <p className="mt-1 text-xs text-muted-foreground">{message}</p>
     </div>
   );

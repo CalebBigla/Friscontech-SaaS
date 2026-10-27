@@ -5,16 +5,16 @@ import { ArrowUpDown, Clock, Eye, MoreHorizontal, Pencil, Plus, Power, ShieldChe
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ALL, DataGate, EmptyState, FilterSelect, MetricCard, Panel, SearchBox } from "@/components/shared";
+import { ALL, DataGate, EmptyState, FilterSelect, MetricCard, Panel, SearchBox, UserAvatar } from "@/components/shared";
 import { MemberStatusBadge, MemberStatusDialog, RoleBadge, TeamMemberDialog } from "@/components/team/team-dialogs";
 import { OnboardingStatusBadge } from "@/components/team/onboarding-panel";
 import { OnboardingReviewDialog } from "@/components/team/onboarding-review";
 import type { Role, User, UserStatus } from "@/data/mock-db";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { useAuth } from "@/contexts/auth-context";
-import { usePendingOnboardings } from "@/hooks/use-onboardings";
+import { useMemberPhotos, usePendingOnboardings } from "@/hooks/use-onboardings";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
-import { formatDate, formatDayTime, initials, roleLabel } from "@/lib/format";
+import { formatDate, formatDayTime, roleLabel } from "@/lib/format";
 import { canEditMember, getLastActivity, getTeamMembers, getTeamSummary, sortTeam, userStatusLabel, type TeamSortKey } from "@/lib/team";
 
 export function TeamPage() {
@@ -26,6 +26,7 @@ export function TeamPage() {
   const tenantId = authUser?.tenantId ?? "";
   const all = useMemo(() => getTeamMembers(db, scope), [db, scope]);
   const { data: pendingOnboardings = [] } = usePendingOnboardings(tenantId);
+  const { data: photos = {} } = useMemberPhotos();
   const [query, setQuery] = useState("");
   const [role, setRole] = useState(ALL);
   const [branchId, setBranchId] = useState(ALL);
@@ -64,7 +65,7 @@ export function TeamPage() {
   };
   const Member = ({ u }: { u: User }) => (
     <Link to="/team/$userId" params={{ userId: u.id }} className="flex min-w-0 items-center gap-3 hover:text-primary">
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-avatar text-xs font-bold text-primary">{initials(u.name)}</span>
+      <UserAvatar name={u.name} src={photos[u.id]} />
       <span className="min-w-0"><span className="block truncate text-sm font-semibold">{u.name}</span><span className="block truncate text-[11px] text-muted-foreground">{u.email}</span></span>
     </Link>
   );
@@ -88,9 +89,12 @@ export function TeamPage() {
           <div className="divide-y divide-border">
             {pendingOnboardings.map((o: any) => (
               <div key={o.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                <UserAvatar name={`${o.data?.firstName ?? ""} ${o.data?.lastName ?? ""}`} src={o.userId ? photos[o.userId] : undefined} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{o.data?.firstName} {o.data?.lastName}</p>
                   <p className="text-[11px] text-muted-foreground">{o.employeeId} · {o.jobTitle} · Submitted {o.submittedAt ? formatDate(o.submittedAt.slice(0, 10)) : "—"}</p>
+                </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <OnboardingStatusBadge status={o.status} />
