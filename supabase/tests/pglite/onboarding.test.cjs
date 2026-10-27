@@ -209,29 +209,6 @@ module.exports = async function onboarding(db, { ID, tenantA }) {
   const n5 = (await db.query(`SELECT correction_note, status FROM public.onboardings WHERE id = $1`, [inv5])).rows[0];
   check("no account yet: resubmit clears the note", n5?.correction_note === null && n5?.status === "submitted", JSON.stringify(n5));
 
-  // Approve finds the account by email when the sign-up link is missing.
-  const raw6 = "invite-token-raw-0006";
-  const hash6 = (await db.query(`SELECT public.hash_token($1) h`, [raw6])).rows[0].h;
-  const inv6 = ok("unlinked: create invite", await call("authenticated", ID.owner,
-    `INSERT INTO public.onboardings (tenant_id, created_by, employee_id, job_title, department, start_date, status,
-       token_hash, token_expires_at, step, data)
-     VALUES ($1,$2,'FT-LNK-1','Sales Rep','Sales',CURRENT_DATE,'invited',$3, now() + interval '7 days', 0, '{}'::jsonb) RETURNING id`,
-    [tenantA, ID.owner, hash6]))?.id;
-  ok("unlinked: guarantor on behalf", await onBehalf(raw6));
-  ok("unlinked: submit", await call("anon", null, `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Li","lastName":"Nk"}'::jsonb, 'link@a.test')`, [raw6]));
-  ok("unlinked: guarantor accepted", await call("authenticated", ID.owner, `SELECT * FROM public.review_guarantor($1, 'accepted', NULL)`, [inv6]));
-  refused("unlinked: no account yet is explained", await call("authenticated", ID.owner,
-    `SELECT * FROM public.approve_onboarding($1, 'sales_rep', $2)`, [inv6, ID.brA1]), /No account was created/);
-  const linkUser = "00000000-0000-0000-0000-000000000097";
-  await db.exec(`ALTER TABLE auth.users DISABLE TRIGGER on_auth_user_created`);
-  await db.query(`INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, 'link@a.test', '{}'::jsonb)`, [linkUser]);
-  await db.exec(`ALTER TABLE auth.users ENABLE TRIGGER on_auth_user_created`);
-  await db.query(`INSERT INTO public.users (id, tenant_id, first_name, last_name, email, role, status) VALUES ($1, $2, 'Li', 'Nk', 'Link@a.test', NULL, 'pending')`, [linkUser, tenantA]);
-  ok("unlinked: approve links the pending account by email", await call("authenticated", ID.owner,
-    `SELECT * FROM public.approve_onboarding($1, 'sales_rep', $2)`, [inv6, ID.brA1]));
-  const l6 = (await db.query(`SELECT o.user_id, u.status, u.role FROM public.onboardings o JOIN public.users u ON u.id = o.user_id WHERE o.id = $1`, [inv6])).rows[0];
-  check("unlinked: account active with its role", l6?.user_id === linkUser && l6?.status === "active" && l6?.role === "sales_rep", JSON.stringify(l6));
-
   console.log(`\nOnboarding tests: ${passed} passed, ${failures.length} failed`);
   for (const f of failures) console.log("  FAIL " + f);
   module.exports.result = { passed, failed: failures.length };

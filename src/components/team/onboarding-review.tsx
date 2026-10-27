@@ -154,8 +154,8 @@ export function OnboardingReview({ onboardingId, scope, onDecided }: { onboardin
         <Button size="sm" variant="outline" onClick={() => setPdfOpen(true)}><Eye className="size-4" />View full form</Button>
         <Button size="sm" variant="outline" disabled={!!busy} onClick={download}>{busy === "pdf" ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}Download PDF</Button>
         {o.status === "submitted" && <>
-          <Button size="sm" disabled={!!busy || o.guarantorDecision !== "accepted"}
-            title={o.guarantorDecision !== "accepted" ? "Accept the guarantor response first" : undefined}
+          <Button size="sm" disabled={!!busy || o.guarantorDecision !== "accepted" || !o.userId}
+            title={!o.userId ? "The staff member has not created their account yet" : o.guarantorDecision !== "accepted" ? "Accept the guarantor response first" : undefined}
             onClick={() => setApproveOpen(true)}><CheckCircle2 className="size-4" />Approve</Button>
           <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setCorrectionsOpen(true)}><Undo2 className="size-4" />Request corrections</Button>
           <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setRejectOpen(true)}><Ban className="size-4" />Reject</Button>
@@ -164,8 +164,11 @@ export function OnboardingReview({ onboardingId, scope, onDecided }: { onboardin
           <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setCorrectionsOpen(true)}><Undo2 className="size-4" />Reopen for corrections</Button>
         )}
       </div>
-      {o.status === "submitted" && o.guarantorDecision !== "accepted" && (
-        <p className="text-[11px] text-muted-foreground">Accept the guarantor response before approving.</p>
+      {o.status === "submitted" && (!o.userId || o.guarantorDecision !== "accepted") && (
+        <p className="text-[11px] text-muted-foreground">
+          {!o.userId ? "No account is linked to this submission, so it can't be approved. Usually the email already belongs to another account (for example yours). Use Request corrections and ask them to submit with their own email. " : ""}
+          {o.guarantorDecision !== "accepted" ? "Accept the guarantor response before approving." : ""}
+        </p>
       )}
 
       <OnboardingPdfDialog o={o} open={pdfOpen} onOpenChange={setPdfOpen} />
