@@ -9,7 +9,7 @@ import { NearestExpiryBadge } from "@/components/expiry/expiry-widgets";
 import { MovementList } from "@/components/inventory/movement-list";
 import { ProductFormDialog } from "@/components/products/add-product-dialog";
 import { ProductStatusBadge, ProductStatusDialog } from "@/components/products/product-status";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getProduct, getProductCategories, getProductInventory, getProductSales, getProductStockMovements } from "@/lib/catalog-calculations";
 import { monthRange } from "@/lib/calculations";
@@ -17,12 +17,14 @@ import { monthOf } from "@/lib/dates";
 import { formatCompactNaira, formatMonth, formatNaira, formatNumber } from "@/lib/format";
 
 export function ProductDetailPage({ productId }: { productId: string }) {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace({ movements: true, batches: true });
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const [editing, setEditing] = useState(false);
   const [toggling, setToggling] = useState(false);
   const product = getProduct(db, productId);
+  if (isLoading) return <AppShell title="Product"><p className="py-12 text-center text-sm text-muted-foreground">Loading persisted product…</p></AppShell>;
+  if (error) return <AppShell title="Product"><RestrictedNotice message={error instanceof Error ? error.message : "Could not load product data."} /></AppShell>;
   if (!product) return <AppShell title="Product"><RestrictedNotice message="This product does not exist." /><div className="mt-4 text-center"><Button variant="outline" asChild><Link to="/products"><ArrowLeft className="size-4" />Back to products</Link></Button></div></AppShell>;
 
   const month = monthOf(db.tenant.referenceDate);
@@ -58,17 +60,17 @@ export function ProductDetailPage({ productId }: { productId: string }) {
         <Panel className="overflow-hidden" title="Inventory overview" subtitle="Stock by branch, from inventory records">
           {inventory.length ? <>
             <div className="hidden overflow-x-auto sm:block"><table className="w-full min-w-[520px] text-left">
-              <thead><tr className="text-[10px] uppercase text-muted-foreground"><th className="px-5 py-3">Branch</th><th className="px-5 py-3 text-right">On hand</th><th className="px-5 py-3 text-right">Reserved</th><th className="px-5 py-3 text-right">Available</th><th className="px-5 py-3">Status</th></tr></thead>
+              <thead><tr className="text-[10px] uppercase text-muted-foreground"><th className="px-5 py-3">Branch</th><th className="px-5 py-3 text-right">On hand</th><th className="px-5 py-3 text-right">Available</th><th className="px-5 py-3">Status</th></tr></thead>
               <tbody>{inventory.map((r) => (
                 <tr key={r.record.id} className="border-t border-border text-xs">
                   <td className="px-5 py-3 font-bold"><Link to="/inventory/$inventoryId" params={{ inventoryId: r.record.id }} className="hover:text-primary">{r.branch.name}</Link>{r.branch.status === "inactive" && <span className="ml-2 text-[10px] text-muted-foreground">(inactive)</span>}</td>
-                  <td className="px-5 py-3 text-right">{formatNumber(r.record.quantityOnHand)}</td><td className="px-5 py-3 text-right text-muted-foreground">{formatNumber(r.record.quantityReserved)}</td>
+                  <td className="px-5 py-3 text-right">{formatNumber(r.record.quantityOnHand)}</td>
                   <td className="px-5 py-3 text-right font-bold">{formatNumber(r.available)}</td><td className="px-5 py-3"><StockStatusBadge status={r.status} /></td>
                 </tr>))}</tbody>
             </table></div>
             <div className="divide-y divide-border sm:hidden">{inventory.map((r) => (
               <Link key={r.record.id} to="/inventory/$inventoryId" params={{ inventoryId: r.record.id }} className="flex items-center justify-between gap-3 p-4 text-xs">
-                <div><p className="font-bold">{r.branch.name}</p><p className="mt-0.5 text-muted-foreground">{r.record.quantityOnHand} on hand · {r.record.quantityReserved} reserved</p></div>
+                <div><p className="font-bold">{r.branch.name}</p><p className="mt-0.5 text-muted-foreground">{r.record.quantityOnHand} on hand</p></div>
                 <div className="text-right"><p className="font-bold">{formatNumber(r.available)}</p><StockStatusBadge status={r.status} /></div>
               </Link>))}</div>
           </> : <EmptyState title="No inventory records found for this product." detail="Add stock from Inventory to create one." />}

@@ -5,7 +5,8 @@ import { BadgeCheck, Boxes, CircleDollarSign, ClipboardList, Wallet } from "luci
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { EmptyState, MetricCard, Panel } from "@/components/shared";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { DataGate } from "@/components/shared";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getApprovals } from "@/lib/approvals";
 import {
@@ -16,11 +17,23 @@ import {
 import { monthOf } from "@/lib/dates";
 import { formatCompactNaira, formatPercent } from "@/lib/format";
 import { getManagerPaymentSummary, getPaymentsForScope } from "@/lib/payment-calculations";
-import { canReviewApproval } from "@/services/services";
+import { canReviewApproval } from "@/lib/approvals";
 
 /** Branch-scoped Manager overview, derived from shared sales and payment records. */
+/** Waits for Supabase data (real loading and error states), then renders the screen. */
 export function ManagerDashboard() {
-  const db = useDb();
+  const { isLoading, error } = useLiveWorkspace({ batches: true });
+  if (isLoading || error)
+    return (
+      <AppShell title="Branch overview">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
+  return <ManagerDashboardContent />;
+}
+
+function ManagerDashboardContent() {
+  const { db } = useLiveWorkspace({ batches: true });
   const scope = getAccessScope(db, useCurrentUserId());
   const today = db.tenant.referenceDate;
   const month = monthOf(today);
@@ -50,7 +63,7 @@ export function ManagerDashboard() {
       subtitle="Branch revenue, collections and items needing your attention"
     >
       <div className="mb-5">
-        <h1 className="text-xl font-bold">Good morning, {scope.user.name.split(" ")[0]}</h1>
+        <h1 className="text-xl font-bold">Good morning, {(scope.user.name ?? "").split(" ")[0]}</h1>
         <p className="mt-1 text-xs text-muted-foreground">
           {branch.name} · {branch.location}
         </p>

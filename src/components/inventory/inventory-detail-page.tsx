@@ -4,17 +4,17 @@ import { ArrowLeft, Plus, SlidersHorizontal } from "lucide-react";
 
 import { AppShell, RestrictedNotice } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { DetailItem, EmptyState, Panel, RequestStatusBadge, StockStatusBadge } from "@/components/shared";
+import { DataGate, DetailItem, EmptyState, Panel, RequestStatusBadge, StockStatusBadge } from "@/components/shared";
 import { AddStockDialog } from "@/components/inventory/add-stock-dialog";
 import { AdjustStockDialog } from "@/components/inventory/adjust-stock-dialog";
 import { MovementList } from "@/components/inventory/movement-list";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { canSeeBranch, getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getInventoryMovements, getInventoryRows, getStockRequests, isRequestOpen, resolveInventory } from "@/lib/inventory-calculations";
 import { formatDayTime, formatNaira, formatNumber, formatUnits } from "@/lib/format";
 
 export function InventoryDetailPage({ inventoryId }: { inventoryId: string }) {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace({ movements: true });
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const [addOpen, setAddOpen] = useState(false);
@@ -22,6 +22,9 @@ export function InventoryDetailPage({ inventoryId }: { inventoryId: string }) {
   const record = db.inventory.find((i) => i.id === inventoryId);
   const row = record ? resolveInventory(db, record) : null;
 
+  if (isLoading || error) {
+    return <AppShell title="Inventory item"><DataGate isLoading={isLoading} error={error}>{null}</DataGate></AppShell>;
+  }
   if (!row || !canSeeBranch(scope, row.branch.id)) {
     return <AppShell title="Inventory item"><RestrictedNotice message={row ? "This inventory belongs to a branch outside your access." : "This inventory record does not exist."} /><div className="mt-4 text-center"><Button variant="outline" asChild><Link to="/inventory"><ArrowLeft className="size-4" />Back to inventory</Link></Button></div></AppShell>;
   }
@@ -41,9 +44,8 @@ export function InventoryDetailPage({ inventoryId }: { inventoryId: string }) {
 
       <section className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
         <Panel title="Current stock" subtitle={`Last updated ${formatDayTime(row.record.lastUpdated, db.tenant.referenceDate)}`}>
-          <div className="grid grid-cols-2 gap-5 p-5 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-5 p-5 sm:grid-cols-3">
             <DetailItem label="On hand"><span className="text-2xl font-bold">{formatNumber(row.record.quantityOnHand)}</span></DetailItem>
-            <DetailItem label="Reserved"><span className="text-2xl font-bold text-muted-foreground">{row.record.quantityReserved}</span></DetailItem>
             <DetailItem label="Available"><span className="text-2xl font-bold text-primary">{formatNumber(available)}</span></DetailItem>
             <DetailItem label="Low-stock threshold"><span className="text-2xl font-bold">{row.record.lowStockThreshold}</span></DetailItem>
           </div>
@@ -86,7 +88,7 @@ export function InventoryDetailPage({ inventoryId }: { inventoryId: string }) {
       </section>
 
       <AddStockDialog open={addOpen} onOpenChange={setAddOpen} scope={scope} defaults={{ branchId: branch.id, productId: product.id }} />
-      <AdjustStockDialog record={adjustOpen ? row.record : null} productName={product.name} onClose={() => setAdjustOpen(false)} actorId={userId} />
+      <AdjustStockDialog record={adjustOpen ? row.record : null} productName={product.name} onClose={() => setAdjustOpen(false)} />
     </AppShell>
   );
 }

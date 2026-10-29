@@ -1,30 +1,21 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Check, Copy, FileText, Loader2, Upload, X } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, FileText, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { FieldError, FilterSelect } from "@/components/shared";
 import { copyText } from "@/components/team/onboarding-panel";
 import {
   CREDENTIAL_MAX_BYTES, DECLARATION_TEXT, guarantorStatusLabel, NIGERIAN_BANKS, PHOTO_MAX_BYTES,
-  type EmployeeData, type EmployeeField, type StoredFile,
+  type EmployeeData, type EmployeeField, type Onboarding, type StoredFile,
 } from "@/data/onboarding";
 import { formatDate } from "@/lib/format";
-import { findOnboardingByToken, guarantorUrl, isMarried, needsSecondContact, onboardingLinkState, ONBOARDING_STEPS, validateStep, type StepErrors } from "@/lib/onboarding";
-import { useDb } from "@/services/mock-store";
-import { onboardingService } from "@/services/services";
-
-function readFile(file: File): Promise<StoredFile> {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res({ name: file.name, type: file.type, size: file.size, dataUrl: String(r.result) });
-    r.onerror = rej;
-    r.readAsDataURL(file);
-  });
-}
+import { guarantorUrl, isMarried, needsSecondContact, onboardingLinkState, ONBOARDING_STEPS, validateStep, type StepErrors } from "@/lib/onboarding";
+import { onboardingService } from "@/services/onboarding-service";
 
 export function PublicFrame({ children, title, subtitle }: { children: ReactNode; title: string; subtitle?: string }) {
   return (
@@ -47,9 +38,29 @@ export function InvalidLink({ message }: { message: string }) {
   return <PublicFrame title="Link unavailable"><div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">{message}</div></PublicFrame>;
 }
 
+/** Password field with a show / hide toggle. */
+function PasswordInput({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (v: string) => void }) {
+  const [shown, setShown] = useState(false);
+  return (
+    <div>
+      <Label htmlFor={id} className="text-xs">{label} *</Label>
+      <div className="relative mt-1.5">
+        <Input id={id} type={shown ? "text" : "password"} autoComplete="new-password" value={value} onChange={(e) => onChange(e.target.value)} className="h-10 pr-10" />
+        <button type="button" onClick={() => setShown(!shown)} aria-label={shown ? "Hide password" : "Show password"} aria-pressed={shown}
+          className="absolute inset-y-0 right-0 grid w-10 place-items-center text-muted-foreground hover:text-foreground">
+          {shown ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const emptyGuarantorAnswers = { yearsKnown: "", relationship: "", character: "", comments: "", signature: "", signedDate: "" };
+
 export function OnboardingFormPage({ token }: { token: string }) {
-  const db = useDb();
-  const o = findOnboardingByToken(db, token);
+  const [o, setO] = useState<Onboarding | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [now, setNow] = useState<string | null>(null);
   const [data, setData] = useState<EmployeeData | null>(null);
   const [step, setStep] = useState(0);
@@ -57,17 +68,55 @@ export function OnboardingFormPage({ token }: { token: string }) {
   const [saving, setSaving] = useState(false);
   const [pw, setPw] = useState({ pw: "", confirm: "" });
   const [done, setDone] = useState(false);
-  useEffect(() => setNow(new Date().toISOString()), []);
-  useEffect(() => { if (o && !data) { setData(o.data); setStep(Math.min(o.step, 5)); } }, [o, data]);
+  // Set when Submit sends the member back to fix one earlier step: saving that step
+  // returns straight to the final step instead of walking through the steps between.
+  const [returnTo, setReturnTo] = useState<number | null>(null);
+  // Guarantor form: sent to the guarantor as a link, or filled in here on their behalf.
+  const [guarantorMode, setGuarantorMode] = useState<"link" | "behalf">("link");
+  const [gAnswers, setGAnswers] = useState(emptyGuarantorAnswers);
+  const [gError, setGError] = useState("");
 
-  if (!now) return <PublicFrame title="Loading…"><Loader2 className="size-5 animate-spin" /></PublicFrame>;
-  if (done) return <PublicFrame title="Thank you!" subtitle="Your onboarding form has been submitted."><div className="rounded-lg border border-border bg-card p-6 text-sm">This link can no longer be used. Once the Owner reviews your details and your guarantor, your account is activated and you can sign in with your email and the password you just set.</div></PublicFrame>;
-  const state = onboardingLinkState(o, now);
-  if (state !== "valid" || !o) return <InvalidLink message={state === "expired" ? "This onboarding link has expired. Ask the Owner for a new one." : state === "used" ? "This form has already been submitted." : state === "revoked" ? "This link was revoked. Ask the Owner for a new one." : "This onboarding link is not valid. (Demo: links only work in the browser session where they were created.)"} />;
-  if (!data) return null;
+  useEffect(() => setNow(new Date().toISOString()), []);
+  // Load the invite from Supabase by the raw token (hashed server-side by the RPC).
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      const loaded = await onboardingService.getInviteByToken(token);
+      if (!active) return;
+      if (!loaded) {
+        setLoadError("This onboarding link is not valid, has expired, or has already been used.");
+        setLoading(false);
+        return;
+      }
+      setO(loaded);
+      setData(loaded.data);
+      setStep(Math.min(loaded.step, 5));
+      setLoading(false);
+    })();
+    return () => { active = false; };
+  }, [token]);
+
+  if (loading || !now) return <PublicFrame title="Loading…"><Loader2 className="size-5 animate-spin" /></PublicFrame>;
+  if (loadError) return <InvalidLink message={loadError} />;
+  if (done) return <PublicFrame title="Thank you!" subtitle="Your onboarding form has been submitted."><div className="rounded-lg border border-border bg-card p-6 text-sm">{o?.passwordSet
+    ? "Your corrections were sent to the Owner for review. Once approved, you can sign in with your email and the password you set before."
+    : "We've sent a confirmation email to your inbox — open it and confirm your email address (check spam if you don't see it). Your account is now waiting for the Owner to review your details and your guarantor. Once approved, you can sign in with your email and the password you just set."}</div></PublicFrame>;
+
+  const state = onboardingLinkState(o ? {
+    tokenRevoked: o.tokenRevoked,
+    tokenUsed: o.tokenUsed,
+    tokenExpiresAt: o.tokenExpiresAt,
+    status: o.status
+  } : undefined, now);
+  if (state !== "valid" || !o || !data) return <InvalidLink message={state === "expired" ? "This onboarding link has expired. Ask the Owner for a new one." : state === "used" ? "This form has already been submitted." : state === "revoked" ? "This link was revoked. Ask the Owner for a new one." : "This onboarding link is not valid."} />;
+
   const d = data;
   const set = (k: EmployeeField, v: string) => setData({ ...d, [k]: v });
-  const user = db.users.find((u) => u.id === o.userId);
+  const refreshOnboarding = async () => {
+    const fresh = await onboardingService.getInviteByToken(token);
+    if (fresh) setO(fresh);
+  };
 
   const F = ({ k, label, type = "text", required = true, placeholder, inputMode }: { k: EmployeeField; label: string; type?: string; required?: boolean; placeholder?: string; inputMode?: "numeric" | "tel" | "email" }) => (
     <div><Label htmlFor={k} className="text-xs">{label}{required ? " *" : ""}</Label><Input id={k} type={type} inputMode={inputMode} value={d[k]} placeholder={placeholder} onChange={(e) => set(k, e.target.value)} className="mt-1.5 h-10" aria-invalid={!!errors[k]} /><FieldError message={errors[k]} /></div>
@@ -87,34 +136,93 @@ export function OnboardingFormPage({ token }: { token: string }) {
   async function next() {
     const e = validateStep(o!, d, step);
     setErrors(e);
-    if (Object.keys(e).length) { toast.error("Please fix the highlighted fields"); return; }
+    if (Object.keys(e).length) {
+      const labels: Partial<Record<keyof StepErrors, string>> = {
+        lastName: "Last name", firstName: "First name", address: "Residential address",
+        gender: "Gender", birthDate: "Date of birth", maritalStatus: "Marital status",
+        nationality: "Nationality", stateOfOrigin: "State of origin", lga: "LGA",
+        phone: "Phone", email: "Email", preferredEmailId: "Preferred email ID",
+      };
+      const details = Object.entries(e)
+        .map(([field, message]) => `${labels[field as keyof StepErrors] ?? field}: ${message}`)
+        .join(" · ");
+      toast.error("Please correct the highlighted fields", { description: details });
+      return;
+    }
     setSaving(true);
-    const r = await onboardingService.saveProgress(token, d, step + 1);
+    const target = returnTo ?? step + 1;
+    const r = await onboardingService.saveProgress(token, d, Math.max(target, o!.step));
     setSaving(false);
     if (!r.ok) { toast.error(r.errors.form ?? "Could not save"); return; }
-    setStep(step + 1);
+    setO(r.data);
+    setReturnTo(null);
+    setStep(target);
     window.scrollTo({ top: 0 });
   }
   async function onPhoto(file?: File) {
     if (!file) return;
-    if (!file.type.startsWith("image/")) { setErrors({ photo: "Upload an image (JPG or PNG)" }); return; }
-    if (file.size > PHOTO_MAX_BYTES) { setErrors({ photo: "Photo must be 2 MB or smaller" }); return; }
-    const f = await readFile(file);
     setErrors({});
-    await onboardingService.saveProgress(token, d, step, { photo: f });
+    if (!file.type.startsWith("image/")) { setErrors({ photo: "Upload an image (JPG or PNG)" } as StepErrors); return; }
+    if (file.size > PHOTO_MAX_BYTES) { setErrors({ photo: "Photo must be 4 MB or smaller" } as StepErrors); return; }
+    setSaving(true);
+    const r = await onboardingService.uploadPhoto(token, o!.id, file);
+    setSaving(false);
+    if (!r.ok) { setErrors({ photo: r.errors.form } as StepErrors); return; }
+    setO({ ...o!, photo: r.data });
+    toast.success("Photo uploaded");
   }
   async function onCredentials(files: FileList | null) {
     if (!files?.length) return;
-    const ok: StoredFile[] = [];
+    const added: StoredFile[] = [];
     for (const file of Array.from(files)) {
       if (!(file.type.startsWith("image/") || file.type === "application/pdf")) { toast.error(`${file.name}: images or PDF only`); continue; }
       if (file.size > CREDENTIAL_MAX_BYTES) { toast.error(`${file.name}: must be 5 MB or smaller`); continue; }
-      ok.push(await readFile(file));
+      setSaving(true);
+      const r = await onboardingService.uploadCredential(token, o!.id, file);
+      setSaving(false);
+      if (!r.ok) { toast.error(r.errors.form); continue; }
+      added.push(r.data);
     }
-    if (ok.length) await onboardingService.saveProgress(token, d, step, { credentials: [...o!.credentials, ...ok] });
+    if (added.length) setO({ ...o!, credentials: [...o!.credentials, ...added] });
+  }
+  async function removeCredential(idx: number) {
+    const f = o!.credentials[idx];
+    if (!f) return;
+    if (!f.id || !f.path) { toast.error("This file can't be removed right now. Reload the page and try again."); return; }
+    setSaving(true);
+    const r = await onboardingService.removeFile(token, f.id, f.path);
+    setSaving(false);
+    if (!r.ok) { toast.error(r.errors.form ?? "Could not remove the file"); return; }
+    setO({ ...o!, credentials: o!.credentials.filter((_, j) => j !== idx) });
+    toast.success("File removed");
   }
   async function submit() {
-    const e = validateStep(o!, d, 5, pw);
+    // Earlier steps were checked when the member left them; if one is still
+    // incomplete (e.g. an older saved draft), open that step with the fields
+    // highlighted and come back here once it is saved.
+    for (let s = 0; s < 5; s++) {
+      const earlier = validateStep(o!, d, s);
+      if (Object.keys(earlier).length) {
+        setErrors(earlier);
+        setReturnTo(5);
+        setStep(s);
+        window.scrollTo({ top: 0 });
+        toast.error(`Step ${s + 1} (${ONBOARDING_STEPS[s]}) needs a correction`, { description: "Fix the highlighted fields, then use “Save & return to submit”." });
+        return;
+      }
+    }
+    // The guarantor may have answered through their link since this page loaded.
+    const fresh = await onboardingService.getInviteByToken(token);
+    if (fresh) setO(fresh);
+    if ((fresh ?? o!).guarantorStatus !== "completed") {
+      setReturnTo(5);
+      setStep(3);
+      window.scrollTo({ top: 0 });
+      toast.error("Your guarantor form is not complete yet", { description: "Send the link to your guarantor and wait for their response, or fill it in on their behalf." });
+      return;
+    }
+    // After a corrections request the account already exists: no new password.
+    const e = validateStep(o!, d, 5, o!.passwordSet ? undefined : pw);
     setErrors(e);
     if (Object.keys(e).length) return;
     setSaving(true);
@@ -124,19 +232,41 @@ export function OnboardingFormPage({ token }: { token: string }) {
     setPw({ pw: "", confirm: "" });
     setDone(true);
   }
+  async function fillGuarantorOnBehalf() {
+    const e = validateStep(o!, d, 3);
+    setErrors(e);
+    if (Object.keys(e).length) { setGError("Complete the guarantor's details above first."); return; }
+    const g = gAnswers;
+    if (!g.yearsKnown.trim() || !g.relationship.trim() || !g.character.trim() || g.signature.trim().length < 3 || !g.signedDate) {
+      setGError("Answer every required question, then sign and date the form.");
+      return;
+    }
+    setGError("");
+    setSaving(true);
+    const saved = await onboardingService.saveProgress(token, d, Math.max(step, o!.step));
+    const r = saved.ok ? await onboardingService.submitGuarantorOnBehalf(token, g) : saved;
+    setSaving(false);
+    if (!r.ok) { setGError(r.errors.form ?? "Could not save the guarantor form"); return; }
+    setO(r.data);
+    setGAnswers(emptyGuarantorAnswers);
+    toast.success("Guarantor form saved");
+  }
   async function sendGuarantor() {
     const e = validateStep(o!, d, 3);
     setErrors(e);
     if (Object.keys(e).length) return;
     await onboardingService.saveProgress(token, d, step);
-    const r = await onboardingService.sendGuarantorLink(token);
-    if (!r.ok) { setErrors(r.errors); return; }
+    const r = await onboardingService.sendGuarantor(token);
+    if (!r.ok) { setErrors(r.errors); toast.error(r.errors.form ?? "Could not create the guarantor link"); return; }
+    await refreshOnboarding();
     toast.success("Guarantor link ready — copy it and send it to your guarantor");
   }
 
+  const welcomeName = d.firstName ? `${d.firstName}` : "new team member";
+
   return (
-    <PublicFrame title={`Welcome, ${user?.name ?? "new team member"}`} subtitle="Complete your employee data form. Your progress is saved each time you continue.">
-      {o.correctionNote && <p className="mb-4 rounded-md border border-border bg-muted/40 p-3 text-xs"><b>The Owner asked for corrections:</b> {o.correctionNote}</p>}
+    <PublicFrame title={`Welcome, ${welcomeName}`} subtitle="Complete your employee data form. Your progress is saved each time you continue.">
+      {o.correctionNote && <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs"><p><b>The Owner asked for corrections:</b> {o.correctionNote}</p><p className="mt-1 text-muted-foreground">Your earlier answers are kept. Use the step bar or Back to open the step to fix, save it, then submit again from the last step.</p></div>}
       <ol className="mb-5 flex gap-1.5" aria-label="Progress">
         {ONBOARDING_STEPS.map((s, i) => (
           <li key={s} className="flex-1"><button type="button" disabled={i > o.step} onClick={() => setStep(i)} className={`h-1.5 w-full rounded-full ${i <= step ? "bg-primary" : "bg-muted"}`} aria-label={s} /></li>
@@ -157,7 +287,8 @@ export function OnboardingFormPage({ token }: { token: string }) {
             {F({ k: "stateOfOrigin", label: "State of origin" })}
             {F({ k: "lga", label: "LGA" })}
           </div>
-          {F({ k: "preferredEmailId", label: "Preferred company e-mail name ID", required: false, placeholder: "e.g. ngozi.umeh" })}
+          {/* Company e-mail ID is generated as firstname.surname when the form is saved (companyEmailId).
+          {F({ k: "preferredEmailId", label: "Preferred company e-mail name ID", required: false, placeholder: "e.g. ngozi.umeh" })} */}
         </>}
         {step === 1 && <>
           <p className="text-xs font-semibold">Job details (set by the Owner)</p>
@@ -190,17 +321,45 @@ export function OnboardingFormPage({ token }: { token: string }) {
           <div className="grid gap-3 sm:grid-cols-2">{F({ k: "guarantorFirstName", label: "First name" })}{F({ k: "guarantorSurname", label: "Surname" })}</div>
           {F({ k: "guarantorAddress", label: "Residential / office address" })}
           <div className="grid gap-3 sm:grid-cols-2">{F({ k: "guarantorEmail", label: "Email", type: "email" })}{F({ k: "guarantorPhone", label: "Phone", type: "tel" })}</div>
-          <div className="rounded-md border border-border p-3">
-            <p className="text-xs">Guarantor form: <b>{guarantorStatusLabel[o.guarantorStatus]}</b></p>
-            {o.guarantorToken ? (
-              <div className="mt-2 flex gap-2"><Input readOnly value={guarantorUrl(o.guarantorToken)} className="h-9 font-mono text-xs" /><Button type="button" size="sm" variant="outline" onClick={() => copyText(guarantorUrl(o.guarantorToken!), "Guarantor link copied")}><Copy className="size-4" />Copy</Button></div>
-            ) : <Button type="button" size="sm" variant="outline" className="mt-2" onClick={sendGuarantor}>Create guarantor link</Button>}
+          <div className="space-y-3 rounded-md border border-border p-3">
+            <p className="text-xs">Guarantor form *: <b>{guarantorStatusLabel[o.guarantorStatus]}</b>
+              {o.guarantorStatus === "completed" && o.guarantorResponse?.filledBy === "staff" && " (filled in by you on your guarantor's behalf)"}
+            </p>
+            {o.guarantorStatus !== "completed" && <>
+              <p className="text-[11px] text-muted-foreground">Required before you can submit. Choose how it is completed:</p>
+              <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="How the guarantor form is completed">
+                {([["link", "Send a link to my guarantor"], ["behalf", "Fill it in on their behalf"]] as const).map(([mode, label]) => (
+                  <button key={mode} type="button" role="radio" aria-checked={guarantorMode === mode} onClick={() => { setGuarantorMode(mode); setGError(""); }}
+                    className={`rounded-md border px-3 py-2 text-left text-xs font-semibold ${guarantorMode === mode ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>{label}</button>
+                ))}
+              </div>
+              {guarantorMode === "link" ? (
+                o.guarantorToken ? <>
+                  <div className="flex gap-2"><Input readOnly value={guarantorUrl(o.guarantorToken)} className="h-9 font-mono text-xs" /><Button type="button" size="sm" variant="outline" onClick={() => copyText(guarantorUrl(o.guarantorToken!), "Guarantor link copied")}><Copy className="size-4" />Copy</Button></div>
+                  <p className="text-[11px] text-muted-foreground">Send this link to your guarantor. You can continue your form meanwhile and submit once they have responded.</p>
+                </> : <Button type="button" size="sm" variant="outline" onClick={sendGuarantor}>Create guarantor link</Button>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-[11px] text-muted-foreground">Answer as your guarantor would. The Owner will see that you filled this in on their behalf.</p>
+                  <div><Label htmlFor="gYears" className="text-xs">How long has the guarantor known you? *</Label><Input id="gYears" value={gAnswers.yearsKnown} placeholder="e.g. 6 years" onChange={(e) => setGAnswers({ ...gAnswers, yearsKnown: e.target.value })} className="mt-1.5 h-10" /></div>
+                  <div><Label htmlFor="gRel" className="text-xs">Nature of relationship *</Label><Textarea id="gRel" rows={2} value={gAnswers.relationship} onChange={(e) => setGAnswers({ ...gAnswers, relationship: e.target.value })} className="mt-1.5" /></div>
+                  <div><Label htmlFor="gChar" className="text-xs">Description of your character *</Label><Textarea id="gChar" rows={2} value={gAnswers.character} onChange={(e) => setGAnswers({ ...gAnswers, character: e.target.value })} className="mt-1.5" /></div>
+                  <div><Label htmlFor="gCom" className="text-xs">Additional comments</Label><Textarea id="gCom" rows={2} value={gAnswers.comments} onChange={(e) => setGAnswers({ ...gAnswers, comments: e.target.value })} className="mt-1.5" /></div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div><Label htmlFor="gSig" className="text-xs">Guarantor's full name as signature *</Label><Input id="gSig" value={gAnswers.signature} onChange={(e) => setGAnswers({ ...gAnswers, signature: e.target.value })} className="mt-1.5 h-10" /></div>
+                    <div><Label htmlFor="gDate" className="text-xs">Date *</Label><Input id="gDate" type="date" value={gAnswers.signedDate} onChange={(e) => setGAnswers({ ...gAnswers, signedDate: e.target.value })} className="mt-1.5 h-10" /></div>
+                  </div>
+                  <Button type="button" size="sm" onClick={fillGuarantorOnBehalf} disabled={saving}>{saving && <Loader2 className="size-4 animate-spin" />}Save guarantor form</Button>
+                </div>
+              )}
+              <FieldError message={gError} />
+            </>}
           </div>
         </>}
         {step === 4 && <>
           <div>
             <p className="text-xs font-semibold">Passport photograph *</p>
-            <p className="text-[11px] text-muted-foreground">Clear background showing your full face. Image only, up to 2 MB.</p>
+            <p className="text-[11px] text-muted-foreground">Clear background showing your full face. Image only, up to 4 MB.</p>
             <div className="mt-2 flex items-center gap-4">
               {o.photo ? <img src={o.photo.dataUrl} alt="Your passport photograph" className="size-28 rounded-md border border-border object-cover" /> : <div className="grid size-28 place-items-center rounded-md border border-dashed border-border text-[11px] text-muted-foreground">No photo</div>}
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-semibold"><Upload className="size-4" />{o.photo ? "Replace" : "Upload"}<input type="file" accept="image/*" className="sr-only" onChange={(e) => onPhoto(e.target.files?.[0])} /></label>
@@ -212,7 +371,7 @@ export function OnboardingFormPage({ token }: { token: string }) {
             <p className="text-[11px] text-muted-foreground">Images or PDF, up to 5 MB each. You can add several.</p>
             <ul className="mt-2 space-y-1">{o.credentials.map((f, i) => (
               <li key={i} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs"><span className="flex items-center gap-2 truncate"><FileText className="size-4 shrink-0" />{f.name}</span>
-                <button type="button" aria-label={`Remove ${f.name}`} onClick={() => onboardingService.saveProgress(token, d, step, { credentials: o.credentials.filter((_, j) => j !== i) })}><X className="size-4" /></button></li>
+                <button type="button" aria-label={`Remove ${f.name}`} onClick={() => removeCredential(i)} disabled={saving}><X className="size-4" /></button></li>
             ))}</ul>
             <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-semibold"><Upload className="size-4" />Add files<input type="file" multiple accept="image/*,application/pdf" className="sr-only" onChange={(e) => { onCredentials(e.target.files); e.target.value = ""; }} /></label>
           </div>
@@ -222,18 +381,22 @@ export function OnboardingFormPage({ token }: { token: string }) {
           <label className="flex items-start gap-2 text-sm"><Checkbox checked={d.declarationAccepted === "yes"} onCheckedChange={(c) => set("declarationAccepted", c ? "yes" : "")} className="mt-0.5" />I accept this declaration *</label>
           <FieldError message={errors.declarationAccepted} />
           <div className="grid gap-3 sm:grid-cols-2">{F({ k: "signature", label: "Signature (type your full name)" })}{F({ k: "signedDate", label: "Date", type: "date" })}</div>
-          <p className="pt-2 text-xs font-semibold">Set your account password</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div><Label htmlFor="pw" className="text-xs">Password *</Label><Input id="pw" type="password" autoComplete="new-password" value={pw.pw} onChange={(e) => setPw({ ...pw, pw: e.target.value })} className="mt-1.5 h-10" /></div>
-            <div><Label htmlFor="pw2" className="text-xs">Confirm password *</Label><Input id="pw2" type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} className="mt-1.5 h-10" /></div>
-          </div>
+          {o.passwordSet ? (
+            <p className="pt-2 text-xs text-muted-foreground">Your account already exists — keep using the password you set before.</p>
+          ) : <>
+            <p className="pt-2 text-xs font-semibold">Set your account password</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <PasswordInput id="pw" label="Password" value={pw.pw} onChange={(v) => setPw({ ...pw, pw: v })} />
+              <PasswordInput id="pw2" label="Confirm password" value={pw.confirm} onChange={(v) => setPw({ ...pw, confirm: v })} />
+            </div>
+          </>}
           <FieldError message={errors.password} />
           <FieldError message={errors.form} />
         </>}
       </div>
       <div className="mt-4 flex justify-between gap-2">
-        <Button variant="outline" disabled={step === 0} onClick={() => setStep(step - 1)}>Back</Button>
-        {step < 5 ? <Button onClick={next} disabled={saving}>{saving && <Loader2 className="size-4 animate-spin" />}Save & continue</Button>
+        <Button variant="outline" disabled={step === 0} onClick={() => { setReturnTo(null); setStep(step - 1); }}>Back</Button>
+        {step < 5 ? <Button onClick={next} disabled={saving}>{saving && <Loader2 className="size-4 animate-spin" />}{returnTo !== null ? "Save & return to submit" : "Save & continue"}</Button>
           : <Button onClick={submit} disabled={saving}>{saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}Submit form</Button>}
       </div>
     </PublicFrame>

@@ -14,8 +14,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FieldError, FilterSelect } from "@/components/shared";
-import { useDb } from "@/services/mock-store";
-import { salesService, type FieldErrors } from "@/services/services";
+import type { Db } from "@/data/mock-db";
+import { useBulkCreateSales } from "@/hooks/use-sales";
+import type { FieldErrors } from "@/lib/validation";
 import type { AccessScope } from "@/lib/session";
 import { formatNaira, formatUnits } from "@/lib/format";
 import { getAvailableStock } from "@/lib/inventory-calculations";
@@ -30,14 +31,16 @@ export function RecordSaleDialog({
   scope,
   defaultBranchId,
   presetCustomerId,
+  db,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   scope: AccessScope;
   defaultBranchId?: string | undefined;
   presetCustomerId?: string | undefined;
+  db: Db;
 }) {
-  const db = useDb();
+  const createSales = useBulkCreateSales();
   const [branchId, setBranchId] = useState("");
   const [saleDate, setSaleDate] = useState("");
   const [lines, setLines] = useState<Line[]>([
@@ -98,27 +101,66 @@ export function RecordSaleDialog({
       setErrors({ customerId: "Choose a customer" });
       return;
     }
-    setSaving(true);
-    const result = await salesService.recordMany(
-      lines.map((line) => ({
-        branchId,
-        salesRepId: scope.repId ?? scope.user.id,
-        productId: line.productId,
-        quantity: Number(line.quantity),
-        unitPrice: Number(line.unitPrice),
-        saleDate,
-      })),
-      scope.user.id,
-      saleType === "customer" ? { customerId } : { walkInName, walkInPhone },
-    );
-    setSaving(false);
-    if (!result.ok) {
-      setErrors(result.errors);
-      toast.error("Please fix the highlighted fields");
+    const itemErrors: NonNullable<FieldErrors["itemErrors"]> = {};
+    const requiredWalkInName = walkInName.trim();
+    let requestedByItem = new Map<string, number>();
+    lines.forEach((line, index) => {
+      if (!line.productId) (itemErrors[index] ??= {}).productId = "Choose a product";
+      const quantity = Number(line.quantity);
+      if (!Number.isInteger(quantity) || quantity <= 0) (itemErrors[index] ??= {}).quantity = "Enter a whole quantity above zero";
+      const product = db.products.find((candidate) => candidate.id === line.productId && candidate.status === "active");
+      if (!product) (itemErrors[index] ??= {}).productId = "Choose an active product";
+      if (product && (!Number.isFinite(product.unitPrice) || product.unitPrice < 0)) (itemErrors[index] ??= {}).quantity = "Product price is invalid";
+      if (product && Number.isInteger(quantity) && quantity > 0) {
+        const key = `${branchId}:${product.id}`;
+        const requested = (requestedByItem.get(key) ?? 0) + quantity;
+        requestedByItem.set(key, requested);
+        const available = getAvailableStock(db, product.id, branchId);
+        if (requested > available) (itemErrors[index] ??= {}).quantity = `Insufficient stock — ${available} available for all lines`;
+      }
+    });
+    if (saleType === "walk_in" && !requiredWalkInName) {
+      setErrors({ walkInName: "Enter the walk-in customer's name", itemErrors });
+      toast.error("Enter the walk-in customer's name");
       return;
     }
+    if (!branchId || !db.branches.some((branch) => branch.id === branchId && branch.status === "active")) {
+      setErrors({ branchId: "Choose an active branch", itemErrors });
+      toast.error("Choose an active branch");
+      return;
+    }
+    if (Object.keys(itemErrors).length) {
+      setErrors({ itemErrors, items: "Review the highlighted sale items" });
+      toast.error("Please fix the highlighted sale items");
+      return;
+    }
+    setSaving(true);
+    const orderId = globalThis.crypto.randomUUID();
+    try {
+      await createSales.mutateAsync(lines.map((line) => {
+        const product = db.products.find((candidate) => candidate.id === line.productId)!;
+        return {
+          branchId,
+          salesRepId: scope.repId ?? scope.user.id,
+          productId: product.id,
+          quantity: Number(line.quantity),
+          unitPrice: product.unitPrice,
+          saleDate,
+          orderId,
+          status: "completed" as const,
+          ...(saleType === "customer" ? { customerId } : { walkInName: requiredWalkInName, walkInPhone: walkInPhone.trim() }),
+        };
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not record sale";
+      setErrors({ form: message });
+      toast.error(message);
+      setSaving(false);
+      return;
+    }
+    setSaving(false);
     toast.success(
-      `${result.data.length} sale item${result.data.length === 1 ? "" : "s"} recorded`,
+      `${lines.length} sale item${lines.length === 1 ? "" : "s"} recorded`,
       { description: `${formatNaira(total)} added to revenue` },
     );
     onOpenChange(false);
@@ -166,14 +208,16 @@ export function RecordSaleDialog({
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="walkin-name" className="text-xs">
-                  Buyer name (optional)
+                  Buyer name *
                 </Label>
                 <Input
                   id="walkin-name"
                   className="mt-1.5 h-9"
                   value={walkInName}
                   onChange={(e) => setWalkInName(e.target.value)}
+                  aria-invalid={!!errors.walkInName}
                 />
+                <FieldError message={errors.walkInName} />
               </div>
               <div>
                 <Label htmlFor="walkin-phone" className="text-xs">

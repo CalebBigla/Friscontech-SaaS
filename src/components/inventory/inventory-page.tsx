@@ -6,12 +6,12 @@ import { NearestExpiryBadge } from "@/components/expiry/expiry-widgets";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ALL, EmptyState, FilterSelect, MetricCard, Panel, SearchBox, StockStatusBadge } from "@/components/shared";
+import { ALL, DataGate, EmptyState, FilterSelect, MetricCard, Panel, SearchBox, StockStatusBadge } from "@/components/shared";
 import { AddStockDialog } from "@/components/inventory/add-stock-dialog";
 import { AdjustStockDialog } from "@/components/inventory/adjust-stock-dialog";
 import { MovementsSheet } from "@/components/inventory/movements-sheet";
 import type { InventoryRecord } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getInventoryRows, getInventorySummary, type InventoryRow, type InventoryStatus } from "@/lib/inventory-calculations";
 import { formatCompactNaira, formatDayTime, formatNaira, formatNumber } from "@/lib/format";
@@ -21,7 +21,7 @@ const statusRank: Record<InventoryStatus, number> = { out_of_stock: 0, low_stock
 const PAGE = 25;
 
 export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?: string | undefined; initialStatus?: InventoryStatus | undefined }) {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace({ batches: true });
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const navigate = useNavigate();
@@ -88,6 +88,7 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
       </div>}>
       <div className="mb-5"><h1 className="text-xl font-bold">{simple ? "Available Products" : "Inventory"}</h1><p className="mt-1 text-xs text-muted-foreground">{simple ? "Products available to you and how much stock is on hand" : "Monitor stock levels, availability, and inventory movement across your branches"}{activeBranch !== ALL ? ` · ${db.branches.find((b) => b.id === activeBranch)?.name}` : scope.branchIds ? ` · ${branches[0]?.name ?? ""}` : " · All branches"}</p></div>
 
+      <DataGate isLoading={isLoading} error={error}>
       <section className={`grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 ${simple ? "xl:grid-cols-4" : "xl:grid-cols-5"}`}>
         <MetricCard icon={Package} tone="brand" label="Total products" value={formatNumber(summary.products)} detail="Represented in inventory" />
         <MetricCard icon={Layers} tone="violet" label="Total units" value={formatNumber(summary.units)} detail="On hand in this selection" />
@@ -113,10 +114,10 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
         </table></div>}
         {!simple && <>
         <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[900px] text-left">
+          <table className="w-full min-w-[840px] text-left">
             <thead><tr className="text-[10px] uppercase text-muted-foreground">
               <SortHead k="product" label="Product" /><th className="hidden px-4 py-3 xl:table-cell">SKU</th><th className="px-4 py-3">Branch</th>
-              <th className="px-4 py-3 text-right">On hand</th><th className="px-4 py-3 text-right">Reserved</th><SortHead k="available" label="Available" right /><th className="px-4 py-3 text-right">Threshold</th><th className="px-4 py-3">Nearest expiry</th>
+              <th className="px-4 py-3 text-right">On hand</th><SortHead k="available" label="Available" right /><th className="px-4 py-3 text-right">Threshold</th><th className="px-4 py-3">Nearest expiry</th>
               <SortHead k="status" label="Status" /><SortHead k="updated" label="Last updated" /><th className="px-4 py-3 text-right">Actions</th>
             </tr></thead>
             <tbody>{shown.map((r) => (
@@ -125,7 +126,6 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
                 <td className="hidden px-4 py-3.5 font-mono text-[11px] text-muted-foreground xl:table-cell">{r.product.sku}</td>
                 <td className="px-4 py-3.5">{r.branch.name}</td>
                 <td className="px-4 py-3.5 text-right font-semibold">{formatNumber(r.record.quantityOnHand)}</td>
-                <td className="px-4 py-3.5 text-right text-muted-foreground">{r.record.quantityReserved}</td>
                 <td className="px-4 py-3.5 text-right font-bold">{formatNumber(r.available)}</td>
                 <td className="px-4 py-3.5 text-right text-muted-foreground">{r.record.lowStockThreshold}</td>
                 <td className="px-4 py-3.5"><NearestExpiryBadge db={db} productId={r.product.id} branchIds={scope.branchIds} branchId={r.branch.id} /></td>
@@ -141,8 +141,8 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
               <Link to="/inventory/$inventoryId" params={{ inventoryId: r.record.id }} className="min-w-0"><p className="truncate text-sm font-bold">{r.product.name}</p><p className="text-[11px] text-muted-foreground">{r.product.sku} · {r.branch.name}</p></Link>
               <div className="flex items-center gap-1"><StockStatusBadge status={r.status} />{actions(r)}</div>
             </div>
-            <div className="mt-3 grid grid-cols-4 gap-2 text-[11px]">
-              {[["On hand", r.record.quantityOnHand], ["Reserved", r.record.quantityReserved], ["Available", r.available], ["Threshold", r.record.lowStockThreshold]].map(([k, v]) => <div key={k}><p className="text-muted-foreground">{k}</p><p className="font-bold">{formatNumber(Number(v))}</p></div>)}
+            <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+              {[["On hand", r.record.quantityOnHand], ["Available", r.available], ["Threshold", r.record.lowStockThreshold]].map(([k, v]) => <div key={k}><p className="text-muted-foreground">{k}</p><p className="font-bold">{formatNumber(Number(v))}</p></div>)}
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">Updated {formatDayTime(r.record.lastUpdated, db.tenant.referenceDate)}</p>
           </div>))}</div>
@@ -153,9 +153,10 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
           <div className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next</Button></div>
         </div>}
       </Panel>
+      </DataGate>
 
       <AddStockDialog open={addOpen} onOpenChange={setAddOpen} scope={scope} defaults={addDefaults} />
-      <AdjustStockDialog record={adjusting?.record ?? null} productName={adjusting?.product.name ?? ""} onClose={() => setAdjusting(null)} actorId={userId} />
+      <AdjustStockDialog record={adjusting?.record ?? null} productName={adjusting?.product.name ?? ""} onClose={() => setAdjusting(null)} />
       {!simple && <MovementsSheet open={movesOpen} onOpenChange={setMovesOpen} branchIds={scope.branchIds} branchId={activeBranch === ALL ? undefined : activeBranch} />}
     </AppShell>
   );

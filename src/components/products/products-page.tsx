@@ -10,7 +10,7 @@ import { ProductFormDialog } from "@/components/products/add-product-dialog";
 import { ImportProductsDialog } from "@/components/products/import-products-dialog";
 import { ProductStatusDialog, ProductStatusBadge } from "@/components/products/product-status";
 import type { Product } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getProductCategories, getProductSummary, sortProducts, type ProductSortKey } from "@/lib/catalog-calculations";
 import { getInventoryRows } from "@/lib/inventory-calculations";
@@ -21,7 +21,7 @@ const sortOptions: { value: ProductSortKey; label: string }[] = [
 ];
 
 export function ProductsPage() {
-  const db = useDb();
+  const { db, isLoading: productsLoading, error: dataError } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const manage = scope.canManageProducts;
@@ -34,14 +34,16 @@ export function ProductsPage() {
   const [toggling, setToggling] = useState<Product | null>(null);
   const [importing, setImporting] = useState(false);
 
-  const summary = getProductSummary(db);
-  const categories = getProductCategories(db);
+  const products: Product[] = db.products;
+
+  const summary = getProductSummary({ ...db, products });
+  const categories = getProductCategories({ ...db, products });
   const branchRows = scope.canManageProducts ? [] : getInventoryRows(db, { branchIds: scope.branchIds });
   const list = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const filtered = db.products.filter((p) => (!needle || `${p.name} ${p.sku}`.toLowerCase().includes(needle)) && (category === ALL || p.category === category) && (status === ALL || p.status === status));
+    const filtered = products.filter((p) => (!needle || `${p.name} ${p.sku}`.toLowerCase().includes(needle)) && (category === ALL || p.category === category) && (status === ALL || p.status === status));
     return sortProducts(filtered, sort, dir);
-  }, [db.products, query, category, status, sort, dir]);
+  }, [products, query, category, status, sort, dir]);
 
   const actions = (p: Product) => (
     <DropdownMenu>
@@ -59,6 +61,7 @@ export function ProductsPage() {
 
   return (
     <AppShell title="Products" subtitle={manage ? "Central product catalogue" : "Products you can sell"} actions={manage ? <div className="flex gap-2"><Button variant="outline" onClick={() => setImporting(true)}><Upload className="size-4" /><span className="hidden sm:inline">Import</span></Button><Button onClick={() => setEditing("new")}><Plus className="size-4" /><span className="hidden sm:inline">Add Product</span></Button></div> : undefined}>
+      {dataError && <div role="alert" className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">Could not load live product data: {dataError instanceof Error ? dataError.message : "Database request failed"}</div>}
       {manage && <ImportProductsDialog open={importing} onOpenChange={setImporting} db={db} scope={scope} />}
       <div className="mb-5"><h1 className="text-xl font-bold">Products</h1><p className="mt-1 text-xs text-muted-foreground">{manage ? "Manage your product catalogue and product information." : "Active products and what's available at your branch."}</p></div>
       {manage && <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
@@ -67,7 +70,7 @@ export function ProductsPage() {
         <MetricCard icon={XCircle} tone="warning" label="Inactive products" value={formatNumber(summary.inactive)} detail="Kept for history only" />
         <MetricCard icon={Layers} tone="violet" label="Categories" value={formatNumber(summary.categories)} detail="Unique product categories" />
       </div>}
-      <Panel className="overflow-hidden" title="Catalogue" subtitle={`${list.length} of ${db.products.length} products`} action={
+      <Panel className="overflow-hidden" title="Catalogue" subtitle={`${list.length} of ${products.length} products`} action={
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <SearchBox value={query} onChange={setQuery} placeholder="Search name or SKU" />
           <FilterSelect label="Category filter" className="w-full sm:w-40" value={category} onChange={setCategory} options={[{ value: ALL, label: "All categories" }, ...categories.map((c) => ({ value: c, label: c }))]} />

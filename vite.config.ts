@@ -7,6 +7,11 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  vite: {
+    // Pre-bundle jspdf at start-up: it is only imported on demand (onboarding PDF),
+    // and discovering it mid-session makes the dev server reload instead of loading it.
+    optimizeDeps: { include: ["jspdf"] },
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this

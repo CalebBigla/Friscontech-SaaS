@@ -1,10 +1,9 @@
-export type OwnerRemittancePayeeType = "supplier" | "service_provider" | "external_payee" | "other";
-export type OwnerRemittancePaymentMethod = "cash" | "transfer";
+export type OwnerRemittancePayeeType = "supplier" | "landlord" | "utility" | "contractor" | "other";
+export type OwnerRemittancePaymentMethod = "cash" | "transfer" | "cheque";
 export type OwnerRemittance = {
   id: string;
   tenantId: string;
   ownerId: string;
-  branchId?: string;
   payeeType: OwnerRemittancePayeeType;
   payeeName: string;
   amount: number;
@@ -16,5 +15,3 @@ export type OwnerRemittance = {
   createdAt: string;
   updatedAt: string;
 };
-
-export const seedOwnerRemittances: OwnerRemittance[] = [];

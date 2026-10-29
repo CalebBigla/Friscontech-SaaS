@@ -4,7 +4,7 @@ import { ArrowLeft, Banknote, CircleDollarSign, Eye, Landmark, Plus, Search } fr
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/app-shell";
-import { EmptyState, FieldError, MetricCard, Panel } from "@/components/shared";
+import { DataGate, EmptyState, FieldError, MetricCard, Panel } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,17 +33,16 @@ import type { Db } from "@/data/mock-db";
 import { formatDate, formatNaira, formatTime } from "@/lib/format";
 import { getOwnerRemittanceSummary, getOwnerRemittances } from "@/lib/remittance-calculations";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
-import { useDb } from "@/services/mock-store";
-import {
-  ownerRemittanceService,
-  type FieldErrors,
-  type OwnerRemittanceInput,
-} from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useIdempotencyKey } from "@/hooks/use-idempotency-key";
+import { useCreateOwnerRemittance } from "@/hooks/use-remittances";
+import { runWrite, validateOwnerRemittance, type FieldErrors, type OwnerRemittanceInput } from "@/lib/validation";
 
 const payeeLabels: Record<OwnerRemittancePayeeType, string> = {
   supplier: "Supplier",
-  service_provider: "Service provider",
-  external_payee: "External payee",
+  landlord: "Landlord",
+  utility: "Utility",
+  contractor: "Contractor",
   other: "Other",
 };
 const defaultForm = (date: string): OwnerRemittanceInput => ({
@@ -58,17 +57,18 @@ const defaultForm = (date: string): OwnerRemittanceInput => ({
 });
 
 export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string }) {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
+  const createRemittance = useCreateOwnerRemittance();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const month = db.tenant.referenceDate.slice(0, 7);
   const [query, setQuery] = useState("");
   const [method, setMethod] = useState<"all" | OwnerRemittancePaymentMethod>("all");
   const [payeeType, setPayeeType] = useState<"all" | OwnerRemittancePayeeType>("all");
-  const [branchId, setBranchId] = useState("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  const idempotencyKey = useIdempotencyKey(formOpen);
   const [form, setForm] = useState<OwnerRemittanceInput>(defaultForm(db.tenant.referenceDate));
   const [errors, setErrors] = useState<FieldErrors>({});
   const [busy, setBusy] = useState(false);
@@ -80,14 +80,12 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
         search: query,
         paymentMethod: method,
         payeeType,
-        branchId,
         from,
         to,
       }),
-    [db, scope, query, method, payeeType, branchId, from, to],
+    [db, scope, query, method, payeeType, from, to],
   );
   const selected = remittanceId ? allRows.find((row) => row.id === remittanceId) : null;
-  const branches = db.branches.filter((branch) => branch.tenantId === scope.user.tenantId);
   const openForm = () => {
     setErrors({});
     setForm(defaultForm(db.tenant.referenceDate));
@@ -97,7 +95,20 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
     setForm((current) => ({ ...current, [key]: value }));
   const record = async () => {
     setBusy(true);
-    const result = await ownerRemittanceService.create(form, userId);
+    const result = await runWrite(validateOwnerRemittance(db, scope, form), () =>
+      createRemittance.mutateAsync({
+        p_payee_type: form.payeeType,
+        p_payee_name: form.payeeName.trim(),
+        p_amount: form.amount,
+        // The validator allows only cash or transfer.
+        p_payment_method: form.paymentMethod === "transfer" ? "transfer" : "cash",
+        p_reference: form.reference?.trim() || null,
+        p_remittance_date: form.remittanceDate,
+        p_purpose: form.purpose.trim(),
+        p_note: form.note?.trim() || null,
+        p_idempotency_key: idempotencyKey,
+      }),
+    );
     setBusy(false);
     if (!result.ok) {
       setErrors(result.errors);
@@ -107,9 +118,16 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
     toast.success("Remittance recorded");
   };
 
+  if (isLoading || error)
+    return (
+      <AppShell title="Remittance">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
+
   if (remittanceId)
     return selected ? (
-      <RemittanceDetail row={selected} />
+      <RemittanceDetail db={db} row={selected} />
     ) : (
       <AppShell title="Remittance">
         <EmptyState
@@ -192,15 +210,6 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
             value={payeeType}
             onChange={(value) => setPayeeType(value as typeof payeeType)}
             values={[["all", "All types"], ...Object.entries(payeeLabels)]}
-          />
-          <Filter
-            label="Branch"
-            value={branchId}
-            onChange={setBranchId}
-            values={[
-              ["all", "All branches"],
-              ...branches.map((branch) => [branch.id, branch.name] as [string, string]),
-            ]}
           />
           <div className="flex gap-2">
             <Input
@@ -378,32 +387,6 @@ export function OwnerRemittancePage({ remittanceId }: { remittanceId?: string })
               />
               {errors.reference && <FieldError message={errors.reference} />}
             </Field>
-            <Field label="Branch (optional)">
-              <Select
-                value={form.branchId ?? "none"}
-                onValueChange={(value) =>
-                  setForm((current) => {
-                    const next = { ...current };
-                    if (value === "none") delete next.branchId;
-                    else next.branchId = value;
-                    return next;
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Business-wide" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Business-wide</SelectItem>
-                  {branches.map((branch) => (
-                    <SelectItem key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.branchId && <FieldError message={errors.branchId} />}
-            </Field>
             <Field label="Purpose" className="sm:col-span-2">
               <Input
                 value={form.purpose}
@@ -507,10 +490,8 @@ function Field({
     </div>
   );
 }
-function RemittanceDetail({ row }: { row: OwnerRemittance }) {
-  const db = useDb();
+function RemittanceDetail({ db, row }: { db: Db; row: OwnerRemittance }) {
   const owner = db.users.find((user) => user.id === row.ownerId);
-  const branch = row.branchId ? db.branches.find((item) => item.id === row.branchId) : null;
   const values: [string, string][] = [
     ["Payee", row.payeeName],
     ["Payee Type", payeeLabels[row.payeeType]],
@@ -520,7 +501,6 @@ function RemittanceDetail({ row }: { row: OwnerRemittance }) {
     ["Reference", row.reference ?? "—"],
     ["Remittance Date", formatDate(row.remittanceDate)],
     ["Owner", owner?.name ?? "Owner"],
-    ["Branch", branch?.name ?? "Business-wide"],
     ["Note", row.note ?? "—"],
     ["Created At", `${formatDate(row.createdAt)} · ${formatTime(row.createdAt)}`],
   ];

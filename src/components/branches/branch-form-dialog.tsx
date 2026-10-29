@@ -8,16 +8,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FieldError, FilterSelect } from "@/components/shared";
 import type { Branch } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
-import { branchService, type BranchInput, type FieldErrors } from "@/services/services";
+import { useBranches, useCreateBranch, useUpdateBranch } from "@/hooks/use-branches";
+import { useUsers } from "@/hooks/use-users";
+import { validateBranch, type BranchInput, type FieldErrors } from "@/lib/validation";
 
 const empty: BranchInput = { name: "", code: "", location: "", address: "", phone: "", email: "", managerId: "", status: "active" };
 
-export function BranchFormDialog({ open, onOpenChange, branch, actorId }: { open: boolean; onOpenChange: (o: boolean) => void; branch?: Branch | null; actorId: string }) {
-  const db = useDb();
+export function BranchFormDialog({ open, onOpenChange, branch }: { open: boolean; onOpenChange: (o: boolean) => void; branch?: Branch | null; actorId: string }) {
+  const { data: branches = [], isLoading: branchesLoading } = useBranches();
+  const { data: users = [], isLoading: usersLoading } = useUsers();
   const [form, setForm] = useState<BranchInput>(empty);
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [saving, setSaving] = useState(false);
+  
+  // Supabase mutations
+  const createBranch = useCreateBranch();
+  const updateBranch = useUpdateBranch();
+  const saving = createBranch.isPending || updateBranch.isPending;
 
   useEffect(() => {
     if (!open) return;
@@ -25,20 +31,33 @@ export function BranchFormDialog({ open, onOpenChange, branch, actorId }: { open
     setForm(branch ? { name: branch.name, code: branch.code, location: branch.location, address: branch.address, phone: branch.phone, email: branch.email, managerId: branch.managerId ?? "", status: branch.status } : empty);
   }, [open, branch]);
 
-  // Managers who are free, or who only run an inactive branch, or already run this one.
-  const managers = db.users.filter((x) => x.role === "manager" && x.status === "active" &&
-    !db.branches.some((b) => b.managerId === x.id && b.status === "active" && b.id !== branch?.id));
-
   const set = <K extends keyof BranchInput>(key: K, value: BranchInput[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
-    const result = branch ? await branchService.update(branch.id, form, actorId) : await branchService.create(form, actorId);
-    setSaving(false);
-    if (!result.ok) { setErrors(result.errors); toast.error("Please fix the highlighted fields"); return; }
-    toast.success(branch ? `${result.data.name} updated` : `${result.data.name} created`);
-    onOpenChange(false);
+    setErrors({});
+    
+    const validationErrors = validateBranch(branches, users, form, branch?.id);
+    if (Object.keys(validationErrors).length) {
+      setErrors(validationErrors);
+      toast.error("Please fix the highlighted fields");
+      return;
+    }
+    
+    try {
+      if (branch) {
+        // Update existing branch
+        await updateBranch.mutateAsync({ id: branch.id, updates: form as Partial<Branch> });
+        toast.success(`${form.name} updated`);
+      } else {
+        // Create new branch
+        await createBranch.mutateAsync(form as Partial<Branch>);
+        toast.success(`${form.name} created`);
+      }
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Operation failed");
+    }
   }
 
   const field = (key: "name" | "code" | "location" | "address" | "phone" | "email", label: string, placeholder: string, required = false) => (
@@ -54,7 +73,7 @@ export function BranchFormDialog({ open, onOpenChange, branch, actorId }: { open
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{branch ? `Edit ${branch.name}` : "New branch"}</DialogTitle>
-          <DialogDescription className="text-xs">Revenue, sales and performance come from operational data and can't be edited here.</DialogDescription>
+          <DialogDescription className="text-xs">Create the branch first. The Owner assigns its manager when approving that manager's onboarding.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-5">
           <fieldset className="space-y-3">
@@ -68,14 +87,8 @@ export function BranchFormDialog({ open, onOpenChange, branch, actorId }: { open
             {field("address", "Address", "Street address")}
             {field("email", "Email", "branch@westfield.ng")}
           </fieldset>
-          <fieldset className="grid gap-3 sm:grid-cols-2">
+          <fieldset className="grid gap-3">
             <legend className="panel-title mb-2 text-muted-foreground">Management & status</legend>
-            <div>
-              <Label className="text-xs">Branch manager<span className="text-destructive"> *</span></Label>
-              <div className="mt-1.5"><FilterSelect label="Branch manager" className="w-full" value={form.managerId || "none"} onChange={(v) => set("managerId", v === "none" ? "" : v)}
-                options={[{ value: "none", label: "Select a manager" }, ...managers.map((m) => ({ value: m.id, label: m.name }))]} /></div>
-              <FieldError message={errors.managerId} />
-            </div>
             <div>
               <Label className="text-xs">Status</Label>
               <div className="mt-1.5 grid grid-cols-2 rounded-md border border-border p-1">
@@ -86,7 +99,7 @@ export function BranchFormDialog({ open, onOpenChange, branch, actorId }: { open
           <FieldError message={errors.form} />
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving && <Loader2 className="size-4 animate-spin" />}{branch ? "Save changes" : "Create branch"}</Button>
+            <Button type="submit" disabled={saving || branchesLoading || usersLoading}>{(saving || branchesLoading || usersLoading) && <Loader2 className="size-4 animate-spin" />}{branch ? "Save changes" : "Create branch"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

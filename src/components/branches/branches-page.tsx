@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowDown, ArrowUp, ArrowUpDown, Building2, CircleOff, Eye, MoreHorizontal, Pencil, Plus, Power, Search, Store, Users } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Building2, CircleOff, Eye, Loader2, MoreHorizontal, Pencil, Plus, Power, Search, Store, Users } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,8 @@ import { ALL, BandBadge, BranchStatusBadge, EmptyState, FilterSelect, MetricCard
 import { BranchFormDialog } from "@/components/branches/branch-form-dialog";
 import { DeactivateBranchDialog } from "@/components/branches/deactivate-dialog";
 import type { Branch } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useAuth } from "@/contexts/auth-context";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getBranchManager, getBranchPerformance, getBranchStaff } from "@/lib/calculations";
 import { monthOf } from "@/lib/dates";
@@ -18,9 +19,14 @@ import { formatMonth, formatNaira, formatPercent } from "@/lib/format";
 type SortKey = "name" | "revenue" | "target" | "achievement" | "staff" | "status";
 
 export function BranchesPage() {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
+  const { user } = useAuth();
+  
+  // Fetch branches from Supabase
+  const branches: Branch[] = db.branches;
+  
   const month = monthOf(db.tenant.referenceDate);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState(ALL);
@@ -30,9 +36,9 @@ export function BranchesPage() {
   const [editing, setEditing] = useState<Branch | null>(null);
   const [deactivating, setDeactivating] = useState<Branch | null>(null);
 
-  const rows = useMemo(() => db.branches
+  const rows = useMemo(() => branches
     .filter((b) => !scope.branchIds || scope.branchIds.includes(b.id))
-    .map((b) => ({ branch: b, manager: getBranchManager(db, b), staff: getBranchStaff(db, b.id).length, ...getBranchPerformance(db, b.id, month) })), [db, scope.branchIds, month]);
+    .map((b) => ({ branch: b, manager: getBranchManager(db, b), staff: getBranchStaff(db, b.id).length, ...getBranchPerformance(db, b.id, month) })), [branches, db, scope.branchIds, month]);
 
   const summary = {
     total: rows.length,
@@ -67,6 +73,29 @@ export function BranchesPage() {
       </DropdownMenuContent>
     </DropdownMenu>
   );
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <AppShell title="Branches" subtitle="Manage business locations, branch performance and operational status.">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <AppShell title="Branches" subtitle="Manage business locations, branch performance and operational status.">
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-sm font-semibold text-destructive">Failed to load branches</p>
+          <p className="mt-1 text-xs text-muted-foreground">{error.message}</p>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title="Branches" subtitle="Manage business locations, branch performance and operational status."

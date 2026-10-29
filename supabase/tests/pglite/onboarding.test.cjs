@@ -1,0 +1,245 @@
+// Onboarding flow tests: every onboarding RPC the app calls, in the order a real
+// invite goes through, as the role the app uses (anon for the invitee and
+// guarantor, authenticated for the owner).
+module.exports = async function onboarding(db, { ID, tenantA }) {
+  let passed = 0;
+  const failures = [];
+  const check = (name, cond, detail = "") => { if (cond) passed++; else failures.push(`${name}${detail ? " — " + detail : ""}`); };
+
+  async function call(role, userId, sql, params = []) {
+    try {
+      return await db.transaction(async (tx) => {
+        await tx.exec(`SET LOCAL ROLE ${role}`);
+        if (userId) await tx.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [userId]);
+        return { rows: (await tx.query(sql, params)).rows };
+      });
+    } catch (e) {
+      return { error: `${e.code} ${e.message}` };
+    }
+  }
+  const ok = (name, r) => { check(name, !r.error, r.error); return r.rows?.[0]; };
+  const refused = (name, r, pattern) => check(name, pattern.test(r.error ?? ""), r.error ?? "succeeded");
+  const GUARANTOR = `'{"yearsKnown":"5","relationship":"Uncle","character":"Honest","signature":"G. Uncle","signedDate":"2026-10-24"}'::jsonb`;
+  const onBehalf = (rawToken) => call("anon", null, `SELECT * FROM public.submit_guarantor_on_behalf($1, ${GUARANTOR})`, [rawToken]);
+
+  // Invite exactly as onboardingService.createInvite does (direct insert by the owner).
+  const raw = "invite-token-raw-0001";
+  const hash = (await db.query(`SELECT public.hash_token($1) h`, [raw])).rows[0].h;
+  const invite = ok("create invite (owner insert)", await call("authenticated", ID.owner,
+    `INSERT INTO public.onboardings (tenant_id, created_by, employee_id, job_title, department, start_date, status,
+       token_hash, token_expires_at, step, data)
+     VALUES ($1,$2,'FT-000001','Sales Rep','Sales',CURRENT_DATE,'invited',$3, now() + interval '7 days', 0,
+       '{"firstName":"Nia","lastName":"New","email":"nia@a.test"}'::jsonb) RETURNING id`, [tenantA, ID.owner, hash]));
+
+  ok("get_onboarding_by_token", await call("anon", null, `SELECT * FROM public.get_onboarding_by_token($1)`, [raw]));
+  ok("save_onboarding_progress", await call("anon", null,
+    `SELECT * FROM public.save_onboarding_progress($1, '{"firstName":"Nia","lastName":"New","email":"nia@a.test"}'::jsonb, 2, NULL)`, [raw]));
+  ok("register_onboarding_file", await call("anon", null,
+    `SELECT public.register_onboarding_file($1, 'photo', 'me.jpg', $2 || '/me.jpg', 1000, 'image/jpeg')`, [raw, invite?.id]));
+  const files = ok("list_onboarding_files", await call("anon", null, `SELECT * FROM public.list_onboarding_files($1)`, [raw]));
+  if (files) ok("delete_onboarding_file", await call("anon", null, `SELECT public.delete_onboarding_file($1, $2)`, [raw, files.id]));
+  // Invitee files in the onboarding-files bucket, as the storage API does them (anon).
+  const obj = `${invite?.id}/photo/me.jpg`;
+  ok("storage: invitee uploads to their onboarding folder", await call("anon", null,
+    `INSERT INTO storage.objects (bucket_id, name) VALUES ('onboarding-files', $1) RETURNING id`, [obj]));
+  const seen = await call("anon", null, `SELECT name FROM storage.objects WHERE name = $1`, [obj]);
+  check("storage: invitee can preview their file", seen.rows?.length === 1, seen.error ?? JSON.stringify(seen.rows));
+  const del = await call("anon", null, `DELETE FROM storage.objects WHERE name = $1 RETURNING id`, [obj]);
+  check("storage: invitee can remove their file", del.rows?.length === 1, del.error ?? JSON.stringify(del.rows));
+  const stray = await call("anon", null,
+    `INSERT INTO storage.objects (bucket_id, name) VALUES ('onboarding-files', '00000000-0000-0000-0000-00000000dead/photo/x.jpg')`);
+  check("storage: upload to an unknown onboarding is refused", /row-level security/.test(stray.error ?? ""), stray.error);
+  const leak = await call("anon", null, `SELECT count(*)::int n FROM public.onboardings`);
+  check("storage fix does not let anon read onboardings", leak.error || leak.rows?.[0]?.n === 0, JSON.stringify(leak));
+
+  refused("submit_onboarding: refused before the guarantor responds", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Nia","lastName":"New","email":"nia@a.test"}'::jsonb, 'nia@a.test')`, [raw]),
+    /guarantor form is not complete/);
+  const gToken = ok("send_guarantor_link", await call("anon", null, `SELECT public.send_guarantor_link($1) t`, [raw]))?.t;
+  if (gToken) {
+    ok("get_onboarding_for_guarantor", await call("anon", null, `SELECT * FROM public.get_onboarding_for_guarantor($1)`, [gToken]));
+    ok("submit_guarantor", await call("anon", null,
+      `SELECT * FROM public.submit_guarantor($1, '{"yearsKnown":"5","relationship":"Uncle","character":"Honest","signature":"G. Uncle","signedDate":"2026-10-24"}'::jsonb)`, [gToken]));
+  }
+  refused("on behalf: refused once the guarantor responded", await onBehalf(raw), /already completed/);
+  ok("submit_onboarding", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Nia","lastName":"New","email":"nia@a.test"}'::jsonb, 'nia@a.test')`, [raw]));
+  ok("submit_onboarding: retry before sign-up", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Nia","lastName":"New","email":"nia@a.test"}'::jsonb, 'nia@a.test')`, [raw]));
+
+  // Sign-up: the handle_new_user trigger links a pending profile to the invite.
+  const newUser = "00000000-0000-0000-0000-000000000099";
+  await db.exec(`ALTER TABLE auth.users ENABLE TRIGGER on_auth_user_created`);
+  ok("sign-up creates pending profile", await call("postgres", null,
+    `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, 'nia@a.test',
+       jsonb_build_object('onboarding_id', $2::text, 'onboarding_token_hash', $3::text, 'first_name', 'Nia', 'last_name', 'New')) RETURNING id`,
+    [newUser, invite?.id, hash]));
+  const late = await call("anon", null,
+    `INSERT INTO storage.objects (bucket_id, name) VALUES ('onboarding-files', $1)`, [`${invite?.id}/photo/late.jpg`]);
+  check("storage: no uploads once the account exists", /row-level security/.test(late.error ?? ""), late.error);
+  const profile = (await db.query(`SELECT status, role FROM public.users WHERE id = $1`, [newUser])).rows[0];
+  check("pending until the owner approves", profile?.status === "pending" && profile?.role === null, JSON.stringify(profile));
+
+  ok("review_guarantor", await call("authenticated", ID.owner,
+    `SELECT * FROM public.review_guarantor($1, 'accepted', NULL)`, [invite?.id]));
+  ok("approve_onboarding", await call("authenticated", ID.owner,
+    `SELECT * FROM public.approve_onboarding($1, 'sales_rep', $2)`, [invite?.id, ID.brA1]));
+  const approved = (await db.query(`SELECT status, role FROM public.users WHERE id = $1`, [newUser])).rows[0];
+  check("approved member is active with a role", approved?.status === "active" && approved?.role === "sales_rep", JSON.stringify(approved));
+
+  // A second invite, rejected.
+  const raw2 = "invite-token-raw-0002";
+  const hash2 = (await db.query(`SELECT public.hash_token($1) h`, [raw2])).rows[0].h;
+  const invite2 = ok("create second invite", await call("authenticated", ID.owner,
+    `INSERT INTO public.onboardings (tenant_id, created_by, employee_id, job_title, department, start_date, status,
+       token_hash, token_expires_at, step, data)
+     VALUES ($1,$2,'FT-000002','Storekeeper','Ops',CURRENT_DATE,'invited',$3, now() + interval '7 days', 0, '{}'::jsonb) RETURNING id`,
+    [tenantA, ID.owner, hash2]));
+  refused("on behalf: incomplete answers refused", await call("anon", null,
+    `SELECT * FROM public.submit_guarantor_on_behalf($1, '{"yearsKnown":"5"}'::jsonb)`, [raw2]), /answer every required/);
+  ok("on behalf: applicant fills the guarantor form", await onBehalf(raw2));
+  const g2 = (await db.query(`SELECT guarantor_status, guarantor_response ->> 'filledBy' AS by FROM public.onboardings WHERE id = $1`, [invite2?.id])).rows[0];
+  check("on behalf: completed and marked as filled by staff", g2?.guarantor_status === "completed" && g2?.by === "staff", JSON.stringify(g2));
+  refused("on behalf: second time refused", await onBehalf(raw2), /already completed/);
+  ok("submit second onboarding", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, '{"email":"x@a.test"}'::jsonb, 'x@a.test')`, [raw2]));
+  ok("reject_onboarding", await call("authenticated", ID.owner,
+    `SELECT * FROM public.reject_onboarding($1, 'Incomplete documents')`, [invite2?.id]));
+
+  // Company e-mail ID: same names → first to submit keeps it, later ones get 01, 02.
+  async function inviteNamed(n) {
+    const rawN = `dup-token-${n}`;
+    const h = (await db.query(`SELECT public.hash_token($1) h`, [rawN])).rows[0].h;
+    const row = ok(`create duplicate-name invite ${n}`, await call("authenticated", ID.owner,
+      `INSERT INTO public.onboardings (tenant_id, created_by, employee_id, job_title, department, start_date, status,
+         token_hash, token_expires_at, step, data)
+       VALUES ($1,$2,$3,'Sales Rep','Sales',CURRENT_DATE,'invited',$4, now() + interval '7 days', 0, '{}'::jsonb) RETURNING id`,
+      [tenantA, ID.owner, `FT-DUP-${n}`, h]));
+    ok(`duplicate-name guarantor ${n}`, await onBehalf(rawN));
+    return { raw: rawN, id: row?.id };
+  }
+  const submitAs = (inv, email) => call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Ngozi","lastName":"Umeh","preferredEmailId":"ngozi.umeh"}'::jsonb, $2)`,
+    [inv.raw, email]);
+  const idOf = async (inv) => (await db.query(`SELECT data ->> 'preferredEmailId' v FROM public.onboardings WHERE id = $1`, [inv.id])).rows[0]?.v;
+  const [first, second, third] = [await inviteNamed(1), await inviteNamed(2), await inviteNamed(3)];
+  ok("same names: first submits", await submitAs(first, "ngozi1@a.test"));
+  check("same names: first keeps ngozi.umeh", (await idOf(first)) === "ngozi.umeh", await idOf(first));
+  ok("same names: second submits", await submitAs(second, "ngozi2@a.test"));
+  check("same names: second gets ngozi.umeh01", (await idOf(second)) === "ngozi.umeh01", await idOf(second));
+  ok("same names: second resubmits", await submitAs(second, "ngozi2@a.test"));
+  check("same names: resubmit keeps ngozi.umeh01", (await idOf(second)) === "ngozi.umeh01", await idOf(second));
+  ok("same names: first rejected", await call("authenticated", ID.owner,
+    `SELECT * FROM public.reject_onboarding($1, 'Duplicate application')`, [first.id]));
+  ok("same names: third submits", await submitAs(third, "ngozi3@a.test"));
+  check("same names: a rejected onboarding frees ngozi.umeh", (await idOf(third)) === "ngozi.umeh", await idOf(third));
+
+  // Corrections: a signed-up member is sent back to fix their form.
+  const raw4 = "invite-token-raw-0004";
+  const hash4 = (await db.query(`SELECT public.hash_token($1) h`, [raw4])).rows[0].h;
+  const inv4 = ok("corrections: create invite", await call("authenticated", ID.owner,
+    `INSERT INTO public.onboardings (tenant_id, created_by, employee_id, job_title, department, start_date, status,
+       token_hash, token_expires_at, step, data)
+     VALUES ($1,$2,'FT-COR-1','Sales Rep','Sales',CURRENT_DATE,'invited',$3, now() + interval '7 days', 0, '{}'::jsonb) RETURNING id`,
+    [tenantA, ID.owner, hash4]));
+  const DATA4 = `'{"firstName":"Cora","lastName":"Fix","email":"cora@a.test"}'::jsonb`;
+  ok("corrections: guarantor on behalf", await onBehalf(raw4));
+  ok("corrections: first submit", await call("anon", null, `SELECT * FROM public.submit_onboarding($1, ${DATA4}, 'cora@a.test')`, [raw4]));
+  const cora = "00000000-0000-0000-0000-000000000098";
+  ok("corrections: sign-up", await call("postgres", null,
+    `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, 'cora@a.test',
+       jsonb_build_object('onboarding_id', $2::text, 'onboarding_token_hash', $3::text, 'first_name', 'Cora', 'last_name', 'Fix')) RETURNING id`,
+    [cora, inv4?.id, hash4]));
+  ok("corrections: owner declines the guarantor", await call("authenticated", ID.owner,
+    `SELECT * FROM public.review_guarantor($1, 'declined', 'Guarantor unreachable')`, [inv4?.id]));
+  check("corrections: link closed after sign-up", (await call("anon", null, `SELECT * FROM public.get_onboarding_by_token($1)`, [raw4])).rows?.length === 0);
+
+  refused("corrections: only the owner can request", await call("authenticated", ID.mgrA1,
+    `SELECT public.request_onboarding_corrections($1, 'Fix your guarantor')`, [inv4?.id]), /Only the owner/);
+  refused("corrections: a note is required", await call("authenticated", ID.owner,
+    `SELECT public.request_onboarding_corrections($1, ' ')`, [inv4?.id]), /Describe what/);
+  const newRaw = ok("corrections: owner requests corrections", await call("authenticated", ID.owner,
+    `SELECT public.request_onboarding_corrections($1, 'Provide a reachable guarantor') AS t`, [inv4?.id]))?.t;
+  const after = (await db.query(`SELECT o.status, o.correction_note, o.used_at, o.guarantor_status, o.guarantor_decision, u.status AS user_status
+     FROM public.onboardings o JOIN public.users u ON u.id = o.user_id WHERE o.id = $1`, [inv4?.id])).rows[0];
+  check("corrections: back in progress with the note, member pending again",
+    after?.status === "in_progress" && after?.correction_note === "Provide a reachable guarantor" && after?.used_at === null && after?.user_status === "pending",
+    JSON.stringify(after));
+  check("corrections: declined guarantor is reset", after?.guarantor_status === "not_sent" && after?.guarantor_decision === null, JSON.stringify(after));
+  check("corrections: old link no longer works", (await call("anon", null, `SELECT * FROM public.get_onboarding_by_token($1)`, [raw4])).rows?.length === 0);
+  check("corrections: new link opens the form", (await call("anon", null, `SELECT * FROM public.get_onboarding_by_token($1)`, [newRaw])).rows?.length === 1);
+  ok("corrections: member saves changes", await call("anon", null, `SELECT * FROM public.save_onboarding_progress($1, ${DATA4}, 5, NULL)`, [newRaw]));
+  ok("corrections: member can upload files again", await call("anon", null,
+    `INSERT INTO storage.objects (bucket_id, name) VALUES ('onboarding-files', $1) RETURNING id`, [`${inv4?.id}/photo/new.jpg`]));
+  refused("corrections: resubmit refused until the guarantor form is redone", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, ${DATA4}, 'cora@a.test')`, [newRaw]), /guarantor form is not complete/);
+  ok("corrections: guarantor redone on behalf", await onBehalf(newRaw));
+  refused("corrections: email cannot change", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, ${DATA4}, 'other@a.test')`, [newRaw]), /cannot be changed/);
+  ok("corrections: resubmit", await call("anon", null, `SELECT * FROM public.submit_onboarding($1, ${DATA4}, 'cora@a.test')`, [newRaw]));
+  const re = (await db.query(`SELECT status, correction_note, used_at FROM public.onboardings WHERE id = $1`, [inv4?.id])).rows[0];
+  check("corrections: resubmitted, note cleared, link closed", re?.status === "submitted" && re?.correction_note === null && re?.used_at !== null, JSON.stringify(re));
+  check("corrections: link closed after resubmit", (await call("anon", null, `SELECT * FROM public.get_onboarding_by_token($1)`, [newRaw])).rows?.length === 0);
+  ok("corrections: owner accepts the new guarantor", await call("authenticated", ID.owner,
+    `SELECT * FROM public.review_guarantor($1, 'accepted', NULL)`, [inv4?.id]));
+  ok("corrections: owner approves", await call("authenticated", ID.owner,
+    `SELECT * FROM public.approve_onboarding($1, 'sales_rep', $2)`, [inv4?.id, ID.brA1]));
+  refused("corrections: not for an approved onboarding", await call("authenticated", ID.owner,
+    `SELECT public.request_onboarding_corrections($1, 'Too late now')`, [inv4?.id]), /submitted or rejected/);
+
+  // An email that already has an account (the owner's) is refused at submit.
+  const raw5 = "invite-token-raw-0005";
+  const hash5 = (await db.query(`SELECT public.hash_token($1) h`, [raw5])).rows[0].h;
+  ok("taken email: create invite", await call("authenticated", ID.owner,
+    `INSERT INTO public.onboardings (tenant_id, created_by, employee_id, job_title, department, start_date, status,
+       token_hash, token_expires_at, step, data)
+     VALUES ($1,$2,'FT-EML-1','Sales Rep','Sales',CURRENT_DATE,'invited',$3, now() + interval '7 days', 0, '{}'::jsonb) RETURNING id`,
+    [tenantA, ID.owner, hash5]));
+  ok("taken email: guarantor on behalf", await onBehalf(raw5));
+  refused("taken email: the owner's email is refused", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Te","lastName":"St"}'::jsonb, 'OWNER@a.test')`, [raw5]), /already exists/);
+  ok("taken email: a new email is accepted", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Te","lastName":"St"}'::jsonb, 'fresh@a.test')`, [raw5]));
+  const inv5 = (await db.query(`SELECT id FROM public.onboardings WHERE employee_id = 'FT-EML-1'`)).rows[0]?.id;
+  const raw5b = ok("no account yet: owner requests corrections", await call("authenticated", ID.owner,
+    `SELECT public.request_onboarding_corrections($1, 'Use your own email address') AS t`, [inv5]))?.t;
+  ok("no account yet: resubmit", await call("anon", null,
+    `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Te","lastName":"St"}'::jsonb, 'own@a.test')`, [raw5b]));
+  const n5 = (await db.query(`SELECT correction_note, status FROM public.onboardings WHERE id = $1`, [inv5])).rows[0];
+  check("no account yet: resubmit clears the note", n5?.correction_note === null && n5?.status === "submitted", JSON.stringify(n5));
+
+  // Reject deletes the onboarding and the pending login; the audit log keeps it.
+  const raw7 = "invite-token-raw-0007";
+  const hash7 = (await db.query(`SELECT public.hash_token($1) h`, [raw7])).rows[0].h;
+  const inv7 = ok("reject: create invite", await call("authenticated", ID.owner,
+    `INSERT INTO public.onboardings (tenant_id, created_by, employee_id, job_title, department, start_date, status,
+       token_hash, token_expires_at, step, data)
+     VALUES ($1,$2,'FT-REJ-1','Sales Rep','Sales',CURRENT_DATE,'invited',$3, now() + interval '7 days', 0, '{}'::jsonb) RETURNING id`,
+    [tenantA, ID.owner, hash7]))?.id;
+  ok("reject: guarantor on behalf", await onBehalf(raw7));
+  ok("reject: submit", await call("anon", null, `SELECT * FROM public.submit_onboarding($1, '{"firstName":"Re","lastName":"Ject"}'::jsonb, 'reject@a.test')`, [raw7]));
+  const rejUser = "00000000-0000-0000-0000-000000000096";
+  ok("reject: sign-up", await call("postgres", null,
+    `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, 'reject@a.test',
+       jsonb_build_object('onboarding_id', $2::text, 'onboarding_token_hash', $3::text, 'first_name', 'Re', 'last_name', 'Ject')) RETURNING id`,
+    [rejUser, inv7, hash7]));
+  await db.query(`INSERT INTO public.onboarding_files (onboarding_id, file_type, file_name, cloudinary_public_id, cloudinary_url, file_size, mime_type)
+     VALUES ($1::uuid, 'photo', 'p.jpg', $1::text || '/p.jpg', $1::text || '/p.jpg', 10, 'image/jpeg')`, [inv7]);
+  refused("reject: a reason is required", await call("authenticated", ID.owner, `SELECT * FROM public.reject_onboarding($1, 'no')`, [inv7]), /reason/);
+  refused("reject: only the owner", await call("authenticated", ID.mgrA1, `SELECT * FROM public.reject_onboarding($1, 'Not suitable')`, [inv7]), /Only the owner/);
+  ok("reject: owner rejects", await call("authenticated", ID.owner, `SELECT * FROM public.reject_onboarding($1, 'Not suitable for the role')`, [inv7]));
+  const gone = (await db.query(`SELECT
+      (SELECT count(*)::int FROM public.onboardings WHERE id = $1) AS onb,
+      (SELECT count(*)::int FROM public.onboarding_files WHERE onboarding_id = $1) AS files,
+      (SELECT count(*)::int FROM public.users WHERE id = $2) AS profile,
+      (SELECT count(*)::int FROM auth.users WHERE id = $2) AS login,
+      (SELECT count(*)::int FROM public.activities WHERE entity_id = $1::text AND action = 'Team onboarding rejected and deleted') AS audit`, [inv7, rejUser])).rows[0];
+  check("reject: onboarding, files, profile and login deleted; audit kept",
+    gone?.onb === 0 && gone?.files === 0 && gone?.profile === 0 && gone?.login === 0 && gone?.audit === 1, JSON.stringify(gone));
+  const ownerStill = (await db.query(`SELECT count(*)::int n FROM public.users WHERE id = $1 AND role = 'owner'`, [ID.owner])).rows[0]?.n;
+  check("reject: the owner account is untouched", ownerStill === 1);
+
+  console.log(`\nOnboarding tests: ${passed} passed, ${failures.length} failed`);
+  for (const f of failures) console.log("  FAIL " + f);
+  module.exports.result = { passed, failed: failures.length };
+};

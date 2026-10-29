@@ -9,16 +9,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldError, StockStatusBadge } from "@/components/shared";
 import type { InventoryRecord } from "@/data/mock-db";
-import { inventoryService, type FieldErrors } from "@/services/services";
+import { useAdjustStock } from "@/hooks/use-inventory";
+import { fieldErrorsFrom } from "@/lib/supabase-helpers";
+import { FIELD_NAMES, type FieldErrors } from "@/lib/validation";
 import { getInventoryStatus } from "@/lib/inventory-calculations";
 
 /** Two-step stock count correction: enter the count, then confirm the change. */
-export function AdjustStockDialog({ record, productName, onClose, actorId }: { record: InventoryRecord | null; productName: string; onClose: () => void; actorId: string }) {
+export function AdjustStockDialog({ record, productName, onClose }: { record: InventoryRecord | null; productName: string; onClose: () => void }) {
   const [count, setCount] = useState("");
   const [reason, setReason] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [saving, setSaving] = useState(false);
+  const adjustStock = useAdjustStock();
+  const saving = adjustStock.isPending;
 
   useEffect(() => { if (record) { setCount(String(record.quantityOnHand)); setReason(""); setConfirming(false); setErrors({}); } }, [record]);
   if (!record) return null;
@@ -29,19 +32,22 @@ export function AdjustStockDialog({ record, productName, onClose, actorId }: { r
   function review() {
     const e: FieldErrors = {};
     if (!valid) e.quantity = "Enter a whole number of zero or more";
-    else if (n < record!.quantityReserved) e.quantity = `Cannot go below the ${record!.quantityReserved} reserved units`;
     else if (delta === 0) e.quantity = "Counted quantity matches current stock";
     if (!reason.trim()) e.reason = "Give a reason for the adjustment";
     setErrors(e);
     if (!Object.keys(e).length) setConfirming(true);
   }
   async function confirm() {
-    setSaving(true);
-    const r = await inventoryService.adjustStock(record!.id, n, reason, actorId);
-    setSaving(false);
-    if (!r.ok) { setErrors(r.errors); setConfirming(false); toast.error(r.errors.form ?? "Unable to adjust stock"); return; }
-    toast.success("Inventory updated successfully.", { description: `${productName}: ${record!.quantityOnHand} → ${n} on hand` });
-    onClose();
+    try {
+      await adjustStock.mutateAsync({ p_inventory_id: record!.id, p_counted_quantity: n, p_reason: reason.trim() });
+      toast.success("Inventory updated successfully.", { description: `${productName}: ${record!.quantityOnHand} → ${n} on hand` });
+      onClose();
+    } catch (error) {
+      const failed = fieldErrorsFrom(error, FIELD_NAMES);
+      setErrors(failed);
+      setConfirming(false);
+      toast.error(failed.form ?? "Unable to adjust stock");
+    }
   }
 
   return (

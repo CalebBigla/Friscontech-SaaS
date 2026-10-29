@@ -1,23 +1,32 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowUpDown, Eye, MoreHorizontal, Pencil, Plus, Power, ShieldCheck, Trash2, UserCheck, Users, UserRound } from "lucide-react";
+import { ArrowUpDown, Clock, Eye, MoreHorizontal, Pencil, Plus, Power, ShieldCheck, Trash2, UserCheck, Users, UserRound } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ALL, EmptyState, FilterSelect, MetricCard, Panel, SearchBox } from "@/components/shared";
+import { ALL, DataGate, EmptyState, FilterSelect, MetricCard, Panel, SearchBox, UserAvatar } from "@/components/shared";
 import { MemberStatusBadge, MemberStatusDialog, RoleBadge, TeamMemberDialog } from "@/components/team/team-dialogs";
+import { OnboardingStatusBadge } from "@/components/team/onboarding-panel";
+import { OnboardingReviewDialog } from "@/components/team/onboarding-review";
 import type { Role, User, UserStatus } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useAuth } from "@/contexts/auth-context";
+import { useMemberPhotos, usePendingOnboardings } from "@/hooks/use-onboardings";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
-import { formatDate, formatDayTime, initials, roleLabel } from "@/lib/format";
+import { formatDate, formatDayTime, roleLabel } from "@/lib/format";
 import { canEditMember, getLastActivity, getTeamMembers, getTeamSummary, sortTeam, userStatusLabel, type TeamSortKey } from "@/lib/team";
 
 export function TeamPage() {
-  const db = useDb();
+  // Movements and requests feed each member's "last activity".
+  const { db, isLoading, error } = useLiveWorkspace({ movements: true });
   const userId = useCurrentUserId();
-  const scope = getAccessScope(db, userId);
+  const { user: authUser } = useAuth();
+  const scope = getAccessScope(db, authUser?.id ?? userId);
+  const tenantId = authUser?.tenantId ?? "";
   const all = useMemo(() => getTeamMembers(db, scope), [db, scope]);
+  const { data: pendingOnboardings = [] } = usePendingOnboardings(tenantId);
+  const { data: photos = {} } = useMemberPhotos();
   const [query, setQuery] = useState("");
   const [role, setRole] = useState(ALL);
   const [branchId, setBranchId] = useState(ALL);
@@ -27,6 +36,7 @@ export function TeamPage() {
   const [editing, setEditing] = useState<User | null>(null);
   const [creating, setCreating] = useState(false);
   const [toggling, setToggling] = useState<User | null>(null);
+  const [reviewing, setReviewing] = useState<string | null>(null);
 
   const summary = getTeamSummary(all);
   const branches = db.branches.filter((b) => all.some((u) => u.branchId === b.id));
@@ -55,21 +65,47 @@ export function TeamPage() {
   };
   const Member = ({ u }: { u: User }) => (
     <Link to="/team/$userId" params={{ userId: u.id }} className="flex min-w-0 items-center gap-3 hover:text-primary">
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-avatar text-xs font-bold text-primary">{initials(u.name)}</span>
+      <UserAvatar name={u.name} src={photos[u.id]} />
       <span className="min-w-0"><span className="block truncate text-sm font-semibold">{u.name}</span><span className="block truncate text-[11px] text-muted-foreground">{u.email}</span></span>
     </Link>
   );
+  // A pending member has no role until the owner approves their onboarding.
+  const Role = ({ u }: { u: User }) => u.status === "pending" ? <span className="text-[11px] text-muted-foreground">Assigned on approval</span> : <RoleBadge role={u.role} />;
   const last = (u: User) => { const at = getLastActivity(db, u.id); return at ? formatDayTime(at, db.tenant.referenceDate) : "No activity yet"; };
 
   return (
     <AppShell title="Team" subtitle="Manage the people who work across your organization."
       actions={<Button size="sm" onClick={() => setCreating(true)}><Plus className="size-4" /><span className="hidden sm:inline">Add Team Member</span></Button>}>
+      <DataGate isLoading={isLoading} error={error}>
       <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <MetricCard icon={Users} tone="brand" label="Total team members" value={String(summary.total)} detail={scope.user.role === "owner" ? "Across the organization" : "In your branch team"} />
         <MetricCard icon={UserCheck} tone="success" label="Active" value={String(summary.active)} detail={`${summary.total - summary.active} inactive or pending`} />
         <MetricCard icon={ShieldCheck} tone="violet" label="Managers" value={String(summary.managers)} detail={scope.user.role === "owner" ? "Branch leadership" : "You"} />
         <MetricCard icon={UserRound} tone="warning" label="Sales representatives" value={String(summary.reps)} detail={`${summary.storekeepers} storekeepers`} />
       </div>
+      {/* ---- Pending onboarding submissions (owner only) ---- */}
+      {scope.user.role === "owner" && pendingOnboardings.length > 0 && (
+        <Panel title="Pending review" subtitle={`${pendingOnboardings.length} submission${pendingOnboardings.length !== 1 ? "s" : ""} awaiting your review`} className="mb-5 overflow-hidden">
+          <div className="divide-y divide-border">
+            {pendingOnboardings.map((o: any) => (
+              <div key={o.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                <UserAvatar name={`${o.data?.firstName ?? ""} ${o.data?.lastName ?? ""}`} src={o.userId ? photos[o.userId] : undefined} />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{o.data?.firstName} {o.data?.lastName}</p>
+                  <p className="text-[11px] text-muted-foreground">{o.employeeId} · {o.jobTitle} · Submitted {o.submittedAt ? formatDate(o.submittedAt.slice(0, 10)) : "—"}</p>
+                </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <OnboardingStatusBadge status={o.status} />
+                  <Button size="sm" variant="outline" onClick={() => setReviewing(o.id)}><Eye className="size-4" />Review</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+
       <Panel className="overflow-hidden" title="Team members" subtitle={`${rows.length} of ${all.length} members`} action={
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <SearchBox value={query} onChange={setQuery} placeholder="Search name or email" className="sm:w-56" />
@@ -81,7 +117,7 @@ export function TeamPage() {
           <thead><tr className="text-[10px] uppercase text-muted-foreground"><th className="px-5 py-3"><Sort k="name" label="Member" /></th><th className="px-5 py-3"><Sort k="role" label="Role" /></th><th className="px-5 py-3">Branch</th><th className="px-5 py-3">Status</th><th className="px-5 py-3"><Sort k="joined" label="Joined" /></th><th className="px-5 py-3"><Sort k="activity" label="Last activity" /></th><th className="px-5 py-3 text-right">Actions</th></tr></thead>
           <tbody>{rows.map((u) => (
             <tr key={u.id} className="border-t border-border text-xs">
-              <td className="px-5 py-3"><Member u={u} /></td><td className="px-5 py-3"><RoleBadge role={u.role} /></td>
+              <td className="px-5 py-3"><Member u={u} /></td><td className="px-5 py-3"><Role u={u} /></td>
               <td className={`px-5 py-3 ${u.branchId ? "" : "text-muted-foreground"}`}>{branchName(u.branchId)}</td>
               <td className="px-5 py-3"><MemberStatusBadge status={u.status} /></td>
               <td className="px-5 py-3 text-muted-foreground">{formatDate(u.createdAt.slice(0, 10))}</td>
@@ -92,14 +128,16 @@ export function TeamPage() {
         <div className="divide-y divide-border md:hidden">{rows.map((u) => (
           <div key={u.id} className="p-4">
             <div className="flex items-start justify-between gap-3"><Member u={u} /><Actions u={u} /></div>
-            <div className="mt-3 flex flex-wrap items-center gap-2"><RoleBadge role={u.role} /><MemberStatusBadge status={u.status} /></div>
+            <div className="mt-3 flex flex-wrap items-center gap-2"><Role u={u} /><MemberStatusBadge status={u.status} /></div>
             <p className="mt-2 text-[11px] text-muted-foreground">{branchName(u.branchId)} · Joined {formatDate(u.createdAt.slice(0, 10))} · {last(u)}</p>
           </div>))}</div>
         {!rows.length && <EmptyState title="No team members found." detail={all.length ? "Try a different search or filter." : "Use Add Team Member to invite someone."} />}
       </Panel>
+      </DataGate>
       <TeamMemberDialog open={creating} onOpenChange={setCreating} scope={scope} />
       <TeamMemberDialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)} scope={scope} member={editing} />
       <MemberStatusDialog member={toggling} onClose={() => setToggling(null)} actorId={userId} />
+      <OnboardingReviewDialog onboardingId={reviewing} onClose={() => setReviewing(null)} scope={scope} />
     </AppShell>
   );
 }

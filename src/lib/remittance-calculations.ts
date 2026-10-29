@@ -159,7 +159,6 @@ export function getExpenseSummary(
 export type OwnerRemittanceFilters = {
   paymentMethod?: "all" | OwnerRemittancePaymentMethod;
   payeeType?: "all" | OwnerRemittancePayeeType;
-  branchId?: string;
   from?: string;
   to?: string;
   search?: string;
@@ -183,7 +182,6 @@ export function getOwnerRemittances(
         (!filters.payeeType ||
           filters.payeeType === "all" ||
           row.payeeType === filters.payeeType) &&
-        (!filters.branchId || row.branchId === filters.branchId) &&
         (!filters.from || row.remittanceDate >= filters.from) &&
         (!filters.to || row.remittanceDate <= filters.to) &&
         (!query ||

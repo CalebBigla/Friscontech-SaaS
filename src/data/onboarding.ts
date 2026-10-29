@@ -1,18 +1,18 @@
 /**
- * Staff onboarding model (Phase 4). Demo-only: lives in the in-memory store.
+ * Staff onboarding model. Stored in Supabase (onboardings, onboarding_files).
  *
  * WHAT A REAL BACKEND MUST PROVIDE BEFORE THIS IS SECURE:
  * - Tokens: store only a hash of each onboarding/guarantor token server-side, check expiry
  *   and single use on the server, and never ship tokens to other users' browsers.
  * - Files: upload photos/credentials to private object storage (e.g. Cloudinary signed uploads)
  *   instead of in-memory data URLs; serve them through signed, expiring URLs.
- * - Passwords: go to the auth provider (mock: src/services/mock-auth.ts), never into app data.
+ * - Passwords: go to Supabase Auth, never into app data.
  * - Email: send the onboarding and guarantor links by email instead of copy/paste.
  */
-export type OnboardingStatus = "invited" | "in_progress" | "submitted" | "active";
+export type OnboardingStatus = "invited" | "in_progress" | "submitted" | "approved" | "rejected";
 export type GuarantorStatus = "not_sent" | "sent" | "completed";
 
-export type StoredFile = { name: string; type: string; size: number; dataUrl: string };
+export type StoredFile = { name: string; type: string; size: number; dataUrl: string; id?: string; path?: string };
 
 export const employeeFieldKeys = [
   "lastName", "firstName", "middleInitial", "address", "gender", "phone", "email", "birthDate",
@@ -39,6 +39,8 @@ export type GuarantorResponse = {
   signature: string;
   signedDate: string;
   submittedAt: string;
+  /** "staff" when the applicant filled the form on the guarantor's behalf. */
+  filledBy?: "staff" | undefined;
 };
 
 export type Onboarding = {
@@ -50,7 +52,7 @@ export type Onboarding = {
   department: string;
   startDate: string;
   status: OnboardingStatus;
-  /** Demo only — a real backend stores a hash, never the raw token. */
+  /** Always "" when read from Supabase: only the token hash is stored. */
   token: string;
   tokenExpiresAt: string;
   tokenRevoked: boolean;
@@ -75,7 +77,7 @@ export type Onboarding = {
 };
 
 export const onboardingStatusLabel: Record<OnboardingStatus, string> = {
-  invited: "Invited", in_progress: "In progress", submitted: "Submitted", active: "Active",
+  invited: "Invited", in_progress: "In progress", submitted: "Submitted", approved: "Approved", rejected: "Rejected",
 };
 export const guarantorStatusLabel: Record<GuarantorStatus, string> = {
   not_sent: "Not sent", sent: "Sent", completed: "Completed",

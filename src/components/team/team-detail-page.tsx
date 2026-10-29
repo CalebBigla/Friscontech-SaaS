@@ -4,7 +4,7 @@ import { ArrowLeft, Pencil, Power, Trash2 } from "lucide-react";
 
 import { AppShell, RestrictedNotice } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { DetailItem, MetricCard, Panel } from "@/components/shared";
+import { DataGate, DetailItem, MetricCard, Panel, UserAvatar } from "@/components/shared";
 import {
   MemberStatusBadge,
   MemberStatusDialog,
@@ -20,7 +20,9 @@ import {
   Target as TargetIcon,
   Users,
 } from "lucide-react";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useMemberPhotos } from "@/hooks/use-onboardings";
+import { useAuth } from "@/contexts/auth-context";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { filterSales, monthRange, saleTotal, getSalesRevenue } from "@/lib/calculations";
 import {
@@ -29,7 +31,6 @@ import {
   formatMonth,
   formatNaira,
   formatNumber,
-  initials,
   roleLabel,
 } from "@/lib/format";
 import {
@@ -42,12 +43,21 @@ import {
 } from "@/lib/team";
 
 export function TeamDetailPage({ userId: memberId }: { userId: string }) {
-  const db = useDb();
-  const userId = useCurrentUserId();
+  const { db, isLoading, error } = useLiveWorkspace({ movements: true });
+  const { user: authUser } = useAuth();
+  const legacyUserId = useCurrentUserId(); // always called (hooks order must be stable)
+  const userId = authUser?.id ?? legacyUserId;
   const scope = getAccessScope(db, userId);
   const [editing, setEditing] = useState(false);
   const [toggling, setToggling] = useState(false);
   const u = getTeamMember(db, scope, memberId);
+  const { data: photos = {} } = useMemberPhotos();
+  if (isLoading || error)
+    return (
+      <AppShell title="Team member">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
   if (!u)
     return (
       <AppShell title="Team member">
@@ -62,11 +72,13 @@ export function TeamDetailPage({ userId: memberId }: { userId: string }) {
   const reportsTo = db.users.find((x) => x.id === u.managerId);
   const last = getLastActivity(db, u.id);
   const editable = canEditMember(scope, u);
+  // No role or branch until the owner approves the onboarding.
+  const pending = u.status === "pending";
 
   return (
     <AppShell
       title={u.name}
-      subtitle={`${roleLabel[u.role]} · ${branch?.name ?? "Unassigned"}`}
+      subtitle={pending ? "Awaiting onboarding approval" : `${roleLabel[u.role]} · ${branch?.name ?? "Unassigned"}`}
       actions={
         editable ? (
           <div className="flex gap-2">
@@ -98,13 +110,11 @@ export function TeamDetailPage({ userId: memberId }: { userId: string }) {
       </Link>
       <Panel title="Profile" className="mb-5">
         <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center">
-          <span className="grid size-14 shrink-0 place-items-center rounded-full bg-avatar text-base font-bold text-primary">
-            {initials(u.name)}
-          </span>
+          <UserAvatar name={u.name} src={photos[u.id]} size="xl" />
           <div className="grid flex-1 grid-cols-2 gap-4 lg:grid-cols-4">
             <DetailItem label="Email">{u.email}</DetailItem>
             <DetailItem label="Role">
-              <RoleBadge role={u.role} />
+              {pending ? "Assigned on approval" : <RoleBadge role={u.role} />}
             </DetailItem>
             <DetailItem label="Branch">
               {branch ? (
@@ -131,7 +141,7 @@ export function TeamDetailPage({ userId: memberId }: { userId: string }) {
         </div>
       </Panel>
       <OnboardingPanel member={u} scope={scope} />
-      {u.role === "sales_rep" && (
+      {!pending && u.role === "sales_rep" && (
         <RepSection
           repId={u.id}
           month={month}
@@ -139,8 +149,8 @@ export function TeamDetailPage({ userId: memberId }: { userId: string }) {
           managerView={scope.user.role === "manager"}
         />
       )}
-      {u.role === "storekeeper" && <StorekeeperSection userId={u.id} />}
-      {u.role === "manager" && <ManagerSection managerId={u.id} month={month} range={range} />}
+      {!pending && u.role === "storekeeper" && <StorekeeperSection userId={u.id} />}
+      {!pending && u.role === "manager" && <ManagerSection managerId={u.id} month={month} range={range} />}
       <TeamMemberDialog open={editing} onOpenChange={setEditing} scope={scope} member={u} />
       <MemberStatusDialog
         member={toggling ? u : null}
@@ -162,7 +172,7 @@ function RepSection({
   range: { from: string; to: string };
   managerView: boolean;
 }) {
-  const db = useDb();
+  const { db } = useLiveWorkspace({ movements: true });
   if (managerView) {
     const sales = filterSales(db, { repId, range });
     const revenue = sales.reduce((sum, sale) => sum + saleTotal(sale), 0);
@@ -233,7 +243,7 @@ function RepSection({
 }
 
 function StorekeeperSection({ userId }: { userId: string }) {
-  const db = useDb();
+  const { db } = useLiveWorkspace({ movements: true });
   const a = getStorekeeperActivity(db, userId);
   return (
     <Panel title="Stock activity" subtitle="From inventory movements and processed requests">
@@ -266,7 +276,7 @@ function ManagerSection({
   month: string;
   range: { from: string; to: string };
 }) {
-  const db = useDb();
+  const { db } = useLiveWorkspace({ movements: true });
   const manager = db.users.find((x) => x.id === managerId)!;
   const team = getManagerTeam(db, manager);
   const revenue = team

@@ -1,11 +1,12 @@
-import { useState } from "react";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { Branch } from "@/data/mock-db";
-import { branchService } from "@/services/services";
+import { useDeactivateBranch } from "@/hooks/use-branches";
 
-export function DeactivateBranchDialog({ branch, onClose, actorId }: { branch: Branch | null; onClose: () => void; actorId: string }) {
-  const [busy, setBusy] = useState(false);
+export function DeactivateBranchDialog({ branch, onClose }: { branch: Branch | null; onClose: () => void; actorId: string }) {
+  const deactivateBranch = useDeactivateBranch();
+  const busy = deactivateBranch.isPending;
+  
   return (
     <AlertDialog open={!!branch} onOpenChange={(o) => !o && onClose()}>
       <AlertDialogContent>
@@ -18,11 +19,14 @@ export function DeactivateBranchDialog({ branch, onClose, actorId }: { branch: B
           <AlertDialogAction disabled={busy} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async (e) => {
             e.preventDefault();
             if (!branch) return;
-            setBusy(true);
-            const r = await branchService.deactivate(branch.id, actorId);
-            setBusy(false);
-            if (r.ok) toast.success(`${branch.name} deactivated`); else toast.error("Could not deactivate branch");
-            onClose();
+            
+            try {
+              await deactivateBranch.mutateAsync(branch.id);
+              toast.success(`${branch.name} deactivated`);
+              onClose();
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "Could not deactivate branch");
+            }
           }}>{busy ? "Deactivating…" : "Deactivate Branch"}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

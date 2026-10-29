@@ -8,14 +8,14 @@ import { ALL, EmptyState, FilterSelect, MetricCard, Panel, SearchBox } from "@/c
 import { EditTargetDialog, SetTargetDialog, monthOptions } from "@/components/targets/target-dialogs";
 import { TargetProgressBar, TargetStatusBadge } from "@/components/targets/target-shared";
 import type { Target } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getMonthTargets, getTargetSummary, shiftMonth, targetStatusLabel, type TargetStatus } from "@/lib/catalog-calculations";
 import { monthOf } from "@/lib/dates";
 import { formatCompactNaira, formatMonth, formatNaira, formatNumber, formatPercent } from "@/lib/format";
 
 export function TargetsPage({ month: monthParam }: { month?: string | undefined }) {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const navigate = useNavigate();
@@ -48,6 +48,7 @@ export function TargetsPage({ month: monthParam }: { month?: string | undefined 
 
   return (
     <AppShell title="Targets" subtitle="Monthly sales targets for sales representatives" actions={<Button onClick={() => setCreating(true)}><Plus className="size-4" /><span className="hidden sm:inline">Set Target</span></Button>}>
+      {error && <div role="alert" className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">Could not load targets data: {error instanceof Error ? error.message : "Database request failed"}</div>}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div><h1 className="text-xl font-bold">Targets · {formatMonth(month)}</h1><p className="mt-1 text-xs text-muted-foreground">Achievement is calculated live from each rep's completed sales.</p></div>
         {monthPicker}
@@ -84,10 +85,10 @@ export function TargetsPage({ month: monthParam }: { month?: string | undefined 
             <div className="mt-2"><TargetProgressBar p={r} /></div>
             <div className="mt-3 flex gap-2"><Button variant="outline" size="sm" asChild><Link to="/targets/$targetId" params={{ targetId: r.target.id }}>View</Link></Button><Button variant="outline" size="sm" onClick={() => setEditing(r.target)}>Edit</Button></div>
           </div>))}</div>
-        {!rows.length && <EmptyState title={all.length ? "No targets match your filters." : "No targets have been set for this month."} {...(all.length ? {} : { detail: "Use Set Target to add one." })} />}
+        {isLoading ? <p className="p-5 text-sm text-muted-foreground">Loading persisted targets…</p> : !rows.length && <EmptyState title={all.length ? "No targets match your filters." : "No targets have been set for this month."} {...(all.length ? {} : { detail: "Use Set Target to add one." })} />}
       </Panel>
-      <SetTargetDialog open={creating} onOpenChange={setCreating} scope={scope} defaultMonth={month} onEditExisting={setEditing} />
-      <EditTargetDialog target={editing} onClose={() => setEditing(null)} actorId={userId} />
+      <SetTargetDialog open={creating} onOpenChange={setCreating} scope={scope} defaultMonth={month} onEditExisting={setEditing} db={db} />
+      <EditTargetDialog target={editing} onClose={() => setEditing(null)} actorId={userId} db={db} />
     </AppShell>
   );
 }

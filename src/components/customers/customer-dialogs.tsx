@@ -17,13 +17,19 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Customer, CustomerPaymentMethod } from "@/data/mock-db";
 import { getCustomerOrders } from "@/lib/customer-calculations";
 import { formatNaira } from "@/lib/format";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useCreateCustomer, useSetCustomerCreditLimit, useUpdateCustomer } from "@/hooks/use-customers";
+import { useRecordCustomerPayment } from "@/hooks/use-customer-payments";
+import { useIdempotencyKey } from "@/hooks/use-idempotency-key";
+import { getAccessScope } from "@/lib/session";
 import {
-  customerPaymentService,
-  customerService,
+  runWrite,
+  validateCreditLimit,
+  validateCustomerPayment,
+  validateCustomerWrite,
   type CustomerInput,
   type FieldErrors,
-} from "@/services/services";
+} from "@/lib/validation";
 
 function Field({
   label,
@@ -58,6 +64,9 @@ export function CustomerFormDialog({
   customer?: Customer | undefined;
   onSaved?: (c: Customer) => void;
 }) {
+  const { db } = useLiveWorkspace();
+  const createCustomer = useCreateCustomer();
+  const updateCustomer = useUpdateCustomer();
   const [form, setForm] = useState<CustomerInput>(blank);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [busy, setBusy] = useState(false);
@@ -81,9 +90,18 @@ export function CustomerFormDialog({
       setForm((f) => ({ ...f, [k]: e.target.value }));
   const save = async () => {
     setBusy(true);
-    const result = customer
-      ? await customerService.update(customer.id, form, actorId)
-      : await customerService.create(form, actorId);
+    const fields = {
+      p_name: form.name.trim(),
+      p_contact_person: form.contactPerson.trim(),
+      p_phone: form.phone.trim(),
+      p_email: form.email.trim() || null,
+      p_address: form.address.trim(),
+    };
+    const result = await runWrite(validateCustomerWrite(db, getAccessScope(db, actorId), form, customer), () =>
+      customer
+        ? updateCustomer.mutateAsync({ p_customer_id: customer.id, ...fields })
+        : createCustomer.mutateAsync(fields),
+    );
     setBusy(false);
     if (!result.ok) {
       setErrors(result.errors);
@@ -154,7 +172,9 @@ export function RecordCustomerPaymentDialog({
   actorId: string;
   customer: Customer;
 }) {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
+  const recordPayment = useRecordCustomerPayment();
+  const idempotencyKey = useIdempotencyKey(open);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<CustomerPaymentMethod>("cash");
   const [reference, setReference] = useState("");
@@ -176,17 +196,26 @@ export function RecordCustomerPaymentDialog({
   const openOrders = getCustomerOrders(db, customer.id).filter((o) => o.paymentStatus !== "paid");
   const save = async () => {
     setBusy(true);
-    const result = await customerPaymentService.record(
-      {
-        customerId: customer.id,
-        amount: Number(amount),
-        method,
-        reference,
-        paymentDate: date,
-        note,
-        ...(orderId !== "none" ? { orderId } : {}),
-      },
-      actorId,
+    const input = {
+      customerId: customer.id,
+      amount: Number(amount),
+      method,
+      reference,
+      paymentDate: date,
+      note,
+      ...(orderId !== "none" ? { orderId } : {}),
+    };
+    const result = await runWrite(validateCustomerPayment(db, getAccessScope(db, actorId), input), () =>
+      recordPayment.mutateAsync({
+        p_customer_id: input.customerId,
+        p_amount: input.amount,
+        p_method: input.method,
+        p_reference: input.reference.trim() || null,
+        p_payment_date: input.paymentDate,
+        p_order_id: input.orderId ?? null,
+        p_note: input.note.trim() || null,
+        p_idempotency_key: idempotencyKey,
+      }),
     );
     setBusy(false);
     if (!result.ok) {
@@ -291,6 +320,8 @@ export function CreditLimitDialog({
   actorId: string;
   customer: Customer;
 }) {
+  const { db } = useLiveWorkspace();
+  const setCreditLimit = useSetCustomerCreditLimit();
   const [value, setValue] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [busy, setBusy] = useState(false);
@@ -302,10 +333,10 @@ export function CreditLimitDialog({
   }, [open, customer]);
   const save = async () => {
     setBusy(true);
-    const result = await customerService.setCreditLimit(
-      customer.id,
-      value === "" ? null : Number(value),
-      actorId,
+    const limit = value === "" ? null : Number(value);
+    const result = await runWrite(validateCreditLimit(db, getAccessScope(db, actorId), limit), () =>
+      // A zero limit clears it, as before.
+      setCreditLimit.mutateAsync({ p_customer_id: customer.id, p_credit_limit: limit ? limit : null }),
     );
     setBusy(false);
     if (!result.ok) {

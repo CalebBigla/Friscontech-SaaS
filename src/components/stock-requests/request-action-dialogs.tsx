@@ -9,8 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldError, FilterSelect } from "@/components/shared";
 import type { StockRequest } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
-import { stockRequestService } from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useApproveStockRequest, useFulfilStockRequest, useRejectStockRequest } from "@/hooks/use-stock-requests";
+import { getAccessScope } from "@/lib/session";
+import { fieldErrorsFrom } from "@/lib/supabase-helpers";
+import { FIELD_NAMES, validateApproveStockRequest, validateFulfilStockRequest, validateRejectStockRequest, type FieldErrors } from "@/lib/validation";
 import { getStockRequestAvailability } from "@/lib/inventory-calculations";
 import { formatUnits } from "@/lib/format";
 
@@ -32,12 +35,15 @@ export function ShortageNotice({ needed, available }: { needed: number; availabl
 const rejectReasons = ["Product unavailable", "Request not authorized", "Duplicate request", "Other"];
 
 export function RequestActionDialog({ action, onClose, actorId }: { action: RequestAction; onClose: () => void; actorId: string }) {
-  const db = useDb();
+  const { db } = useLiveWorkspace();
+  const approve = useApproveStockRequest();
+  const reject = useRejectStockRequest();
+  const fulfil = useFulfilStockRequest();
   const [qty, setQty] = useState("");
   const [reason, setReason] = useState(rejectReasons[0]!);
   const [detail, setDetail] = useState("");
   const [error, setError] = useState<string>();
-  const [saving, setSaving] = useState(false);
+  const saving = approve.isPending || reject.isPending || fulfil.isPending;
   const req = action ? db.stockRequests.find((r) => r.id === action.request.id) ?? action.request : null;
   const avail = req ? getStockRequestAvailability(db, req) : null;
 
@@ -57,21 +63,33 @@ export function RequestActionDialog({ action, onClose, actorId }: { action: Requ
     : n > avail.needed ? `Only ${avail.needed} units are outstanding on this request` : undefined;
 
   async function submit() {
-    setSaving(true);
-    const r = action!.kind === "approve" ? await stockRequestService.approve(req!.id, actorId)
-      : action!.kind === "reject" ? await stockRequestService.reject(req!.id, reason === "Other" ? detail : detail.trim() ? `${reason} — ${detail.trim()}` : reason, actorId)
-      : await stockRequestService.fulfill(req!.id, n, actorId);
-    setSaving(false);
-    if (!r.ok) {
-      const msg = r.errors.quantity ?? r.errors.reason ?? r.errors.form ?? "Unable to update request";
+    const kind = action!.kind;
+    const scope = getAccessScope(db, actorId);
+    const rejectReason = reason === "Other" ? detail : detail.trim() ? `${reason} — ${detail.trim()}` : reason;
+    const fail = (e: FieldErrors) => {
+      const msg = e.quantity ?? e.reason ?? e.form ?? "Unable to update request";
       setError(msg);
-      toast.error(action!.kind === "fulfill" ? "Unable to fulfill request" : msg, { description: action!.kind === "fulfill" ? msg : undefined });
-      return;
+      toast.error(kind === "fulfill" ? "Unable to fulfill request" : msg, { description: kind === "fulfill" ? msg : undefined });
+    };
+    const invalid = kind === "approve" ? validateApproveStockRequest(scope, req!)
+      : kind === "reject" ? validateRejectStockRequest(scope, req!, rejectReason)
+      : validateFulfilStockRequest(db, scope, req!, n);
+    if (invalid) return fail(invalid);
+    try {
+      if (kind === "approve") {
+        await approve.mutateAsync({ p_request_id: req!.id });
+        toast.success("Stock request approved.", { description: `${req!.id} · stock is deducted only at fulfillment` });
+      } else if (kind === "reject") {
+        const updated = await reject.mutateAsync({ p_request_id: req!.id, p_reason: rejectReason.trim() });
+        toast.success("Stock request rejected.", { description: updated.rejectionReason });
+      } else {
+        const updated = await fulfil.mutateAsync({ p_request_id: req!.id, p_quantity: n });
+        toast.success(updated.status === "fulfilled" ? "Stock request fulfilled." : "Stock request partially fulfilled.", { description: `${n} units issued to ${rep?.name} · ${updated.quantityFulfilled} / ${updated.quantityApproved} fulfilled` });
+      }
+      onClose();
+    } catch (failure) {
+      fail(fieldErrorsFrom(failure, FIELD_NAMES));
     }
-    if (action!.kind === "approve") toast.success("Stock request approved.", { description: `${req!.id} · stock is deducted only at fulfillment` });
-    else if (action!.kind === "reject") toast.success("Stock request rejected.", { description: r.data.rejectionReason });
-    else toast.success(r.data.status === "fulfilled" ? "Stock request fulfilled." : "Stock request partially fulfilled.", { description: `${n} units issued to ${rep?.name} · ${r.data.quantityFulfilled} / ${r.data.quantityApproved} fulfilled` });
-    onClose();
   }
 
   const title = action.kind === "approve" ? `Approve ${req.id}` : action.kind === "reject" ? `Reject ${req.id}` : `Fulfill ${req.id}`;

@@ -5,15 +5,15 @@ import { AcknowledgeDialog } from "@/components/stock-requests/acknowledge-dialo
 
 import { AppShell, RestrictedNotice } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { DetailItem, Panel, RequestStatusBadge, StockStatusBadge } from "@/components/shared";
+import { DataGate, DetailItem, Panel, RequestStatusBadge, StockStatusBadge } from "@/components/shared";
 import { RequestActionDialog, ShortageNotice, type RequestAction } from "@/components/stock-requests/request-action-dialogs";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { canSeeBranch, getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getRequestBatch, getRequestOutstanding, getRequestTimeline, getStockRequestAvailability, isRequestOpen, needsAcknowledgement } from "@/lib/inventory-calculations";
 import { formatDate, formatDayTime, formatUnits } from "@/lib/format";
 
 export function RequestDetailPage({ requestId }: { requestId: string }) {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace({ movements: true });
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const [action, setAction] = useState<RequestAction>(null);
@@ -21,6 +21,9 @@ export function RequestDetailPage({ requestId }: { requestId: string }) {
   const req = db.stockRequests.find((r) => r.id === requestId);
   const allowed = req && canSeeBranch(scope, req.branchId) && (!scope.repId || req.repId === scope.repId);
 
+  if (isLoading || error) {
+    return <AppShell title="Stock request"><DataGate isLoading={isLoading} error={error}>{null}</DataGate></AppShell>;
+  }
   if (!req || !allowed) {
     return <AppShell title="Stock request"><RestrictedNotice message={req ? "This request is outside your access." : "This stock request does not exist."} /><div className="mt-4 text-center"><Button variant="outline" asChild><Link to="/stock-requests"><ArrowLeft className="size-4" />Back to requests</Link></Button></div></AppShell>;
   }

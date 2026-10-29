@@ -9,7 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldError, FilterSelect } from "@/components/shared";
 import type { Product } from "@/data/mock-db";
-import { productService, type FieldErrors } from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { getAccessScope, useCurrentUserId } from "@/lib/session";
+import { runWrite, validateProductWrite, type FieldErrors } from "@/lib/validation";
+import { useCreateProduct, useUpdateProduct } from "@/hooks/use-products";
 
 export const PRODUCT_UNITS = ["Piece", "Box", "Carton", "Pack", "Set", "Unit"];
 const empty = { name: "", sku: "", category: "", unit: "Piece", unitPrice: "", unitCost: "", threshold: "10", description: "" };
@@ -17,10 +20,14 @@ type Key = keyof typeof empty;
 const fromProduct = (p: Product) => ({ name: p.name, sku: p.sku, category: p.category, unit: p.unit, unitPrice: String(p.unitPrice), unitCost: String(p.unitCost), threshold: String(p.lowStockThreshold), description: p.description ?? "" });
 
 /** Add or edit a catalogue product. Pass `product` to edit. */
-export function ProductFormDialog({ open, onOpenChange, actorId, product, categories = [] }: { open: boolean; onOpenChange: (o: boolean) => void; actorId: string; product?: Product | null | undefined; categories?: string[] }) {
+export function ProductFormDialog({ open, onOpenChange, product, categories = [] }: { open: boolean; onOpenChange: (o: boolean) => void; actorId?: string; product?: Product | null | undefined; categories?: string[] }) {
   const [form, setForm] = useState(empty);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
+  const createProduct = useCreateProduct();
+  const updateProduct = useUpdateProduct();
+  const { db } = useLiveWorkspace();
+  const userId = useCurrentUserId();
   useEffect(() => { if (open) { setForm(product ? fromProduct(product) : empty); setErrors({}); } }, [open, product]);
   const set = (k: Key, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const units = product && !PRODUCT_UNITS.includes(product.unit) ? [product.unit, ...PRODUCT_UNITS] : PRODUCT_UNITS;
@@ -29,11 +36,29 @@ export function ProductFormDialog({ open, onOpenChange, actorId, product, catego
     e.preventDefault();
     const num = (v: string) => (v.trim() === "" ? Number.NaN : Number(v));
     const input = { name: form.name, sku: form.sku, category: form.category, unit: form.unit, unitPrice: num(form.unitPrice), unitCost: num(form.unitCost), lowStockThreshold: num(form.threshold), description: form.description };
+    const fields = {
+      p_name: input.name.trim(),
+      p_sku: input.sku.trim().toUpperCase(),
+      p_category: input.category.trim(),
+      p_unit: input.unit.trim(),
+      p_unit_price: input.unitPrice,
+      p_unit_cost: input.unitCost,
+      p_low_stock_threshold: input.lowStockThreshold,
+      p_description: input.description.trim() || null,
+    };
     setSaving(true);
-    const r = product ? await productService.update(product.id, input, actorId) : await productService.create(input, actorId);
+    const result = await runWrite(validateProductWrite(db, getAccessScope(db, userId), input, product ?? undefined), () =>
+      product ? updateProduct.mutateAsync({ p_product_id: product.id, ...fields }) : createProduct.mutateAsync(fields),
+    );
     setSaving(false);
-    if (!r.ok) { setErrors(r.errors); toast.error(r.errors.form ?? "Please fix the highlighted fields"); return; }
-    toast.success(product ? `${r.data.name} updated` : `${r.data.name} added`, { description: product ? "Changes apply everywhere this product is referenced." : "Created with 0 units — add stock to start selling." });
+    if (!result.ok) {
+      setErrors(result.errors);
+      toast.error(result.errors.form ?? "Please fix the highlighted fields");
+      return;
+    }
+    toast.success(product ? `${result.data.name} updated` : `${result.data.name} added`, {
+      description: product ? "Changes apply everywhere this product is referenced." : "Product saved. Add stock separately to start selling.",
+    });
     onOpenChange(false);
   }
 

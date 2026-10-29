@@ -4,12 +4,12 @@ import { Plus } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { CustomerFormDialog } from "@/components/customers/customer-dialogs";
-import { EmptyState, FilterSelect, Panel, SearchBox, StatTile } from "@/components/shared";
+import { DataGate, EmptyState, FilterSelect, Panel, SearchBox, StatTile } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { getCustomerSummary, getCustomersForScope } from "@/lib/customer-calculations";
 import { formatNaira } from "@/lib/format";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 
 export function BalanceBadge({ balance }: { balance: number }) {
   if (balance < 0)
@@ -26,7 +26,7 @@ export function BalanceBadge({ balance }: { balance: number }) {
 }
 
 export function CustomersPage() {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const navigate = useNavigate();
@@ -83,6 +83,7 @@ export function CustomersPage() {
           </Button>
         )}
       </div>
+      <DataGate isLoading={isLoading} error={error}>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
           label="Customers"
@@ -214,6 +215,7 @@ export function CustomersPage() {
           />
         )}
       </Panel>
+      </DataGate>
       {scope.canManageCustomers && (
         <CustomerFormDialog
           open={addOpen}

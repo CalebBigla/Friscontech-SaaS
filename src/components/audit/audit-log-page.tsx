@@ -3,11 +3,12 @@ import { Link } from "@tanstack/react-router";
 import { Activity as ActivityIcon, ArrowLeftRight, CalendarDays, ClipboardList, Contact, KeyRound, Landmark, Package, Receipt, Settings, ShoppingCart, Store, Target, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
-import { ALL, DetailItem, EmptyState, FilterSelect, MetricCard, Panel, SearchBox } from "@/components/shared";
+import { ALL, DataGate, DetailItem, EmptyState, FilterSelect, MetricCard, Panel, SearchBox } from "@/components/shared";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDb } from "@/services/mock-store";
-import { getPreferences } from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { AUDIT_LOG_LIMIT } from "@/hooks/use-audit-logs";
+import { getPreferences } from "@/lib/settings";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { filterByRange, formatPrefDate, getActivityOverview, getAuditLogs, getAuditSummary, type AuditRow } from "@/lib/audit";
 import { canAccessMember } from "@/lib/team";
@@ -23,7 +24,7 @@ const entityIcon: Record<AuditEntity, LucideIcon> = {
 const periods = [{ value: ALL, label: "All time" }, { value: "today", label: "Today" }, { value: "week", label: "Last 7 days" }, { value: "month", label: "This month" }, { value: "quarter", label: "This quarter" }];
 
 export function AuditLogPage() {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace({ activities: true });
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const pref = getPreferences(db, userId);
@@ -66,6 +67,7 @@ export function AuditLogPage() {
         <p className="mt-1 text-xs text-muted-foreground">{personal ? "A record of every action you performed in Friscontech." : "Track important activity across your organization."}</p>
       </div>
 
+      <DataGate isLoading={isLoading} error={error}>
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {ready ? <>
           <MetricCard icon={ActivityIcon} tone="brand" label="Total Activities" value={formatNumber(summary.total)} />
@@ -88,7 +90,7 @@ export function AuditLogPage() {
           </div>
         </Panel>); })()}
 
-      <Panel title="Activity" subtitle={`${formatNumber(list.length)} of ${formatNumber(all.length)} entries`}>
+      <Panel title="Activity" subtitle={`${formatNumber(list.length)} of ${formatNumber(all.length)} entries${db.activities.length >= AUDIT_LOG_LIMIT ? ` · most recent ${formatNumber(AUDIT_LOG_LIMIT)} loaded` : ""}`}>
         <div className="flex flex-col gap-2 border-b border-border p-4 sm:flex-row sm:flex-wrap">
           <SearchBox value={q} onChange={(v) => { setQ(v); reset(); }} placeholder="Search action, record or person" className="sm:w-64" />
           <FilterSelect label="Date range" className="w-full sm:w-36" value={period} onChange={(v) => { setPeriod(v); reset(); }} options={periods} />
@@ -124,6 +126,7 @@ export function AuditLogPage() {
           {list.length > limit && <div className="border-t border-border p-3 text-center"><button className="text-xs font-semibold text-primary" onClick={() => setLimit((l) => l + 40)}>Show more</button></div>}
         </>}
       </Panel>
+      </DataGate>
 
       <Sheet open={!!open} onOpenChange={(v) => !v && setOpen(null)}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-md">

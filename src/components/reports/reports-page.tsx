@@ -31,9 +31,10 @@ import {
   StockStatusBadge,
 } from "@/components/shared";
 import { TargetProgressBar, TargetStatusBadge } from "@/components/targets/target-shared";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { DataGate } from "@/components/shared";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
-import { getPreferences } from "@/services/services";
+import { getPreferences } from "@/lib/settings";
 import { getPeriodRange, type PeriodKey } from "@/lib/dates";
 import { saleTotal } from "@/lib/calculations";
 import { formatDate, formatMonth, formatNaira, formatNumber, formatPercent } from "@/lib/format";
@@ -81,8 +82,20 @@ function downloadCsv(name: string, header: string[], rows: (string | number)[][]
   URL.revokeObjectURL(a.href);
 }
 
+/** Waits for Supabase data (real loading and error states), then renders the screen. */
 export function ReportsPage() {
-  const db = useDb();
+  const { isLoading, error } = useLiveWorkspace();
+  if (isLoading || error)
+    return (
+      <AppShell title="Reports">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
+  return <ReportsPageContent />;
+}
+
+function ReportsPageContent() {
+  const { db } = useLiveWorkspace();
   const scope = getAccessScope(db, useCurrentUserId());
   const today = db.tenant.referenceDate;
   const init: Draft = {
@@ -112,11 +125,7 @@ export function ReportsPage() {
       toast.error("Choose a valid date range up to today.");
       return;
     }
-    setLoading(true);
-    setTimeout(() => {
-      setApplied(draft);
-      setLoading(false);
-    }, 300);
+    setApplied(draft);
   };
   const opt = (v: string) => (v === ALL ? undefined : v);
   const filters: ReportFilters = {
@@ -179,13 +188,12 @@ export function ReportsPage() {
     if (applied.type === "inventory")
       downloadCsv(
         file,
-        ["Product", "SKU", "Branch", "On Hand", "Reserved", "Available", "Threshold", "Status"],
+        ["Product", "SKU", "Branch", "On Hand", "Available", "Threshold", "Status"],
         inventory.rows.map((r) => [
           r.product.name,
           r.product.sku,
           r.branch.name,
           r.record.quantityOnHand,
-          r.record.quantityReserved,
           r.available,
           r.record.lowStockThreshold,
           inventoryStatusLabel[r.status],
@@ -550,7 +558,6 @@ export function ReportsPage() {
                     "SKU",
                     "Branch",
                     "On Hand|r",
-                    "Reserved|r",
                     "Available|r",
                     "Threshold|r",
                     "Status",
@@ -571,9 +578,6 @@ export function ReportsPage() {
                       <td className={td}>{r.branch.name}</td>
                       <td className={`${td} text-right`}>
                         {formatNumber(r.record.quantityOnHand)}
-                      </td>
-                      <td className={`${td} text-right`}>
-                        {formatNumber(r.record.quantityReserved)}
                       </td>
                       <td className={`${td} text-right font-semibold`}>
                         {formatNumber(r.available)}

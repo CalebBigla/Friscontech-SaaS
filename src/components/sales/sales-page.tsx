@@ -16,8 +16,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { ALL, EmptyState, FilterSelect, MetricCard, Panel } from "@/components/shared";
 import { RecordSaleDialog } from "@/components/sales/record-sale-dialog";
-import type { Sale } from "@/data/mock-db";
-import { useDb } from "@/services/mock-store";
+import type { Db, Sale } from "@/data/mock-db";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import {
   filterSales,
@@ -55,7 +55,7 @@ const statusClass = {
 const PAGE = 25;
 
 export function SalesPage() {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const search = route.useSearch();
@@ -222,6 +222,8 @@ export function SalesPage() {
         )
       }
     >
+      {error && <div role="alert" className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">Could not load persisted sales data: {error instanceof Error ? error.message : "Database request failed"}</div>}
+      {isLoading && <p className="mb-4 text-sm text-muted-foreground">Loading persisted sales…</p>}
       <div className="mb-5 flex flex-col justify-between gap-3 lg:flex-row lg:items-end">
         <div>
           <h1 className="text-xl font-bold">{scope.repId ? "My Sales" : "Sales"}</h1>
@@ -531,12 +533,13 @@ export function SalesPage() {
         onOpenChange={setRecordOpen}
         scope={scope}
         defaultBranchId={branchId}
+        db={db}
       />
     </AppShell>
   );
 }
 
-function SaleTypeBadge({ db, sale }: { db: ReturnType<typeof useDb>; sale: Sale }) {
+function SaleTypeBadge({ db, sale }: { db: Db; sale: Sale }) {
   const customer = sale.customerId ? db.customers.find((c) => c.id === sale.customerId) : undefined;
   const byOwner = db.users.find((u) => u.id === sale.salesRepId)?.role === "owner";
   return (

@@ -2,10 +2,11 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { Product, ProductStatus } from "@/data/mock-db";
-import { productService, requestProductDeactivation } from "@/services/services";
 import { Textarea } from "@/components/ui/textarea";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope } from "@/lib/session";
+import { useRequestProductDeactivation, useSetProductStatus } from "@/hooks/use-products";
+import { runWrite, validateDeactivationRequest, validateProductStatus } from "@/lib/validation";
 
 export function ProductStatusBadge({ status }: { status: ProductStatus }) {
   return <span className={`status whitespace-nowrap ${status === "active" ? "status-success" : "status-warning"}`}>{status === "active" ? "Active" : "Inactive"}</span>;
@@ -15,8 +16,10 @@ export function ProductStatusBadge({ status }: { status: ProductStatus }) {
 export function ProductStatusDialog({ product, onClose, actorId }: { product: Product | null; onClose: () => void; actorId: string }) {
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState("");
-  const db = useDb();
+  const { db } = useLiveWorkspace();
   const scope = getAccessScope(db, actorId);
+  const setStatus = useSetProductStatus();
+  const requestDeactivation = useRequestProductDeactivation();
   const deactivating = product?.status === "active";
   const deleting = scope.user.role === "owner" && deactivating;
   const needsApproval = deactivating && !scope.canDeactivateProducts;
@@ -38,15 +41,19 @@ export function ProductStatusDialog({ product, onClose, actorId }: { product: Pr
             if (!product) return;
             setBusy(true);
             if (needsApproval) {
-              const r = await requestProductDeactivation(product.id, reason, actorId);
+              const r = await runWrite(validateDeactivationRequest(db, scope, product, reason), () =>
+                requestDeactivation.mutateAsync({ p_product_id: product.id, p_reason: reason.trim() }));
               setBusy(false);
-              if (!r.ok) { toast.error((r.errors.reason as string | undefined) ?? r.errors.form ?? "Could not send request"); return; }
-              toast.success("Deactivation request sent to your manager.", { description: r.data.id });
+              if (!r.ok) { toast.error(r.errors.reason ?? r.errors.form ?? "Could not send request"); return; }
+              toast.success("Deactivation request sent to your manager.", { description: product.name });
               setReason(""); onClose(); return;
             }
-            const r = await productService.setStatus(product.id, deactivating ? "inactive" : "active", actorId);
+            const status = deactivating ? "inactive" : "active";
+            const r = await runWrite(validateProductStatus(scope, status), () =>
+              setStatus.mutateAsync({ p_product_id: product.id, p_status: status }));
             setBusy(false);
-            if (r.ok) toast.success(`${product.name} ${deleting ? "deleted" : deactivating ? "deactivated" : "activated"}`); else toast.error(r.errors.form ?? "Could not update product");
+            if (!r.ok) { toast.error(r.errors.form ?? "Could not update product"); return; }
+            toast.success(`${product.name} ${deleting ? "deleted" : deactivating ? "deactivated" : "activated"}`);
             onClose();
           }}>{busy ? "Saving…" : needsApproval ? "Send request" : deleting ? "Delete product" : deactivating ? "Deactivate product" : "Activate product"}</AlertDialogAction>
         </AlertDialogFooter>

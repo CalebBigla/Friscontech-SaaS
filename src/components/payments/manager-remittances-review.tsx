@@ -3,7 +3,7 @@ import { CircleDollarSign, ClipboardList, Landmark, Wallet } from "lucide-react"
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/app-shell";
-import { EmptyState, FieldError, FilterSelect, MetricCard, Panel } from "@/components/shared";
+import { DataGate, EmptyState, FieldError, FilterSelect, MetricCard, Panel } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,8 +22,9 @@ import { formatDate, formatMonth, formatNaira, formatTime } from "@/lib/format";
 import { getOwnerManagerPaymentSummary, isValidPaymentPeriod } from "@/lib/payment-calculations";
 import { getManagerRemittances } from "@/lib/remittance-calculations";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
-import { useDb } from "@/services/mock-store";
-import { remittanceService, type FieldErrors } from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useConfirmManagerRemittance, useDeclineManagerRemittance } from "@/hooks/use-remittances";
+import { runWrite, validateRemittanceConfirm, validateRemittanceDecline, type FieldErrors } from "@/lib/validation";
 
 const currentMonth = (dbDate: string) => dbDate.slice(0, 7);
 const monthLabel = (period: string) =>
@@ -35,9 +36,15 @@ const monthLabel = (period: string) =>
 
 /** Owner review of Manager → Owner remittances. */
 export function ManagerRemittancesReview() {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
   const scope = getAccessScope(db, useCurrentUserId());
   const [period, setPeriod] = useState(currentMonth(db.tenant.referenceDate));
+  if (isLoading || error)
+    return (
+      <AppShell title="Manager remittances">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
   return (
     <OwnerManagerPaymentPage db={db} scope={scope} period={period} onPeriodChange={setPeriod} />
   );
@@ -60,6 +67,8 @@ function OwnerManagerPaymentPage({
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [declineReason, setDeclineReason] = useState("");
+  const confirmRemittance = useConfirmManagerRemittance();
+  const declineRemittance = useDeclineManagerRemittance();
   const allRows = useMemo(() => getManagerRemittances(db, scope, { period }), [db, scope, period]);
   const reviewRow = allRows.find((row) => row.id === reviewId) ?? null;
   const summary = getOwnerManagerPaymentSummary(allRows);
@@ -80,8 +89,10 @@ function OwnerManagerPaymentPage({
     setBusy(true);
     const result =
       action === "confirm"
-        ? await remittanceService.confirm(reviewRow.id, scope.user.id)
-        : await remittanceService.decline(reviewRow.id, declineReason, scope.user.id);
+        ? await runWrite(validateRemittanceConfirm(db, scope, reviewRow), () =>
+            confirmRemittance.mutateAsync({ p_remittance_id: reviewRow.id }))
+        : await runWrite(validateRemittanceDecline(db, scope, reviewRow, declineReason), () =>
+            declineRemittance.mutateAsync({ p_remittance_id: reviewRow.id, p_reason: declineReason.trim() }));
     setBusy(false);
     if (!result.ok) {
       setErrors(result.errors);

@@ -20,7 +20,8 @@ import { toast } from "sonner";
 import { AppShell, RestrictedNotice } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { EmptyState, MetricCard, Panel, RequestStatusBadge } from "@/components/shared";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { DataGate } from "@/components/shared";
 import {
   getInventorySummary,
 } from "@/lib/inventory-calculations";
@@ -38,7 +39,10 @@ import {
 import { getPeriodRange, isoWeek, previousRange, type PeriodKey } from "@/lib/dates";
 import { formatCompactNaira, formatDate, formatNumber, formatPercent, formatTime } from "@/lib/format";
 import { getManagerRemittances } from "@/lib/remittance-calculations";
-import { canReviewApproval } from "@/services/services";
+import { canReviewApproval } from "@/lib/approvals";
+import { OnboardingReviewDialog } from "@/components/team/onboarding-review";
+import { usePendingOnboardings } from "@/hooks/use-onboardings";
+import { fullName } from "@/lib/onboarding";
 
 type Period = "Day" | "Week" | "Month" | "Quarter";
 const periodKey: Record<Period, PeriodKey> = {
@@ -49,25 +53,34 @@ const periodKey: Record<Period, PeriodKey> = {
 };
 const metricIcons = [CircleDollarSign, Users, Target] as const;
 
-function minutesAgo(iso: string, now: string) {
-  const diff = Math.max(0, Math.round((Date.parse(`${now}:00`) - Date.parse(iso)) / 60000));
-  return diff < 60 ? `${diff}m` : `${Math.round(diff / 60)}h`;
+/** Waits for Supabase data (real loading and error states), then renders the screen. */
+export function OwnerDashboard() {
+  const { isLoading, error } = useLiveWorkspace({ activities: true, batches: true });
+  if (isLoading || error)
+    return (
+      <AppShell title="Business health overview">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
+  return <OwnerDashboardContent />;
 }
 
-export function OwnerDashboard() {
-  const db = useDb();
+function OwnerDashboardContent() {
+  const { db } = useLiveWorkspace({ activities: true, batches: true });
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const [period, setPeriod] = useState<Period>("Week");
 
   const today = db.tenant.referenceDate;
-  const nowIso = `${today}T${db.tenant.lastSyncTime}`;
   const pendingRemittances = getManagerRemittances(db, scope, { status: "submitted" });
   const pendingApprovals = getApprovals(db, scope).filter(
     (item) => item.status === "pending" && canReviewApproval(db, userId, item),
   );
-  const approvalCount = pendingApprovals.length + pendingRemittances.length;
-  const approvalTarget = pendingRemittances.length ? "/remittance" : "/approvals";
+  // Staff onboardings submitted and waiting for the owner (reviewed in a modal).
+  const { data: pendingOnboardings = [] } = usePendingOnboardings(scope.user.tenantId);
+  const [reviewing, setReviewing] = useState<string | null>(null);
+  const approvalCount = pendingApprovals.length + pendingRemittances.length + pendingOnboardings.length;
+  const approvalTarget = pendingRemittances.length ? "/remittance" : pendingApprovals.length || !pendingOnboardings.length ? "/approvals" : "/team";
 
   const data = useMemo(() => {
     const active = db.branches.filter((b) => b.status === "active");
@@ -122,7 +135,6 @@ export function OwnerDashboard() {
     .map((branch) => branch.id);
   const requests = getStockRequests(db, { branchIds: scope.branchIds ?? tenantBranchIds });
   const pending = requests.filter((request) => request.status === "pending").length;
-  const openEscalations = db.escalations.filter((e) => e.status === "open");
   const nameOf = (id: string) => db.branches.find((b) => b.id === id)?.name ?? "—";
   const productOf = (id: string) => db.products.find((p) => p.id === id)?.name ?? "—";
 
@@ -153,7 +165,7 @@ export function OwnerDashboard() {
     >
       <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-xl font-bold">Good afternoon, {scope.user.name.split(" ")[0]}</h1>
+          <h1 className="text-xl font-bold">Good afternoon, {(scope.user.name ?? "").split(" ")[0]}</h1>
           <p className="mt-1 text-xs text-muted-foreground">
             Updated today at {db.tenant.lastSyncTime} AM · Fiscal week W{isoWeek(today)}
           </p>
@@ -202,7 +214,7 @@ export function OwnerDashboard() {
             tone="warning"
             label="Approvals"
             value={String(approvalCount)}
-            detail={`${pendingRemittances.length} Manager remittances · ${pendingApprovals.length} other requests`}
+            detail={`${pendingRemittances.length} Manager remittances · ${pendingOnboardings.length} new staff · ${pendingApprovals.length} other requests`}
             badge={approvalCount ? "Action" : undefined}
           />
         </Link>
@@ -255,8 +267,19 @@ export function OwnerDashboard() {
         </Panel>
       </section>
 
-      <Panel title="Approvals" subtitle="Manager remittances and requests requiring Owner review" className="mt-4">
+      <Panel title="Approvals" subtitle="Manager remittances, new staff and requests requiring Owner review" className="mt-4">
         <div className="divide-y divide-border">
+          {pendingOnboardings.map((o) => (
+            <div key={o.id} className="flex flex-col gap-2 p-4 text-xs sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">New staff · {fullName(o.data) || o.employeeId}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {[o.employeeId, o.jobTitle].filter(Boolean).join(" · ")} · Submitted {o.submittedAt ? formatDate(o.submittedAt.slice(0, 10)) : "—"}
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setReviewing(o.id)}>Review &amp; approve</Button>
+            </div>
+          ))}
           {pendingRemittances.map((remittance) => (
             <Link key={remittance.id} to="/remittance" className="flex flex-col gap-2 p-4 text-xs hover:bg-muted/50 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
@@ -281,7 +304,7 @@ export function OwnerDashboard() {
         </div>
       </Panel>
 
-      <section className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr_0.9fr]">
+      <section className="mt-4 grid gap-4 xl:grid-cols-2">
         <Panel
           title="Stock requests"
           subtitle={`${requests.length} requests · ${pending} pending`}
@@ -363,32 +386,13 @@ export function OwnerDashboard() {
               ))}
           </div>
         </article>
-        <article className="rounded-lg border border-border bg-card p-5 shadow-panel">
-          <div className="flex items-center justify-between">
-            <h2 className="panel-title">Escalations</h2>
-            <span className="status status-danger">{openEscalations.length} open</span>
-          </div>
-          <div className="mt-4 space-y-2">
-            {openEscalations.map((alert) => (
-              <div key={alert.id} className={`alert alert-${alert.tone}`}>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase">{alert.type}</span>
-                  <span className="text-[9px]">{minutesAgo(alert.createdAt, nowIso)} ago</span>
-                </div>
-                <p className="mt-1 text-xs font-bold">{nameOf(alert.branchId)}</p>
-                <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-                  {alert.detail}
-                </p>
-              </div>
-            ))}
-          </div>
-        </article>
       </section>
 
       <div className="mt-5 flex items-center gap-2 text-[10px] text-muted-foreground">
         <ShieldCheck className="size-3" />
         Viewing tenant-scoped data for {db.tenant.name}
       </div>
+      <OnboardingReviewDialog onboardingId={reviewing} onClose={() => setReviewing(null)} scope={scope} />
     </AppShell>
   );
 }

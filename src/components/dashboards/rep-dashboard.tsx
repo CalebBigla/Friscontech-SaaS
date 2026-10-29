@@ -22,7 +22,8 @@ import {
 } from "@/components/shared";
 import { RecordSaleDialog } from "@/components/sales/record-sale-dialog";
 import { NewRequestDialog } from "@/components/stock-requests/new-request-dialog";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { DataGate } from "@/components/shared";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import {
   filterSales,
@@ -35,8 +36,20 @@ import { getRepPaymentSummary, getPaymentsForScope } from "@/lib/payment-calcula
 import { monthOf } from "@/lib/dates";
 import { formatDayTime, formatMonth, formatNaira, formatNumber, formatPercent } from "@/lib/format";
 
+/** Waits for Supabase data (real loading and error states), then renders the screen. */
 export function RepDashboard() {
-  const db = useDb();
+  const { isLoading, error } = useLiveWorkspace({ activities: true });
+  if (isLoading || error)
+    return (
+      <AppShell title="My dashboard">
+        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+      </AppShell>
+    );
+  return <RepDashboardContent />;
+}
+
+function RepDashboardContent() {
+  const { db } = useLiveWorkspace({ activities: true });
   const scope = getAccessScope(db, useCurrentUserId());
   const [saleOpen, setSaleOpen] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
@@ -79,7 +92,7 @@ export function RepDashboard() {
       }
     >
       <div className="mb-4">
-        <h1 className="text-xl font-bold">Good day, {scope.user.name.split(" ")[0]}</h1>
+        <h1 className="text-xl font-bold">Good day, {(scope.user.name ?? "").split(" ")[0]}</h1>
         <p className="mt-1 text-xs text-muted-foreground">
           Your sales, target, payment and stock for {formatMonth(month)}.
         </p>
@@ -302,7 +315,7 @@ export function RepDashboard() {
         <ShoppingCart className="size-3" />
         Figures include completed sales only.
       </p>
-      <RecordSaleDialog open={saleOpen} onOpenChange={setSaleOpen} scope={scope} />
+      <RecordSaleDialog open={saleOpen} onOpenChange={setSaleOpen} scope={scope} db={db} />
       <NewRequestDialog open={requestOpen} onOpenChange={setRequestOpen} scope={scope} />
     </AppShell>
   );

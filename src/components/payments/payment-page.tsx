@@ -4,7 +4,7 @@ import { Check, Clock, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/app-shell";
-import { EmptyState, FieldError, FilterSelect, Panel, StatTile } from "@/components/shared";
+import { DataGate, EmptyState, FieldError, FilterSelect, Panel, StatTile } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +25,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import type { Db, PaymentStatus } from "@/data/mock-db";
+import type { CustomerPayment, Db, Payment, PaymentStatus } from "@/data/mock-db";
 import { saleTotal } from "@/lib/calculations";
 import { orderIdOf } from "@/lib/customer-calculations";
 import { formatDate, formatNaira, formatTime } from "@/lib/format";
@@ -42,8 +42,18 @@ import {
   type PaymentKind,
 } from "@/lib/payment-calculations";
 import { getAccessScope, useCurrentUserId, type AccessScope } from "@/lib/session";
-import { useDb } from "@/services/mock-store";
-import { customerPaymentService, paymentService, type FieldErrors } from "@/services/services";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { useIdempotencyKey } from "@/hooks/use-idempotency-key";
+import { useAcknowledgePayment, useConfirmPayment, useDeclinePayment, useSubmitPayment } from "@/hooks/use-payments";
+import { useAcknowledgeCustomerPayment, useConfirmCustomerPayment, useDeclineCustomerPayment } from "@/hooks/use-customer-payments";
+import {
+  runWrite,
+  validateAcknowledgePayment,
+  validateConfirmPayment,
+  validateDeclinePayment,
+  validatePaymentSubmission,
+  type FieldErrors,
+} from "@/lib/validation";
 
 const tone: Record<PaymentStatus, string> = {
   submitted: "border-warning/40 bg-warning/10 text-warning",
@@ -71,7 +81,7 @@ const monthLabel = (period: string) =>
     : period;
 
 export function PaymentPage() {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const role = scope.user.role;
@@ -149,6 +159,7 @@ export function PaymentPage() {
         </div>
       </div>
 
+      <DataGate isLoading={isLoading} error={error}>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatTile
           tone="success"
@@ -321,6 +332,7 @@ export function PaymentPage() {
           />
         )}
       </Panel>
+      </DataGate>
 
       <PaymentDrawer
         db={db}
@@ -373,6 +385,12 @@ function PaymentDrawer({
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
+  const acknowledgeRep = useAcknowledgePayment();
+  const confirmRep = useConfirmPayment();
+  const declineRep = useDeclinePayment();
+  const acknowledgeCustomer = useAcknowledgeCustomerPayment();
+  const confirmCustomer = useConfirmCustomerPayment();
+  const declineCustomer = useDeclineCustomerPayment();
 
   const canAck =
     !!entry &&
@@ -395,15 +413,26 @@ function PaymentDrawer({
   }, [entry?.id, initialAction]);
   const run = async () => {
     if (!entry || !action) return;
-    setBusy(true);
-    const service = entry.kind === "customer" ? customerPaymentService : paymentService;
+    const payment = entry.kind === "customer"
+      ? db.customerPayments.find((p) => p.id === entry.id)
+      : db.payments.find((p) => p.id === entry.id);
+    if (!payment) return setErrors({ form: "Payment not found" });
+    const existingReference = "method" in payment ? payment.reference : payment.transferReference;
     const details = { transferReference: reference, proofName };
+    const customer = entry.kind === "customer";
+    const ack = { p_payment_id: entry.id, p_transfer_reference: reference.trim() || null, p_proof_name: proofName.trim() || null };
+    setBusy(true);
     const result =
       action === "acknowledge"
-        ? await service.acknowledge(entry.id, scope.user.id, details)
+        ? await runWrite<Payment | CustomerPayment>(validateAcknowledgePayment(db, scope, payment, existingReference, details), () =>
+            customer ? acknowledgeCustomer.mutateAsync(ack) : acknowledgeRep.mutateAsync(ack))
         : action === "confirm"
-          ? await service.confirm(entry.id, scope.user.id)
-          : await service.decline(entry.id, reason, scope.user.id);
+          ? await runWrite<Payment | CustomerPayment>(validateConfirmPayment(db, scope, payment), () =>
+              customer ? confirmCustomer.mutateAsync({ p_payment_id: entry.id }) : confirmRep.mutateAsync({ p_payment_id: entry.id }))
+          : await runWrite<Payment | CustomerPayment>(validateDeclinePayment(db, scope, payment, reason), () =>
+              customer
+                ? declineCustomer.mutateAsync({ p_payment_id: entry.id, p_reason: reason.trim() })
+                : declineRep.mutateAsync({ p_payment_id: entry.id, p_reason: reason.trim() }));
     setBusy(false);
     if (!result.ok) {
       setErrors(result.errors);
@@ -746,6 +775,8 @@ function SubmitPaymentDialog({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
+  const submitPayment = useSubmitPayment();
+  const idempotencyKey = useIdempotencyKey(open);
   const position = getRepPaymentSummary(db, userId, period);
   const cashN = cash === "" ? 0 : Number(cash);
   const transferN = transfer === "" ? 0 : Number(transfer);
@@ -756,9 +787,16 @@ function SubmitPaymentDialog({
   });
   const submit = async () => {
     setBusy(true);
-    const result = await paymentService.submit(
-      { period, cashAmount: cashN, transferAmount: transferN, transferReference: reference, note },
-      userId,
+    const input = { period, cashAmount: cashN, transferAmount: transferN, transferReference: reference, note };
+    const result = await runWrite(validatePaymentSubmission(db, getAccessScope(db, userId), input), () =>
+      submitPayment.mutateAsync({
+        p_period: period,
+        p_cash_amount: cashN,
+        p_transfer_amount: transferN,
+        p_transfer_reference: reference.trim() || null,
+        p_note: note.trim() || null,
+        p_idempotency_key: idempotencyKey,
+      }),
     );
     setBusy(false);
     if (!result.ok) {

@@ -9,7 +9,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import { DetailItem, EmptyState, Panel } from "@/components/shared";
 import { EditTargetDialog } from "@/components/targets/target-dialogs";
 import { TargetProgressBar, TargetStatusBadge } from "@/components/targets/target-shared";
-import { useDb } from "@/services/mock-store";
+import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { canSeeBranch, getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getTarget, getTargetProgress, getTargetSales, getTargetTrend, progressLabel } from "@/lib/catalog-calculations";
 import { saleTotal } from "@/lib/calculations";
@@ -18,12 +18,13 @@ import { formatCompactNaira, formatDate, formatMonth, formatNaira, roleLabel } f
 const config = { cumulative: { label: "Cumulative sales", color: "var(--color-primary)" }, target: { label: "Target pace", color: "var(--color-chart-target)" } } satisfies ChartConfig;
 
 export function TargetDetailPage({ targetId }: { targetId: string }) {
-  const db = useDb();
+  const { db, isLoading, error } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const [editing, setEditing] = useState(false);
   const target = getTarget(db, targetId);
-  if (!target || !canSeeBranch(scope, target.branchId)) return <AppShell title="Target"><RestrictedNotice message={target ? "This target belongs to a branch outside your access." : "This target does not exist."} /><div className="mt-4 text-center"><Button variant="outline" asChild><Link to="/targets"><ArrowLeft className="size-4" />Back to targets</Link></Button></div></AppShell>;
+  if (isLoading) return <AppShell title="Target"><p className="py-12 text-center text-sm text-muted-foreground">Loading persisted target…</p></AppShell>;
+  if (error || !target || !canSeeBranch(scope, target.branchId)) return <AppShell title="Target"><RestrictedNotice message={error instanceof Error ? error.message : target ? "This target belongs to a branch outside your access." : "This target does not exist."} /><div className="mt-4 text-center"><Button variant="outline" asChild><Link to="/targets"><ArrowLeft className="size-4" />Back to targets</Link></Button></div></AppShell>;
 
   const p = getTargetProgress(db, target);
   const rep = db.users.find((u) => u.id === target.userId);
@@ -80,7 +81,7 @@ export function TargetDetailPage({ targetId }: { targetId: string }) {
             <div key={s.id} className="flex items-center justify-between gap-3 p-4 text-xs"><div className="min-w-0"><p className="truncate font-bold">{product(s.productId)?.name}</p><p className="text-muted-foreground">{formatDate(s.saleDate)} · {s.quantity} units</p></div><p className="font-bold">{formatNaira(saleTotal(s))}</p></div>))}</div>
         </> : <EmptyState title="No sales have been recorded against this target yet." />}
       </Panel>
-      <EditTargetDialog target={editing ? target : null} onClose={() => setEditing(false)} actorId={userId} />
+      <EditTargetDialog target={editing ? target : null} onClose={() => setEditing(false)} actorId={userId} db={db} />
     </AppShell>
   );
 }
