@@ -125,42 +125,53 @@
   --chart-target: oklch(0.62 0.025 255);
 }
 
+/* Dark: deep navy charcoal. Surfaces step up in lightness (page < sidebar < card
+   < popover); accents are brighter so they read on the dark background. */
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
-  --chart-target: oklch(0.72 0.025 255);
-  --avatar: oklch(0.3 0.05 262);
-  --danger-soft: oklch(0.3 0.06 25);
+  --background: oklch(0.165 0.018 262);
+  --foreground: oklch(0.955 0.006 255);
+  --card: oklch(0.205 0.021 262);
+  --card-foreground: oklch(0.955 0.006 255);
+  --popover: oklch(0.225 0.022 262);
+  --popover-foreground: oklch(0.955 0.006 255);
+  --primary: oklch(0.64 0.165 259);
+  --primary-foreground: oklch(0.99 0.002 255);
+  --secondary: oklch(0.255 0.022 262);
+  --secondary-foreground: oklch(0.93 0.008 255);
+  --muted: oklch(0.245 0.02 262);
+  --muted-foreground: oklch(0.7 0.02 258);
+  --accent: oklch(0.27 0.035 260);
+  --accent-foreground: oklch(0.93 0.02 258);
+  --destructive: oklch(0.68 0.19 22);
+  --destructive-foreground: oklch(0.99 0.002 255);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 13%);
+  --ring: oklch(0.66 0.15 259);
+  --chart-1: oklch(0.65 0.17 259);
+  --chart-2: oklch(0.72 0.14 162);
+  --chart-3: oklch(0.8 0.14 75);
+  --chart-4: oklch(0.7 0.17 300);
+  --chart-5: oklch(0.7 0.18 20);
+  --sidebar: oklch(0.185 0.02 262);
+  --sidebar-foreground: oklch(0.955 0.006 255);
+  --sidebar-primary: oklch(0.64 0.165 259);
+  --sidebar-primary-foreground: oklch(0.99 0.002 255);
+  --sidebar-accent: oklch(0.27 0.045 260);
+  --sidebar-accent-foreground: oklch(0.86 0.08 258);
+  --sidebar-border: oklch(1 0 0 / 7%);
+  --sidebar-ring: oklch(0.66 0.15 259);
+  --success: oklch(0.74 0.14 155);
+  --success-soft: oklch(0.29 0.05 155);
+  --warning: oklch(0.8 0.13 75);
+  --warning-soft: oklch(0.31 0.055 70);
+  --brand-soft: oklch(0.29 0.055 260);
+  --violet: oklch(0.76 0.14 295);
+  --violet-soft: oklch(0.29 0.055 295);
+  --overlay: oklch(0.08 0.015 262 / 70%);
+  --chart: oklch(0.68 0.13 257);
+  --chart-target: oklch(0.6 0.025 255);
+  --avatar: oklch(0.3 0.055 260);
+  --danger-soft: oklch(0.29 0.06 25);
 }
 
 @layer base {
@@ -214,6 +225,9 @@
   table tbody tr:hover { background-color: color-mix(in oklab, var(--color-muted) 65%, transparent); }
 
   :focus-visible { outline-color: var(--color-ring); }
+
+  .dark .shadow-panel { box-shadow: 0 1px 0 oklch(1 0 0 / 3%) inset, 0 1px 2px oklch(0 0 0 / 30%); }
+  .dark .shadow-raised, .dark .hover\:shadow-raised:hover { box-shadow: 0 1px 0 oklch(1 0 0 / 4%) inset, 0 8px 24px oklch(0 0 0 / 40%); }
 
   ::selection { background-color: color-mix(in oklab, var(--color-primary) 18%, transparent); }
 

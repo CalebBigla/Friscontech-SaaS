@@ -23,8 +23,13 @@ import {
   Users,
   Wallet,
   X,
+  Check,
+  Monitor,
+  Moon,
+  Sun,
   type LucideIcon,
 } from "lucide-react";
+import { useTheme, type ThemeChoice } from "@/lib/theme";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -413,6 +418,7 @@ export function AppShell({
             )}
           </div>
           {headerExtra}
+          <ThemeToggle />
           <NotificationBell />
           {actions}
         </header>
@@ -450,6 +456,34 @@ export function AppShell({
         </nav>
       )}
     </div>
+  );
+}
+
+/** Light / dark / system switch in the top bar (remembered on this device). */
+export function ThemeToggle() {
+  const { choice, isDark, setTheme } = useTheme();
+  const options: { value: ThemeChoice; label: string; icon: LucideIcon }[] = [
+    { value: "light", label: "Light", icon: Sun },
+    { value: "dark", label: "Dark", icon: Moon },
+    { value: "system", label: "System", icon: Monitor },
+  ];
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Change theme" title="Theme">
+          {isDark ? <Moon className="size-[18px]" /> : <Sun className="size-[18px]" />}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-36">
+        {options.map(({ value, label, icon: Icon }) => (
+          <DropdownMenuItem key={value} onClick={() => setTheme(value)} className="gap-2 text-[13px]">
+            <Icon className="size-4" />
+            {label}
+            {choice === value && <Check className="ml-auto size-4 text-primary" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
