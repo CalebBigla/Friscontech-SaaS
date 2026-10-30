@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 
 import { LoginPage } from "@/components/auth/auth-pages";
 
 export const Route = createFileRoute("/login")({
-
+  // ?confirmed=1 is where the sign-up confirmation email lands.
+  validateSearch: z.object({ confirmed: z.coerce.number().optional().catch(undefined) }),
   head: () => ({
     meta: [
       { title: "Sign in — Friscontech" },

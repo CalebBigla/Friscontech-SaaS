@@ -1,9 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 import { ResetPasswordPage } from "@/components/auth/auth-pages";
 
 export const Route = createFileRoute("/reset-password")({
-  validateSearch: z.object({ token: z.string().catch("") }),
   head: () => ({
     meta: [
       { title: "New password — Friscontech" },
@@ -15,10 +13,5 @@ export const Route = createFileRoute("/reset-password")({
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: Reset,
+  component: ResetPasswordPage,
 });
-
-function Reset() {
-  const { token } = Route.useSearch();
-  return <ResetPasswordPage token={token} />;
-}

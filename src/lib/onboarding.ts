@@ -1,6 +1,7 @@
 /** Onboarding selectors + step validation. Pure functions only — no Supabase deps. */
 import type { EmployeeData, EmployeeField, Onboarding } from "@/data/onboarding";
 import type { AccessScope } from "@/lib/session";
+import { appUrl } from "@/lib/app-url";
 
 export const ONBOARDING_STEPS = [
   "Personal",
@@ -105,12 +106,10 @@ export function onboardingLinkState(o: Pick<Onboarding, "tokenRevoked" | "tokenU
 
 /** URL helpers — pure, no store. */
 export function onboardingUrl(rawToken: string) {
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
-  return `${origin}/onboard/${rawToken}`;
+  return appUrl(`/onboard/${rawToken}`);
 }
 export function guarantorUrl(token: string) {
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
-  return `${origin}/guarantor/${token}`;
+  return appUrl(`/guarantor/${token}`);
 }
 
 /** Only the Owner sees full form data, documents and the confidential guarantor response. */

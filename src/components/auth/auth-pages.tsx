@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -39,10 +39,12 @@ const Err = ({ msg }: { msg: string }) => (msg ? <p className="text-xs font-medi
 export function LoginPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { confirmed } = useSearch({ from: "/login" });
   const [setup, setSetup] = useState(false);
   const [f, setF] = useState({ firstName: "", lastName: "", orgName: "", email: "", pw: "", confirm: "" });
   const [err, setErr] = useState("");
-  const [notice, setNotice] = useState("");
+  // Arrived from the sign-up confirmation email.
+  const [notice, setNotice] = useState(confirmed ? "Email confirmed. Staff can sign in once the Owner approves their onboarding." : "");
   const [busy, setBusy] = useState(false);
 
   // Redirect if already logged in
@@ -160,15 +162,16 @@ export function ForgotPasswordPage() {
   );
 }
 
-export function ResetPasswordPage({ token }: { token: string }) {
+export function ResetPasswordPage() {
   const navigate = useNavigate();
   const [f, setF] = useState({ pw: "", confirm: "" });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  
-  // Supabase handles token validation automatically via URL hash
-  // The token is embedded in the auth state when user clicks email link
-  
+  const [link, setLink] = useState<{ state: "checking" } | { state: "ready" } | { state: "invalid"; error: string }>({ state: "checking" });
+
+  // The email link signs the user in for this one purpose; wait for that session.
+  useEffect(() => auth.watchRecoveryLink((r) => setLink(r.ok ? { state: "ready" } : { state: "invalid", error: r.error })), []);
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setErr("");
@@ -184,15 +187,29 @@ export function ResetPasswordPage({ token }: { token: string }) {
   return (
     <PublicFrame title="Choose a new password">
       <div className="space-y-4 rounded-lg border border-border bg-card p-6">
-        <form onSubmit={submit} className="space-y-4">
-          <Field id="pw" label="New password" type="password" auto="new-password" value={f.pw} onChange={(v) => setF({ ...f, pw: v })} />
-          <Field id="pw2" label="Confirm new password" type="password" auto="new-password" value={f.confirm} onChange={(v) => setF({ ...f, confirm: v })} />
-          <Err msg={err} />
-          <Button type="submit" className="w-full" disabled={busy}>
-            {busy && <Loader2 className="size-4 animate-spin" />}
-            Update password
-          </Button>
-        </form>
+        {link.state === "checking" && (
+          <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" /> Verifying your reset link…
+          </p>
+        )}
+        {link.state === "invalid" && (
+          <>
+            <p className="text-sm font-medium text-destructive">{link.error}</p>
+            <p className="text-sm text-muted-foreground">Request a new link and use the latest email you receive.</p>
+            <Button asChild className="w-full"><Link to="/forgot-password">Send a new reset link</Link></Button>
+          </>
+        )}
+        {link.state === "ready" && (
+          <form onSubmit={submit} className="space-y-4">
+            <Field id="pw" label="New password" type="password" auto="new-password" value={f.pw} onChange={(v) => setF({ ...f, pw: v })} reveal />
+            <Field id="pw2" label="Confirm new password" type="password" auto="new-password" value={f.confirm} onChange={(v) => setF({ ...f, confirm: v })} reveal />
+            <Err msg={err} />
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy && <Loader2 className="size-4 animate-spin" />}
+              Update password
+            </Button>
+          </form>
+        )}
       </div>
     </PublicFrame>
   );

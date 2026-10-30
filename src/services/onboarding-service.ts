@@ -21,6 +21,7 @@
  * All reads/writes are Supabase.
  */
 import { publicSupabase, supabase } from "@/lib/supabase";
+import { appUrl } from "@/lib/app-url";
 import {
   emptyEmployeeData,
   LINK_VALID_DAYS,
@@ -436,6 +437,7 @@ export const onboardingService = {
       email,
       password: password.pw,
       options: {
+        emailRedirectTo: appUrl("/login?confirmed=1"),
         data: {
           onboarding_id: onb.id,
           onboarding_token_hash: tokenHash,

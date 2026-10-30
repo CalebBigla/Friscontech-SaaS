@@ -18,6 +18,7 @@
  * inactive / suspended), so an unapproved staff member cannot reach the app.
  */
 import { supabase } from "@/lib/supabase";
+import { appUrl } from "@/lib/app-url";
 import type { Database } from "@/types/database.types";
 
 type AuditArgs = Database["public"]["Functions"]["create_audit_log"]["Args"];
@@ -88,6 +89,7 @@ export async function signUpOwner(input: OwnerSignupInput): Promise<AuthResult<{
       email,
       password: input.password,
       options: {
+        emailRedirectTo: appUrl("/login?confirmed=1"),
         data: {
           is_owner: true,
           first_name: input.firstName.trim(),
@@ -227,7 +229,7 @@ export async function signOut(userId?: string): Promise<void> {
 export async function requestPasswordReset(email: string): Promise<AuthResult<null>> {
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: appUrl("/reset-password"),
     });
     if (error) console.error("Password reset request error", error);
     return { ok: true, data: null };
@@ -235,6 +237,33 @@ export async function requestPasswordReset(email: string): Promise<AuthResult<nu
     console.error("Password reset error", err);
     return { ok: true, data: null };
   }
+}
+
+/**
+ * Wait for the session a password-reset email link opens. Supabase verifies the
+ * link, then returns here with the session (or an error) in the URL, which the
+ * client reads on load. Calls back once: ready, or the reason the link failed.
+ */
+export function watchRecoveryLink(done: (result: { ok: true } | { ok: false; error: string }) => void) {
+  const params = new URLSearchParams(`${window.location.search.slice(1)}&${window.location.hash.slice(1)}`);
+  const linkError = params.get("error_description") || params.get("error");
+  let settled = false;
+  const settle = (result: { ok: true } | { ok: false; error: string }) => {
+    if (settled) return;
+    settled = true;
+    done(result);
+  };
+  if (linkError) {
+    console.error("[reset-password] link rejected", { code: params.get("error_code"), linkError });
+    settle({ ok: false, error: params.get("error_code") === "otp_expired" ? "This reset link has expired or was already used." : linkError });
+    return () => {};
+  }
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    if (session && (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN" || event === "INITIAL_SESSION")) settle({ ok: true });
+  });
+  void supabase.auth.getSession().then(({ data: { session } }) => { if (session) settle({ ok: true }); });
+  const timer = window.setTimeout(() => settle({ ok: false, error: "This reset link is invalid or has expired." }), 8000);
+  return () => { window.clearTimeout(timer); data.subscription.unsubscribe(); };
 }
 
 /** Reset password (the Supabase recovery flow already validated the token). */
@@ -245,6 +274,8 @@ export async function resetPassword(newPassword: string): Promise<AuthResult> {
     const { data, error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) return { ok: false, error: error.message };
     if (!data.user) return { ok: false, error: "Failed to reset password." };
+    // The recovery session has done its job; sign in again with the new password.
+    await supabase.auth.signOut();
     return { ok: true, data: true };
   } catch (err) {
     console.error("Password reset error", err);
