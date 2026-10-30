@@ -202,6 +202,12 @@ module.exports = async function run(db) {
     [ID.brA1, JSON.stringify([{ product_id: p1.id, quantity: 1 }])]), { hint: "branchId" });
   const skNotes = await one(`SELECT count(*)::int n FROM public.notifications WHERE recipient_id=$1 AND type='stock_request_submitted'`, [ID.skA1]);
   check("create_stock_requests: branch storekeeper notified", skNotes.n === 1, `got ${skNotes.n}`);
+  const skSees = async (userId) => (await as(userId, `SELECT count(*)::int n FROM public.stock_requests WHERE id = $1`, [sr.id])).rows?.[0]?.n;
+  check("stock_requests read: branch storekeeper sees the rep's request", await skSees(ID.skA1) === 1);
+  check("stock_requests read: other-branch storekeeper does not", await skSees(ID.skA2) === 0);
+  check("stock_requests read: other-tenant storekeeper does not", await skSees(ID.skB1) === 0);
+  err("stock_requests write: storekeeper cannot approve directly", await as(ID.skA1,
+    `UPDATE public.stock_requests SET status = 'approved' WHERE id = $1 RETURNING id`, [sr.id]).then((r) => (r.rows?.length === 0 ? { error: { message: "no rows" } } : r)));
   err("fulfil_stock_request: before approval", await as(ID.skA1, `SELECT public.fulfil_stock_request($1,5)`, [sr.id]), { includes: "approved" });
   err("approve_stock_request: wrong branch", await as(ID.skA2, `SELECT public.approve_stock_request($1)`, [sr.id]), DENY);
   err("approve_stock_request: wrong tenant", await as(ID.skB1, `SELECT public.approve_stock_request($1)`, [sr.id]), { includes: "not found" });
