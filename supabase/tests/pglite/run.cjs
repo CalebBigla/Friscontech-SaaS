@@ -4,6 +4,7 @@
 //
 //   npm run db:test:local            migrations + RPC tests
 //   npm run db:test:local -- --rls   also print the per-role RLS survey
+//   npm run db:test:local -- --policies   print a query that diffs live RLS policies against these migrations
 //
 // 20260118010000_restructure_onboardings.sql cannot replay on a fresh database
 // (it drops onboardings.token_used while a policy still depends on it). This
@@ -78,6 +79,11 @@ async function main() {
     }
   }
   let failed = 0;
+  if (ok && process.argv.includes("--policies")) {
+    await require(path.join(__dirname, "policy-check.cjs"))(db);
+    await db.close();
+    process.exit(0);
+  }
   if (ok) {
     const tests = require(path.join(__dirname, "rpc.test.cjs"));
     await tests(db);
