@@ -351,6 +351,30 @@ module.exports = async function run(db) {
   err("create_target: manager cannot", await as(ID.mgrA1, `SELECT public.create_target($1,$2,1)`, [ID.repA2, period]), DENY);
   ok("update_target_amount: owner", await as(ID.owner, `SELECT public.update_target_amount($1,2000000)`, [tgt.id]));
   err("update_target_amount: zero", await as(ID.owner, `SELECT public.update_target_amount($1,0)`, [tgt.id]), { hint: "amount" });
+  const repAfter = await one(`SELECT amount FROM public.targets WHERE id=$1`, [tgt.id]);
+  check("update_target_amount: rep target still edits", Number(repAfter.amount) === 2000000);
+
+  // Branch targets
+  const nextPeriod = (await one(`SELECT to_char(CURRENT_DATE + interval '1 month','YYYY-MM') p`)).p;
+  const btgt = ok("create_branch_target: owner", await as(ID.owner, `SELECT * FROM public.create_branch_target($1,$2,9000000.6)`, [ID.brA1, period]));
+  check("create_branch_target: branch scope, no rep, amount rounded",
+    btgt?.scope === "branch" && btgt?.user_id === null && btgt?.branch_id === ID.brA1 && Number(btgt?.amount) === 9000001);
+  err("create_branch_target: one per branch and month", await as(ID.owner, `SELECT public.create_branch_target($1,$2,1)`, [ID.brA1, period]), { hint: "branchId" });
+  ok("create_branch_target: another branch, same month", await as(ID.owner, `SELECT public.create_branch_target($1,$2,5)`, [ID.brA2, period]));
+  err("create_branch_target: wrong tenant branch", await as(ID.owner, `SELECT public.create_branch_target($1,$2,1)`, [ID.brB1, period]), { hint: "branchId" });
+  err("create_branch_target: bad month", await as(ID.owner, `SELECT public.create_branch_target($1,'2026-13',1)`, [ID.brA1]), { hint: "month" });
+  err("create_branch_target: zero", await as(ID.owner, `SELECT public.create_branch_target($1,$2,0)`, [ID.brA1, nextPeriod]), { hint: "amount" });
+  err("create_branch_target: manager cannot", await as(ID.mgrA1, `SELECT public.create_branch_target($1,$2,1)`, [ID.brA1, nextPeriod]), DENY);
+  err("create_branch_target: storekeeper cannot", await as(ID.skA1, `SELECT public.create_branch_target($1,$2,1)`, [ID.brA1, nextPeriod]), DENY);
+  const bUpd = ok("update_target_amount: branch target", await as(ID.owner, `SELECT * FROM public.update_target_amount($1,12000000)`, [btgt.id]));
+  check("update_target_amount: branch amount changed", Number(bUpd?.amount) === 12000000);
+  err("update_target_amount: manager cannot edit branch target", await as(ID.mgrA1, `SELECT public.update_target_amount($1,1)`, [btgt.id]), DENY);
+  const bLog = await one(`SELECT count(*)::int n FROM public.activities WHERE entity_id=$1 AND action IN ('Target created','Target updated')`, [btgt.id]);
+  check("branch targets: create and update audited", bLog.n === 2, `got ${bLog.n}`);
+  check("branch targets: manager reads own branch target",
+    (await as(ID.mgrA1, `SELECT count(*)::int n FROM public.targets WHERE id=$1`, [btgt.id])).rows?.[0]?.n === 1);
+  check("branch targets: rep does not read branch target",
+    (await as(ID.repA1, `SELECT count(*)::int n FROM public.targets WHERE id=$1`, [btgt.id])).rows?.[0]?.n === 0);
 
   // ---------------- import ----------------
   const impKey = "77777777-7777-7777-7777-777777777777";
