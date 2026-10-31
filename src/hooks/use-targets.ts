@@ -115,7 +115,7 @@ export function useBranchTargets(branchId: string, month: string) {
 }
 
 /** Target writes change targets, dashboards and the audit log. */
-function useTargetMutation<N extends "create_target" | "update_target_amount">(name: N) {
+function useTargetMutation<N extends "create_target" | "create_branch_target" | "update_target_amount">(name: N) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -133,5 +133,7 @@ function useTargetMutation<N extends "create_target" | "update_target_amount">(n
 
 /** Owner sets a rep target (RPC create_target). */
 export const useCreateTarget = () => useTargetMutation('create_target');
+/** Owner sets a branch target (RPC create_branch_target). */
+export const useCreateBranchTarget = () => useTargetMutation('create_branch_target');
 /** Owner edits a target amount (RPC update_target_amount). */
 export const useUpdateTarget = () => useTargetMutation('update_target_amount');

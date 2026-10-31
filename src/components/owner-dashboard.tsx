@@ -36,11 +36,14 @@ import {
   getTargetForRange,
   percentChange,
 } from "@/lib/calculations";
-import { getPeriodRange, isoWeek, previousRange, type PeriodKey } from "@/lib/dates";
+import { getPeriodRange, isoWeek, monthOf, previousRange, type PeriodKey } from "@/lib/dates";
 import { formatCompactNaira, formatDate, formatNumber, formatPercent, formatTime } from "@/lib/format";
 import { getManagerRemittances } from "@/lib/remittance-calculations";
 import { canReviewApproval } from "@/lib/approvals";
 import { OnboardingReviewDialog } from "@/components/team/onboarding-review";
+import { BranchTargetsPanel } from "@/components/targets/branch-targets-panel";
+import { EditTargetDialog, SetTargetDialog } from "@/components/targets/target-dialogs";
+import type { Target as SalesTarget } from "@/data/mock-db";
 import { usePendingOnboardings } from "@/hooks/use-onboardings";
 import { fullName } from "@/lib/onboarding";
 
@@ -79,6 +82,8 @@ function OwnerDashboardContent() {
   // Staff onboardings submitted and waiting for the owner (reviewed in a modal).
   const { data: pendingOnboardings = [] } = usePendingOnboardings(scope.user.tenantId);
   const [reviewing, setReviewing] = useState<string | null>(null);
+  const [settingTarget, setSettingTarget] = useState<string | null>(null);
+  const [editingTarget, setEditingTarget] = useState<SalesTarget | null>(null);
   const approvalCount = pendingApprovals.length + pendingRemittances.length + pendingOnboardings.length;
   const approvalTarget = pendingRemittances.length ? "/remittance" : pendingApprovals.length || !pendingOnboardings.length ? "/approvals" : "/team";
 
@@ -219,6 +224,9 @@ function OwnerDashboardContent() {
           />
         </Link>
       </section>
+
+      <BranchTargetsPanel className="mt-4 overflow-hidden" db={db} scope={scope} month={monthOf(today)}
+        onSet={(branchId) => setSettingTarget(branchId)} onEdit={setEditingTarget} />
 
       <ExpiringSoonPanel db={db} branchIds={scope.branchIds} />
 
@@ -393,6 +401,9 @@ function OwnerDashboardContent() {
         Viewing tenant-scoped data for {db.tenant.name}
       </div>
       <OnboardingReviewDialog onboardingId={reviewing} onClose={() => setReviewing(null)} scope={scope} />
+      <SetTargetDialog open={!!settingTarget} onOpenChange={(o) => !o && setSettingTarget(null)} scope={scope} db={db}
+        defaultMonth={monthOf(today)} defaultKind="branch" defaultBranchId={settingTarget ?? ""} onEditExisting={setEditingTarget} />
+      <EditTargetDialog target={editingTarget} onClose={() => setEditingTarget(null)} actorId={userId} db={db} />
     </AppShell>
   );
 }

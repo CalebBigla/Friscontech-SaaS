@@ -278,7 +278,16 @@ export type PlannedRpcs = {
     p_month: string;
     p_amount: number;
   };
-  /** Owner changes a rep target's amount only. Returns the targets row. */
+  /**
+   * Owner sets a monthly target for a whole branch (scope branch, no rep, amount
+   * rounded). One per branch and month. Returns the targets row.
+   */
+  create_branch_target: {
+    p_branch_id: string;
+    p_month: string;
+    p_amount: number;
+  };
+  /** Owner changes a rep or branch target's amount only. Returns the targets row. */
   update_target_amount: {
     p_target_id: string;
     p_amount: number;

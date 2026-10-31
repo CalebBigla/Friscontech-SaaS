@@ -559,10 +559,33 @@ export function validateTargetCreate(db: Db, scope: AccessScope, input: TargetIn
   return hasErrors(errors) ? errors : null;
 }
 
+export type BranchTargetInput = { branchId: string; month: string; amount: number };
+
+export function validateBranchTarget(db: Db, scope: AccessScope, input: BranchTargetInput, editingId?: string): FieldErrors {
+  const errors: FieldErrors = {};
+  const branch = db.branches.find((b) => b.id === input.branchId);
+  if (!branch || branch.status !== "active") errors.branchId = "Select an active branch";
+  else if (scope.branchIds && !scope.branchIds.includes(branch.id)) errors.branchId = "You can only set targets for your branch";
+  if (!/^\d{4}-\d{2}$/.test(input.month)) errors.month = "Select a month";
+  if (!Number.isFinite(input.amount) || input.amount <= 0) errors.amount = "Enter a target above zero";
+  if (!errors.branchId && !errors.month
+    && db.targets.some((t) => t.id !== editingId && t.scope === "branch" && t.branchId === input.branchId && t.month === input.month))
+    errors.branchId = "This branch already has a target for that month — edit it instead";
+  return errors;
+}
+
+export function validateBranchTargetCreate(db: Db, scope: AccessScope, input: BranchTargetInput): FieldErrors | null {
+  if (!scope.canManageTargets) return { form: "You cannot set targets" };
+  const errors = validateBranchTarget(db, scope, input);
+  return hasErrors(errors) ? errors : null;
+}
+
 /** Only the amount changes; sales history is never touched. */
 export function validateTargetUpdate(db: Db, scope: AccessScope, target: Target, amount: number): FieldErrors | null {
   if (!scope.canManageTargets) return { form: "You cannot edit targets" };
-  const errors = validateTarget(db, scope, { repId: target.userId ?? "", month: target.month, amount }, target.id);
+  const errors = target.scope === "branch"
+    ? validateBranchTarget(db, scope, { branchId: target.branchId, month: target.month, amount }, target.id)
+    : validateTarget(db, scope, { repId: target.userId ?? "", month: target.month, amount }, target.id);
   return hasErrors(errors) ? errors : null;
 }
 

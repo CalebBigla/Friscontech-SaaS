@@ -5,7 +5,8 @@ import { ChevronLeft, ChevronRight, CircleDollarSign, Eye, Flag, Pencil, Plus, T
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { ALL, EmptyState, FilterSelect, MetricCard, Panel, SearchBox } from "@/components/shared";
-import { EditTargetDialog, SetTargetDialog, monthOptions } from "@/components/targets/target-dialogs";
+import { EditTargetDialog, SetTargetDialog, monthOptions, type TargetKind } from "@/components/targets/target-dialogs";
+import { BranchTargetsPanel } from "@/components/targets/branch-targets-panel";
 import { TargetProgressBar, TargetStatusBadge } from "@/components/targets/target-shared";
 import type { Target } from "@/data/mock-db";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
@@ -25,7 +26,7 @@ export function TargetsPage({ month: monthParam }: { month?: string | undefined 
   const [query, setQuery] = useState("");
   const [branchId, setBranchId] = useState(ALL);
   const [status, setStatus] = useState(ALL);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState<{ kind: TargetKind; branchId?: string } | null>(null);
   const [editing, setEditing] = useState<Target | null>(null);
 
   const all = getMonthTargets(db, month, scope.branchIds);
@@ -47,7 +48,7 @@ export function TargetsPage({ month: monthParam }: { month?: string | undefined 
   );
 
   return (
-    <AppShell title="Targets" subtitle="Monthly sales targets for sales representatives" actions={<Button onClick={() => setCreating(true)}><Plus className="size-4" /><span className="hidden sm:inline">Set Target</span></Button>}>
+    <AppShell title="Targets" subtitle="Monthly sales targets for branches and sales representatives" actions={<Button onClick={() => setCreating({ kind: "branch" })}><Plus className="size-4" /><span className="hidden sm:inline">Set Target</span></Button>}>
       {error && <div role="alert" className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">Could not load targets data: {error instanceof Error ? error.message : "Database request failed"}</div>}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div><h1 className="text-xl font-bold">Targets · {formatMonth(month)}</h1><p className="mt-1 text-xs text-muted-foreground">Achievement is calculated live from each rep's completed sales.</p></div>
@@ -60,6 +61,8 @@ export function TargetsPage({ month: monthParam }: { month?: string | undefined 
         <MetricCard icon={TrendingUp} tone="warning" label="Overall progress" value={summary.progress > 100 ? "100%+" : formatPercent(summary.progress, 1)} detail="Achieved ÷ target" />
         <MetricCard icon={Users} tone="success" label="Reps on target" value={`${summary.onTarget} / ${summary.count}`} detail="On track, met or exceeded" />
       </div>
+      <BranchTargetsPanel className="mb-5 overflow-hidden" db={db} scope={scope} month={month}
+        onSet={(branchId) => setCreating({ kind: "branch", branchId })} onEdit={setEditing} />
       <Panel className="overflow-hidden" title="Rep performance" subtitle={`${rows.length} of ${all.length} targets`} action={
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <SearchBox value={query} onChange={setQuery} placeholder="Search sales rep" className="sm:w-52" />
@@ -87,7 +90,8 @@ export function TargetsPage({ month: monthParam }: { month?: string | undefined 
           </div>))}</div>
         {isLoading ? <p className="p-5 text-sm text-muted-foreground">Loading persisted targets…</p> : !rows.length && <EmptyState title={all.length ? "No targets match your filters." : "No targets have been set for this month."} {...(all.length ? {} : { detail: "Use Set Target to add one." })} />}
       </Panel>
-      <SetTargetDialog open={creating} onOpenChange={setCreating} scope={scope} defaultMonth={month} onEditExisting={setEditing} db={db} />
+      <SetTargetDialog open={!!creating} onOpenChange={(o) => !o && setCreating(null)} scope={scope} defaultMonth={month} onEditExisting={setEditing} db={db}
+        defaultKind={creating?.kind ?? "branch"} defaultBranchId={creating?.branchId ?? ""} />
       <EditTargetDialog target={editing} onClose={() => setEditing(null)} actorId={userId} db={db} />
     </AppShell>
   );

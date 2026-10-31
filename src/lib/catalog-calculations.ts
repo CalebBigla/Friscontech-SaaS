@@ -51,6 +51,7 @@ export const targetStatusLabel: Record<TargetStatus, string> = { not_started: "N
 
 export const getTarget = (db: Db, id: string) => db.targets.find((t) => t.id === id && t.scope === "rep") ?? null;
 export const findRepTarget = (db: Db, repId: string, month: string) => db.targets.find((t) => t.scope === "rep" && t.userId === repId && t.month === month) ?? null;
+export const findBranchTarget = (db: Db, branchId: string, month: string) => db.targets.find((t) => t.scope === "branch" && t.branchId === branchId && t.month === month) ?? null;
 export { getRepTarget };
 
 const monthBounds = (month: string) => ({ from: `${month}-01`, to: `${month}-${String(daysInMonth(month)).padStart(2, "0")}` });
@@ -77,9 +78,17 @@ export type TargetProgress = {
   /** capped at 100 for bars */ progress: number; /** raw ratio, may exceed 100 */ achievement: number;
   expected: number; status: TargetStatus;
 };
+/** Sum of the branch's completed sales in the target month, up to the reference date. */
+export function getBranchAchievedSales(db: Db, branchId: string, month: string) {
+  const { from, to } = monthBounds(month);
+  const today = db.tenant.referenceDate;
+  return filterSales(db, { branchId, range: { from, to: to < today ? to : today } }).reduce((s, x) => s + saleTotal(x), 0);
+}
+
+/** Progress for a rep target (their sales) or a branch target (all the branch's sales). */
 export function getTargetProgress(db: Db, target: Target): TargetProgress {
   const repId = target.userId ?? "";
-  const achieved = getRepAchievedSales(db, repId, target.month);
+  const achieved = target.scope === "branch" ? getBranchAchievedSales(db, target.branchId, target.month) : getRepAchievedSales(db, repId, target.month);
   const achievement = target.amount > 0 ? (achieved / target.amount) * 100 : 0;
   const expected = target.amount * getMonthElapsed(db, target.month);
   return {
@@ -107,6 +116,13 @@ export function getMonthTargets(db: Db, month: string, branchIds?: string[] | nu
     .filter((t) => db.users.some((u) => u.id === t.userId))
     .map((t) => getTargetProgress(db, t));
 }
+/** Branch targets for a month on active branches, scoped to branches. */
+export function getMonthBranchTargets(db: Db, month: string, branchIds?: string[] | null) {
+  return db.targets
+    .filter((t) => t.scope === "branch" && t.month === month && (!branchIds || branchIds.includes(t.branchId)))
+    .filter((t) => db.branches.some((b) => b.id === t.branchId && b.status === "active"))
+    .map((t) => getTargetProgress(db, t));
+}
 export function getTargetSummary(rows: TargetProgress[]) {
   const total = rows.reduce((s, r) => s + r.amount, 0);
   const achieved = rows.reduce((s, r) => s + r.achieved, 0);
@@ -116,10 +132,11 @@ export function getTargetSummary(rows: TargetProgress[]) {
   };
 }
 
-/** Sales contributing to a target (completed sales by the rep during the month). */
+/** Sales contributing to a target (completed sales by the rep, or in the branch, during the month). */
 export function getTargetSales(db: Db, target: Target) {
-  const { from, to } = monthBounds(target.month);
-  return filterSales(db, { repId: target.userId ?? "", range: { from, to } }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const range = monthBounds(target.month);
+  const who = target.scope === "branch" ? { branchId: target.branchId } : { repId: target.userId ?? "" };
+  return filterSales(db, { ...who, range }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 /** Daily cumulative sales vs a linear target line for the month (up to the reference date). */

@@ -2375,6 +2375,26 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      create_branch_target: {
+        Args: { p_amount: number; p_branch_id: string; p_month: string }
+        Returns: {
+          amount: number
+          branch_id: string
+          created_at: string
+          id: string
+          month: string
+          scope: string
+          tenant_id: string
+          updated_at: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "targets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_target: {
         Args: { p_amount: number; p_month: string; p_rep_id: string }
         Returns: {
