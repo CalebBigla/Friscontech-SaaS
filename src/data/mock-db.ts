@@ -25,6 +25,8 @@ export type Tenant = {
   plan: string;
   /** Months before expiry when stock alerts start (owner-editable). */
   expiryAlertMonths: number;
+  /** Largest discount a sales rep may give on a line; null = no limit. */
+  maxRepDiscountPercent: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -78,6 +80,8 @@ export type User = {
   createdAt: string;
 };
 export type ProductStatus = "active" | "inactive";
+/** promo = given away free on a sale, with its own stock. Set when the product is created. */
+export type ProductType = "regular" | "promo";
 /** unitPrice is the selling price (PRD: selling_price). Branch stock lives in InventoryRecord, never here. */
 export type Product = {
   id: string;
@@ -91,9 +95,11 @@ export type Product = {
   lowStockThreshold: number;
   description?: string;
   status: ProductStatus;
+  productType: ProductType;
   createdAt: string;
   updatedAt: string;
 };
+export type DiscountType = "percent" | "amount";
 export type Sale = {
   id: string;
   tenantId: string;
@@ -102,7 +108,17 @@ export type Sale = {
   salesRepId: string;
   productId: string;
   quantity: number;
+  /** List price per unit; 0 on promo lines. */
   unitPrice: number;
+  /** Naira taken off the whole line. */
+  discountAmount: number;
+  /** The discount as entered. */
+  discountType?: DiscountType;
+  discountValue?: number;
+  /** A free promo item given with the order. */
+  isPromo: boolean;
+  /** Units taken from stock already issued to the rep; the rest came from the branch. */
+  quantityFromRepStock: number;
   saleDate: string;
   createdAt: string;
   status: SaleStatus;
@@ -154,6 +170,8 @@ export type Customer = {
   /** Owner-set credit ceiling in naira; undefined = no limit. */
   creditLimit?: number;
   createdBy: string;
+  /** The sales rep who manages this customer. Null, or an inactive rep, means it needs reassigning. */
+  assignedRepId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -278,7 +296,7 @@ export type StockBatch = {
   quantityRemaining: number;
   receivedAt: string;
 };
-export type MovementType = "stock_added" | "stock_issued" | "sale" | "adjustment";
+export type MovementType = "stock_added" | "stock_issued" | "sale" | "adjustment" | "promo";
 /** quantity is a signed delta applied to quantityOnHand. */
 export type InventoryMovement = {
   id: string;

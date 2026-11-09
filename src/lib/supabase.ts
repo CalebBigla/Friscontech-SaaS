@@ -12,6 +12,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
+import { queuedFetch } from './request-queue'
 
 const supabaseUrl = import.meta.env["VITE_SUPABASE_URL"] as string
 const supabaseAnonKey = import.meta.env["VITE_SUPABASE_ANON_KEY"] as string
@@ -25,7 +26,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 /**
  * Main Supabase client for application use.
- * Automatically includes auth session in all requests.
+ * Automatically includes auth session in all requests. Database and storage calls
+ * go through the request queue (see request-queue.ts) so a burst of queries waits
+ * its turn instead of timing out.
  */
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -34,6 +37,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
   },
+  global: { fetch: queuedFetch },
 })
 
 /**
@@ -49,6 +53,7 @@ export const publicSupabase = createClient<Database>(supabaseUrl, supabaseAnonKe
     detectSessionInUrl: false,
     storageKey: 'friscontech-public',
   },
+  global: { fetch: queuedFetch },
 })
 
 /**

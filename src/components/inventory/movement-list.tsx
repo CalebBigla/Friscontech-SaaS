@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowDownLeft, ArrowUpRight, ShoppingCart, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Gift, ShoppingCart, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import type { Db, InventoryMovement } from "@/data/mock-db";
 import { EmptyState } from "@/components/shared";
 import { movementTypeLabel } from "@/lib/inventory-calculations";
@@ -10,6 +10,7 @@ const icon: Record<InventoryMovement["type"], { Icon: LucideIcon; tone: string }
   stock_issued: { Icon: ArrowUpRight, tone: "bg-warning-soft text-warning" },
   sale: { Icon: ShoppingCart, tone: "bg-muted text-primary" },
   adjustment: { Icon: SlidersHorizontal, tone: "bg-violet-soft text-violet" },
+  promo: { Icon: Gift, tone: "bg-muted text-primary" },
 };
 
 /** Renders movements with resolved references (request, sale, actor) — no static copy. */
@@ -25,7 +26,7 @@ export function MovementList({ db, movements, showItem = false }: { db: Db; move
         const product = db.products.find((p) => p.id === m.productId);
         const branch = db.branches.find((b) => b.id === m.branchId);
         const inv = db.inventory.find((i) => i.branchId === m.branchId && i.productId === m.productId);
-        const who = m.type === "sale" ? `Sold by ${name(m.performedBy)}` : m.type === "stock_issued" && request ? `Issued to ${name(request.repId)} by ${name(m.performedBy)}` : m.type === "stock_added" ? `Received by ${name(m.performedBy)}` : `Adjusted by ${name(m.performedBy)}`;
+        const who = m.type === "sale" ? `Sold by ${name(m.performedBy)}` : m.type === "promo" ? `Given by ${name(m.performedBy)}` : m.type === "stock_issued" && request ? `Issued to ${name(request.repId)} by ${name(m.performedBy)}` : m.type === "stock_added" ? `Received by ${name(m.performedBy)}` : `Adjusted by ${name(m.performedBy)}`;
         return (
           <li key={m.id} className="flex gap-3 px-5 py-3.5">
             <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-md ${tone}`}><Icon className="size-4" /></span>

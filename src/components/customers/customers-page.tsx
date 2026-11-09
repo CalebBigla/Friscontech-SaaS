@@ -6,9 +6,10 @@ import { AppShell } from "@/components/app-shell";
 import { CustomerFormDialog } from "@/components/customers/customer-dialogs";
 import { DataGate, EmptyState, FilterSelect, Panel, SearchBox, StatTile } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { getCustomerSummary, getCustomersForScope } from "@/lib/customer-calculations";
+import { getCustomerSummary, getCustomersForScope, needsReassignment } from "@/lib/customer-calculations";
 import { formatNaira } from "@/lib/format";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
+import { useCustomerAccounts } from "@/hooks/use-customers";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 
 export function BalanceBadge({ balance }: { balance: number }) {
@@ -26,9 +27,14 @@ export function BalanceBadge({ balance }: { balance: number }) {
 }
 
 export function CustomersPage() {
-  const { db, isLoading, error } = useLiveWorkspace();
+  const { db, isLoading: workspaceLoading, error: workspaceError } = useLiveWorkspace();
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
+  const { accounts, isLoading: accountsLoading, error: accountsError } = useCustomerAccounts(db, scope);
+  const isLoading = workspaceLoading || accountsLoading;
+  const error = workspaceError ?? accountsError;
+  const isOwner = scope.user.role === "owner";
+  const [repFilter, setRepFilter] = useState("all");
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("active");
@@ -40,13 +46,15 @@ export function CustomersPage() {
     () =>
       getCustomersForScope(db, scope).map((c) => ({
         customer: c,
-        summary: getCustomerSummary(db, c),
+        summary: getCustomerSummary(accounts, c),
+        unmanaged: needsReassignment(db, c),
       })),
-    [db, scope],
+    [db, accounts, scope],
   );
   const needle = q.trim().toLowerCase();
   const rows = all.filter(
-    ({ customer: c, summary: s }) =>
+    ({ customer: c, summary: s, unmanaged }) =>
+      (repFilter === "all" || (repFilter === "unmanaged" ? unmanaged : c.assignedRepId === repFilter)) &&
       (status === "all" || c.status === status) &&
       (branchId === "all" || c.branchId === branchId) &&
       (balance === "all" ||
@@ -58,6 +66,8 @@ export function CustomersPage() {
       (!needle ||
         [c.name, c.contactPerson, c.phone, c.email].some((v) => v.toLowerCase().includes(needle))),
   );
+  const unmanagedCount = all.filter((r) => r.unmanaged).length;
+  const repName = (id: string | null) => db.users.find((u) => u.id === id)?.name ?? "—";
   const totalOwed = all.reduce((sum, r) => sum + r.summary.owed, 0);
   const owing = all.filter((r) => r.summary.balance < 0).length;
   const pending = all.reduce((sum, r) => sum + r.summary.pending, 0);
@@ -108,6 +118,16 @@ export function CustomersPage() {
           value={formatNaira(all.reduce((s, r) => s + r.summary.credits, 0))}
         />
       </div>
+      {isOwner && unmanagedCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setRepFilter("unmanaged")}
+          className="mt-4 block w-full rounded-md bg-warning-soft p-3 text-left text-xs text-warning"
+        >
+          {unmanagedCount} customer{unmanagedCount === 1 ? " has" : "s have"} no active sales rep.
+          Open each one to reassign it.
+        </button>
+      )}
       <Panel
         title="Customer accounts"
         className="mt-4"
@@ -123,6 +143,21 @@ export function CustomersPage() {
                 options={[
                   { value: "all", label: "All branches" },
                   ...branches.map((b) => ({ value: b.id, label: b.name })),
+                ]}
+              />
+            )}
+            {isOwner && (
+              <FilterSelect
+                label="Sales rep"
+                value={repFilter}
+                onChange={setRepFilter}
+                className="w-44"
+                options={[
+                  { value: "all", label: "All sales reps" },
+                  { value: "unmanaged", label: "Needs reassignment" },
+                  ...db.users
+                    .filter((u) => u.role === "sales_rep" && u.status === "active")
+                    .map((u) => ({ value: u.id, label: u.name })),
                 ]}
               />
             )}
@@ -157,7 +192,7 @@ export function CustomersPage() {
             <table className="w-full min-w-[640px] text-left text-xs">
               <thead className="border-b border-border bg-muted/40 text-[10px] uppercase text-muted-foreground">
                 <tr>
-                  {["Customer", "Phone", "Branch", "Orders", "Balance", ""].map((h) => (
+                  {["Customer", "Phone", "Branch", ...(isOwner ? ["Sales rep"] : []), "Orders", "Balance", ""].map((h) => (
                     <th key={h} className="px-4 py-3 font-semibold">
                       {h}
                     </th>
@@ -165,7 +200,7 @@ export function CustomersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {rows.map(({ customer: c, summary: s }) => (
+                {rows.map(({ customer: c, summary: s, unmanaged }) => (
                   <tr
                     key={c.id}
                     className="cursor-pointer hover:bg-muted/40"
@@ -186,6 +221,15 @@ export function CustomersPage() {
                     </td>
                     <td className="px-4 py-3">{c.phone}</td>
                     <td className="px-4 py-3 text-muted-foreground">{branchName(c.branchId)}</td>
+                    {isOwner && (
+                      <td className="px-4 py-3">
+                        {unmanaged ? (
+                          <span className="status status-warning whitespace-nowrap">Needs reassignment</span>
+                        ) : (
+                          repName(c.assignedRepId)
+                        )}
+                      </td>
+                    )}
                     <td className="px-4 py-3">{s.orders}</td>
                     <td className="px-4 py-3">
                       <span

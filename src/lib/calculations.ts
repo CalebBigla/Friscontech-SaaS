@@ -14,10 +14,15 @@ export type SalesFilters = {
   /** walk_in = no customerId, customer = account order */
   saleType?: "walk_in" | "customer" | undefined;
   includeNonCompleted?: boolean;
+  /** Free promo lines are not sales, so counts and unit totals leave them out by default. */
+  includePromo?: boolean;
 };
 export type PerformanceBand = "exceeding" | "on_track" | "behind";
 
-export const saleTotal = (sale: Pick<Sale, "quantity" | "unitPrice">) =>
+/** What a line counts for in revenue, targets, balances and remittances: after its discount. */
+export const saleTotal = (sale: Pick<Sale, "quantity" | "unitPrice" | "discountAmount">) =>
+  sale.quantity * sale.unitPrice - sale.discountAmount;
+export const saleGross = (sale: Pick<Sale, "quantity" | "unitPrice">) =>
   sale.quantity * sale.unitPrice;
 export const inRange = (date: string, range?: DateRange) =>
   !range || (date >= range.from && date <= range.to);
@@ -27,6 +32,7 @@ export function filterSales(db: Db, f: SalesFilters = {}): Sale[] {
     (s) =>
       s.tenantId === db.tenant.id &&
       (f.includeNonCompleted || s.status === "completed") &&
+      (f.includePromo || !s.isPromo) &&
       inRange(s.saleDate, f.range) &&
       (!f.branchId || s.branchId === f.branchId) &&
       (!f.branchIds || f.branchIds.includes(s.branchId)) &&

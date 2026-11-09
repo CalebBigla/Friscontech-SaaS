@@ -16,7 +16,32 @@ export const saleTypeLabel: Record<SaleType, string> = { walk_in: "Walk-in", cus
 export function canAccessCustomer(scope: AccessScope, customer: Customer) {
   if (!scope.canViewCustomers || customer.tenantId !== scope.user.tenantId) return false;
   if (scope.branchIds === null) return true;
+  if (scope.repId) return customer.assignedRepId === scope.repId;
   return customer.branchId === null || scope.branchIds.includes(customer.branchId);
+}
+
+/** No active sales rep manages this customer, so the Owner needs to move it to one. */
+export function needsReassignment(db: Db, customer: Customer) {
+  const rep = db.users.find((u) => u.id === customer.assignedRepId);
+  return rep?.role !== "sales_rep" || rep.status !== "active";
+}
+
+export type CustomerLedgers = { sales: Sale[]; payments: CustomerPayment[] };
+/**
+ * A rep can only load their own sales, so customer screens add the full ledger of the
+ * rep's assigned customers. Use the result for customer accounts only: it holds other
+ * reps' sales, which must never reach the rep's own revenue or target figures.
+ */
+export function withCustomerLedgers(db: Db, ledgers: CustomerLedgers): Db {
+  const fresh = <T extends { id: string }>(rows: T[], extra: T[]) => {
+    const ids = new Set(extra.map((row) => row.id));
+    return [...rows.filter((row) => !ids.has(row.id)), ...extra];
+  };
+  return {
+    ...db,
+    sales: fresh(db.sales, ledgers.sales),
+    customerPayments: fresh(db.customerPayments, ledgers.payments),
+  };
 }
 
 export function getCustomersForScope(db: Db, scope: AccessScope) {

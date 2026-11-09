@@ -236,7 +236,13 @@ module.exports = async function run(db) {
     `INSERT INTO public.sales (tenant_id, code, branch_id, sales_rep_id, product_id, quantity, unit_price, sale_date, walk_in_name)
      VALUES ($1,'S-1',$2,$3,$4,5,60000,CURRENT_DATE,'Walk-in') RETURNING id`, [tenantA, ID.brA1, ID.repA1, p1.id]));
   onHand = await one(`SELECT quantity_on_hand q FROM public.inventory_records WHERE branch_id=$1 AND product_id=$2`, [ID.brA1, p1.id]);
-  check("sale: deducts stock", onHand.q === 90, `got ${onHand.q}`);
+  // repA1 holds the 30 units issued above, so this sale uses those, not the branch's.
+  check("sale: uses the rep's issued stock first", onHand.q === 95, `got ${onHand.q}`);
+  ok("sale: owner walk-in sale", await as(ID.owner,
+    `INSERT INTO public.sales (tenant_id, code, branch_id, sales_rep_id, product_id, quantity, unit_price, sale_date, walk_in_name)
+     VALUES ($1,'S-OWNER',$2,$3,$4,5,60000,CURRENT_DATE,'Walk-in') RETURNING id`, [tenantA, ID.brA1, ID.owner, p1.id]));
+  onHand = await one(`SELECT quantity_on_hand q FROM public.inventory_records WHERE branch_id=$1 AND product_id=$2`, [ID.brA1, p1.id]);
+  check("sale: deducts branch stock when nothing is issued to the seller", onHand.q === 90, `got ${onHand.q}`);
 
   // ---------------- customers & customer payments ----------------
   const cust = ok("create_customer: rep valid", await as(ID.repA1,

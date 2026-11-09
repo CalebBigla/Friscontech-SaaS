@@ -376,6 +376,7 @@ export type Database = {
       }
       customers: {
         Row: {
+          assigned_rep_id: string | null
           address: string
           branch_id: string | null
           contact_person: string
@@ -391,6 +392,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assigned_rep_id?: string | null
           address: string
           branch_id?: string | null
           contact_person: string
@@ -406,6 +408,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assigned_rep_id?: string | null
           address?: string
           branch_id?: string | null
           contact_person?: string
@@ -1193,6 +1196,7 @@ export type Database = {
       }
       products: {
         Row: {
+          product_type: string
           category: string
           created_at: string
           description: string | null
@@ -1208,6 +1212,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          product_type?: string
           category: string
           created_at?: string
           description?: string | null
@@ -1223,6 +1228,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          product_type?: string
           category?: string
           created_at?: string
           description?: string | null
@@ -1249,6 +1255,12 @@ export type Database = {
       }
       sales: {
         Row: {
+          discount_amount: number
+          discount_type: string | null
+          discount_value: number | null
+          is_promo: boolean
+          line_total: number
+          quantity_from_rep_stock: number
           branch_id: string
           code: string
           created_at: string
@@ -1267,6 +1279,10 @@ export type Database = {
           walk_in_phone: string | null
         }
         Insert: {
+          discount_amount?: number
+          discount_type?: string | null
+          discount_value?: number | null
+          is_promo?: boolean
           branch_id: string
           code: string
           created_at?: string
@@ -1285,6 +1301,10 @@ export type Database = {
           walk_in_phone?: string | null
         }
         Update: {
+          discount_amount?: number
+          discount_type?: string | null
+          discount_value?: number | null
+          is_promo?: boolean
           branch_id?: string
           code?: string
           created_at?: string
@@ -1596,6 +1616,7 @@ export type Database = {
       }
       tenants: {
         Row: {
+          max_rep_discount_percent: number | null
           business_email: string
           created_at: string
           currency: string
@@ -1610,6 +1631,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          max_rep_discount_percent?: number | null
           business_email: string
           created_at?: string
           currency?: string
@@ -1624,6 +1646,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          max_rep_discount_percent?: number | null
           business_email?: string
           created_at?: string
           currency?: string
@@ -2647,6 +2670,46 @@ export type Database = {
         Returns: undefined
       }
       owner_account_exists: { Args: never; Returns: boolean }
+      get_assigned_customer_ledgers: {
+        Args: never
+        Returns: Json
+      }
+      get_former_customer_names: {
+        Args: never
+        Returns: { id: string; name: string }[]
+      }
+      reassign_customers: {
+        Args: { p_customer_ids: string[]; p_rep_id: string }
+        Returns: Json
+      }
+      record_sale: {
+        Args: {
+          p_branch_id: string
+          p_customer_id: string
+          p_idempotency_key: string
+          p_items: Json
+          p_sale_date: string
+          p_walk_in_name: string
+          p_walk_in_phone: string
+        }
+        Returns: Json
+      }
+      set_max_rep_discount: {
+        Args: { p_percent: number }
+        Returns: Json
+      }
+      login_attempt_status: {
+        Args: { p_email: string }
+        Returns: number
+      }
+      record_login_failure: {
+        Args: { p_email: string }
+        Returns: { attempts_left: number; locked_seconds: number }[]
+      }
+      clear_login_failures: {
+        Args: never
+        Returns: undefined
+      }
       record_customer_payment: {
         Args: {
           p_amount: number

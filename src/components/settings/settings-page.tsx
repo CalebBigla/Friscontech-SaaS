@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
-import { useUpdateTenantSettings } from "@/hooks/use-tenant";
+import { useSetMaxRepDiscount, useUpdateTenantSettings } from "@/hooks/use-tenant";
 import { useUpdatePreferences } from "@/hooks/use-preferences";
 import { changePassword } from "@/services/auth";
 import {
@@ -17,6 +17,7 @@ import {
   getPreferences,
   runSettingsWrite,
   timezones,
+  validateDiscountLimit,
   validateExpiryAlertMonths,
   validateGeneralSettings,
   validateOrganization,
@@ -58,7 +59,7 @@ export function SettingsPage() {
           {error ? <DataGate isLoading={false} error={error}>{null}</DataGate>
             : isLoading ? <div className="space-y-3 rounded-lg border border-border bg-card p-5"><Skeleton className="h-5 w-40" />{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}</div>
             : current === "general" ? <GeneralSection key={db.tenant.updatedAt} />
-            : current === "organization" ? <div className="space-y-4"><OrganizationSection key={db.tenant.updatedAt} /><ExpiryAlertSection key={`exp-${db.tenant.expiryAlertMonths}`} /></div>
+            : current === "organization" ? <div className="space-y-4"><OrganizationSection key={db.tenant.updatedAt} /><ExpiryAlertSection key={`exp-${db.tenant.expiryAlertMonths}`} /><DiscountLimitSection key={`disc-${db.tenant.maxRepDiscountPercent}`} /></div>
             : current === "preferences" ? <PreferencesSection />
             : <SecuritySection />}
         </div>
@@ -159,6 +160,38 @@ function OrganizationSection() {
           </div>
         </div>
         {edit && <FormActions dirty={legalName !== db.tenant.legalName} saving={saving} onCancel={() => { setLegalName(db.tenant.legalName); setErrors({}); }} />}
+      </form>
+    </Panel>
+  );
+}
+
+function DiscountLimitSection() {
+  const { db } = useLiveWorkspace();
+  const setLimit = useSetMaxRepDiscount();
+  const actorId = useCurrentUserId();
+  const scope = getAccessScope(db, actorId);
+  const saved = db.tenant.maxRepDiscountPercent === null ? "" : String(db.tenant.maxRepDiscountPercent);
+  const [percent, setPercent] = useState(saved);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const edit = scope.canManageSettings;
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    const value = percent.trim() === "" ? null : Number(percent);
+    const r = await runSettingsWrite(validateDiscountLimit(edit, value), () => setLimit.mutateAsync({ p_percent: value }));
+    setSaving(false);
+    if (!r.ok) { setError(r.errors.form ?? "Couldn't save"); return; }
+    setError(""); toast.success("Discount limit saved.");
+  };
+  return (
+    <Panel title="Sales rep discount limit" subtitle="The most a sales rep may take off a sale item">
+      {!edit && <ReadOnlyNote />}
+      <form onSubmit={submit} noValidate>
+        <div className="grid gap-4 p-5 sm:grid-cols-2">
+          <Field id="disc-limit" label="Limit (% of the item's total)" error={error}><Input id="disc-limit" type="number" min={0} max={100} step="any" inputMode="decimal" placeholder="No limit" value={percent} disabled={!edit} onChange={(e) => setPercent(e.target.value)} /></Field>
+          <p className="self-end text-xs text-muted-foreground">Leave blank for no limit. The limit doesn't apply to the owner.</p>
+        </div>
+        {edit && <FormActions dirty={percent !== saved} saving={saving} onCancel={() => { setPercent(saved); setError(""); }} />}
       </form>
     </Panel>
   );

@@ -8,6 +8,7 @@ import { BalanceBadge } from "@/components/customers/customers-page";
 import {
   CreditLimitDialog,
   CustomerFormDialog,
+  ReassignCustomerDialog,
   RecordCustomerPaymentDialog,
 } from "@/components/customers/customer-dialogs";
 import { PaymentStatusBadge } from "@/components/payments/payment-page";
@@ -23,12 +24,13 @@ import {
   getCustomerOrders,
   getCustomerPayments,
   getCustomerSummary,
+  needsReassignment,
   orderPaymentLabel,
 } from "@/lib/customer-calculations";
 import { formatDate, formatNaira } from "@/lib/format";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
-import { useSetCustomerStatus } from "@/hooks/use-customers";
+import { useCustomerAccounts, useSetCustomerStatus } from "@/hooks/use-customers";
 import { runWrite, validateCustomerStatus } from "@/lib/validation";
 
 /** Customer data is user-entered; escape it before writing the printable statement. */
@@ -47,31 +49,33 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
   const customer = db.customers.find((c) => c.id === customerId);
-  const [dialog, setDialog] = useState<"edit" | "order" | "payment" | "limit" | null>(null);
+  const [dialog, setDialog] = useState<"edit" | "order" | "payment" | "limit" | "reassign" | null>(null);
+  const { accounts, isLoading: accountsLoading, error: accountsError } = useCustomerAccounts(db, scope);
 
-  if (isLoading || error)
+  if (isLoading || error || accountsLoading || accountsError)
     return (
       <AppShell title="Customer">
-        <DataGate isLoading={isLoading} error={error}>{null}</DataGate>
+        <DataGate isLoading={isLoading || accountsLoading} error={error ?? accountsError}>{null}</DataGate>
       </AppShell>
     );
   if (!customer || !canAccessCustomer(scope, customer))
     return (
       <AppShell title="Customer">
-        <RestrictedNotice message="This customer was not found or is outside your branch." />
+        <RestrictedNotice message="This customer was not found or is not assigned to you." />
       </AppShell>
     );
 
-  const summary = getCustomerSummary(db, customer);
-  const ledger = getCustomerLedger(db, customer.id);
-  const orders = getCustomerOrders(db, customer.id);
-  const payments = getCustomerPayments(db, customer.id);
+  const summary = getCustomerSummary(accounts, customer);
+  const ledger = getCustomerLedger(accounts, customer.id);
+  const orders = getCustomerOrders(accounts, customer.id);
+  const payments = getCustomerPayments(accounts, customer.id);
+  const canReassign = scope.user.role === "owner";
   const name = (id?: string) => db.users.find((u) => u.id === id)?.name ?? "—";
   const product = (id: string) => db.products.find((p) => p.id === id)?.name ?? "Product";
   const canAct = scope.canManageCustomers && customer.status === "active";
 
   const downloadCsv = () => {
-    const blob = new Blob([customerStatementCsv(db, customer)], { type: "text/csv" });
+    const blob = new Blob([customerStatementCsv(accounts, customer)], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -157,6 +161,11 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
               {customer.status === "active" ? "Deactivate" : "Activate"}
             </Button>
           )}
+          {canReassign && (
+            <Button size="sm" variant="outline" onClick={() => setDialog("reassign")}>
+              Reassign
+            </Button>
+          )}
           {scope.canSetCreditLimit && (
             <Button size="sm" variant="outline" onClick={() => setDialog("limit")}>
               Credit limit
@@ -173,6 +182,12 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
         </div>
       </div>
 
+      {canReassign && needsReassignment(db, customer) && (
+        <p className="mb-4 rounded-md bg-warning-soft p-3 text-xs text-warning">
+          No active sales rep manages this customer. Reassign it so someone can take orders and
+          payments.
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
           tone={summary.balance < 0 ? "danger" : "success"}
@@ -207,6 +222,7 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
             {db.branches.find((b) => b.id === customer.branchId)?.name ?? "All branches"}
           </DetailItem>
           <DetailItem label="Address">{customer.address || "—"}</DetailItem>
+          <DetailItem label="Sales rep">{name(customer.assignedRepId ?? undefined)}</DetailItem>
           <DetailItem label="Created by">{name(customer.createdBy)}</DetailItem>
           <DetailItem label="Since">{formatDate(customer.createdAt)}</DetailItem>
         </div>
@@ -254,7 +270,7 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
                     <td className="px-4 py-3 font-mono text-[11px] font-bold">{o.orderId}</td>
                     <td className="px-4 py-3 text-muted-foreground">{formatDate(o.date)}</td>
                     <td className="px-4 py-3">
-                      {o.lines.map((l) => `${product(l.productId)} × ${l.quantity}`).join(", ")}
+                      {o.lines.map((l) => `${product(l.productId)} × ${l.quantity}${l.isPromo ? " (promo)" : ""}`).join(", ")}
                     </td>
                     <td className="px-4 py-3">{name(o.salesRepId)}</td>
                     <td className="px-4 py-3 font-bold tabular-nums">
@@ -324,6 +340,13 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
           scope={scope}
           presetCustomerId={customer.id}
           db={db}
+        />
+      )}
+      {canReassign && (
+        <ReassignCustomerDialog
+          open={dialog === "reassign"}
+          onOpenChange={(o) => setDialog(o ? "reassign" : null)}
+          customer={customer}
         />
       )}
       {scope.canSetCreditLimit && (

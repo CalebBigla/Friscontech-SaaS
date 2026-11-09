@@ -110,7 +110,7 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
         </div>}>
         {simple && <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-left">
           <thead><tr className="text-[10px] uppercase text-muted-foreground"><SortHead k="product" label="Product" /><th className="px-4 py-3">SKU</th><th className="hidden px-4 py-3 sm:table-cell">Category</th><th className="px-4 py-3 text-right">Selling price</th><SortHead k="available" label="Available" right /><SortHead k="status" label="Status" /></tr></thead>
-          <tbody>{shown.map((r) => <tr key={r.record.id} className="border-t border-border text-xs"><td className="px-4 py-3.5 font-bold">{r.product.name}</td><td className="px-4 py-3.5 font-mono text-[11px] text-muted-foreground">{r.product.sku}</td><td className="hidden px-4 py-3.5 sm:table-cell">{r.product.category}</td><td className="px-4 py-3.5 text-right">{formatNaira(r.product.unitPrice)}</td><td className="px-4 py-3.5 text-right font-bold">{formatNumber(r.available)} <span className="font-normal text-muted-foreground">{r.product.unit}</span></td><td className="px-4 py-3.5"><StockStatusBadge status={r.status} /></td></tr>)}</tbody>
+          <tbody>{shown.map((r) => <tr key={r.record.id} className="border-t border-border text-xs"><td className="px-4 py-3.5 font-bold">{r.product.name}{r.product.productType === "promo" && <span className="status status-violet ml-2 whitespace-nowrap">Promo</span>}</td><td className="px-4 py-3.5 font-mono text-[11px] text-muted-foreground">{r.product.sku}</td><td className="hidden px-4 py-3.5 sm:table-cell">{r.product.category}</td><td className="px-4 py-3.5 text-right">{formatNaira(r.product.unitPrice)}</td><td className="px-4 py-3.5 text-right font-bold">{formatNumber(r.available)} <span className="font-normal text-muted-foreground">{r.product.unit}</span></td><td className="px-4 py-3.5"><StockStatusBadge status={r.status} /></td></tr>)}</tbody>
         </table></div>}
         {!simple && <>
         <div className="hidden overflow-x-auto md:block">
@@ -122,7 +122,7 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
             </tr></thead>
             <tbody>{shown.map((r) => (
               <tr key={r.record.id} onClick={() => open(r.record)} className="cursor-pointer border-t border-border text-xs transition-colors hover:bg-muted/60">
-                <td className="px-4 py-3.5"><p className="font-bold">{r.product.name}</p><p className="text-[11px] text-muted-foreground"><span className="font-mono xl:hidden">{r.product.sku} · </span>{r.product.category} · {formatNaira(r.product.unitPrice)}</p></td>
+                <td className="px-4 py-3.5"><p className="font-bold">{r.product.name}{r.product.productType === "promo" && <span className="status status-violet ml-2 whitespace-nowrap">Promo</span>}</p><p className="text-[11px] text-muted-foreground"><span className="font-mono xl:hidden">{r.product.sku} · </span>{r.product.category} · {formatNaira(r.product.unitPrice)}</p></td>
                 <td className="hidden px-4 py-3.5 font-mono text-[11px] text-muted-foreground xl:table-cell">{r.product.sku}</td>
                 <td className="px-4 py-3.5">{r.branch.name}</td>
                 <td className="px-4 py-3.5 text-right font-semibold">{formatNumber(r.record.quantityOnHand)}</td>

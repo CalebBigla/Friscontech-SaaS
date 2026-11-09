@@ -11,8 +11,8 @@
 import type { Row } from "@/lib/supabase-helpers";
 import type {
   Activity, ApprovalRequest, AppNotification, Branch, BranchStatus,
-  Customer, CustomerPayment, Expense, InventoryMovement, InventoryRecord,
-  ManagerRemittance, Payment, Product, ProductStatus, Sale, StockBatch, StockRequest,
+  Customer, CustomerPayment, DiscountType, Expense, InventoryMovement, InventoryRecord,
+  ManagerRemittance, Payment, Product, ProductStatus, ProductType, Sale, StockBatch, StockRequest,
   Target, Tenant, User, UserPreference,
 } from "@/data/mock-db";
 import type { EmployeeData, Onboarding, StoredFile } from "@/data/onboarding";
@@ -22,7 +22,7 @@ import type { OwnerRemittance } from "@/data/remittances";
 export interface TenantMigrationRow {
   id: string; name: string; legal_name: string; business_email: string; phone: string;
   currency: Tenant["currency"]; timezone: string; plan: string; expiry_alert_months: number;
-  reference_date: string; created_at: string; updated_at: string;
+  max_rep_discount_percent: number | null; reference_date: string; created_at: string; updated_at: string;
 }
 /** Column shape follows 20260114140000_create_products_and_inventory.sql. */
 export interface InventoryRecordMigrationRow {
@@ -108,7 +108,7 @@ export interface ExpenseMigrationRow {
 export interface CustomerMigrationRow {
   id: string; tenant_id: string; branch_id: string | null; name: string; contact_person: string;
   phone: string | null; email: string | null; address: string | null; credit_limit: number | null;
-  status: Customer["status"]; created_by: string; created_at: string; updated_at: string;
+  status: Customer["status"]; created_by: string; assigned_rep_id: string | null; created_at: string; updated_at: string;
 }
 /** Final invite-first columns follow 20260118010000_restructure_onboardings.sql. */
 export interface OnboardingMigrationRow {
@@ -153,6 +153,7 @@ export function transformTenant(dbRow: TenantMigrationRow, fetchedAt: Date = new
     timezone:          dbRow.timezone,
     plan:              dbRow.plan,
     expiryAlertMonths: dbRow.expiry_alert_months,
+    maxRepDiscountPercent: dbRow.max_rep_discount_percent,
     createdAt:         dbRow.created_at,
     updatedAt:         dbRow.updated_at,
   };
@@ -253,7 +254,7 @@ export function preferenceToDb(pref: Partial<UserPreference>, userId: string): R
 
 // ─────────────────────────── PRODUCTS ────────────────────────────
 
-export function transformProduct(dbRow: { id: string; tenant_id: string; name: string; sku: string; category: string; unit: string; unit_cost: number; unit_price: number; status: ProductStatus; low_stock_threshold: number | null; description: string | null; created_at: string; updated_at: string }): Product {
+export function transformProduct(dbRow: { id: string; tenant_id: string; name: string; sku: string; category: string; unit: string; unit_cost: number; unit_price: number; status: ProductStatus; product_type: string; low_stock_threshold: number | null; description: string | null; created_at: string; updated_at: string }): Product {
   return {
     id:                dbRow['id'],
     tenantId:          dbRow['tenant_id'],
@@ -264,6 +265,7 @@ export function transformProduct(dbRow: { id: string; tenant_id: string; name: s
     unitCost:          dbRow['unit_cost'],
     unitPrice:         dbRow['unit_price'],
     status:            dbRow['status'] as ProductStatus,
+    productType:       dbRow['product_type'] as ProductType,
     lowStockThreshold: dbRow['low_stock_threshold'] ?? 0,
     description:       dbRow['description'] ?? "",
     createdAt:         dbRow['created_at'],
@@ -387,6 +389,11 @@ export function transformSale(dbRow: Row<"sales">): Sale {
     productId:   dbRow['product_id'],
     quantity:    dbRow['quantity'],
     unitPrice:   dbRow['unit_price'],
+    discountAmount: dbRow['discount_amount'],
+    ...(dbRow['discount_type'] ? { discountType: dbRow['discount_type'] as DiscountType } : {}),
+    ...(dbRow['discount_value'] !== null ? { discountValue: dbRow['discount_value'] } : {}),
+    isPromo:     dbRow['is_promo'],
+    quantityFromRepStock: dbRow['quantity_from_rep_stock'],
     saleDate:    dbRow['sale_date'],
     createdAt:   dbRow['created_at'],
     // sales.status CHECK: completed | pending | voided (generated types say string).
@@ -430,6 +437,7 @@ export function transformCustomer(dbRow: CustomerMigrationRow): Customer {
     ...(dbRow['credit_limit'] !== null ? { creditLimit: dbRow['credit_limit'] } : {}),
     status:       dbRow['status'],
     createdBy:    dbRow['created_by'],
+    assignedRepId: dbRow['assigned_rep_id'] ?? null,
     createdAt:    dbRow['created_at'],
     updatedAt:    dbRow['updated_at'],
   };

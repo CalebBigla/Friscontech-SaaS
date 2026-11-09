@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { onAuthStateChange } from "@/services/auth";
@@ -58,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const requestId = useRef(0);
   const activeAuthUserId = useRef<string | null>(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   async function loadUserProfile(authUserId: string, currentRequest = ++requestId.current) {
     setProfileStatus("loading");
@@ -209,6 +211,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!nextAuthUser) {
         setCurrentUserId(null);
         const wasAuthenticated = activeAuthUserId.current !== null;
+        // Cached data belongs to the person who was signed in; never show it to the next.
+        if (wasAuthenticated) queryClient.clear();
         activeAuthUserId.current = null;
         requestId.current += 1;
         setAuthUser(null);
@@ -229,6 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // INITIAL_SESSION and getSession can both report the same user. Do not
       // start competing profile requests for that unchanged identity.
       if (activeAuthUserId.current === userId) return;
+      if (activeAuthUserId.current !== null) queryClient.clear();
       activeAuthUserId.current = userId;
       void loadUserProfile(userId, ++requestId.current);
     };
@@ -264,7 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       requestId.current += 1;
       subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate, queryClient]);
 
   async function retryProfile() {
     if (!authUser) return;

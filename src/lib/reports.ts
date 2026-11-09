@@ -5,7 +5,7 @@
  */
 import type { Db } from "@/data/mock-db";
 import type { AccessScope } from "@/lib/session";
-import { filterSales, getSalesRevenue, saleTotal } from "@/lib/calculations";
+import { filterSales, getSalesRevenue, saleGross, saleTotal } from "@/lib/calculations";
 import type { DateRange } from "@/lib/dates";
 import { getMonthTargets, getTargetSummary } from "@/lib/catalog-calculations";
 import { getInventoryRows } from "@/lib/inventory-calculations";
@@ -53,9 +53,29 @@ export function getSalesReport(db: Db, scope: AccessScope, f: ReportFilters) {
       }).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     : [];
   const revenue = rows.reduce((s, x) => s + saleTotal(x), 0);
+  const promoRows = branchIds.length
+    ? filterSales(db, {
+        range: f.range,
+        branchIds,
+        repId: f.repId,
+        productId: f.productId,
+        saleType: f.saleType,
+        includePromo: true,
+      })
+        .filter((x) => x.isPromo)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    : [];
   return {
     rows,
     revenue,
+    gross: rows.reduce((s, x) => s + saleGross(x), 0),
+    discounts: rows.reduce((s, x) => s + x.discountAmount, 0),
+    promoRows,
+    promoUnits: promoRows.reduce((s, x) => s + x.quantity, 0),
+    promoCost: promoRows.reduce(
+      (s, x) => s + x.quantity * (db.products.find((p) => p.id === x.productId)?.unitCost ?? 0),
+      0,
+    ),
     count: rows.length,
     units: rows.reduce((s, x) => s + x.quantity, 0),
     average: rows.length ? revenue / rows.length : 0,

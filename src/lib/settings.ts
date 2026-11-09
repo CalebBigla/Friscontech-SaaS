@@ -64,6 +64,12 @@ export function validateOrganization(canManage: boolean, input: OrganizationInpu
   return null;
 }
 
+export function validateDiscountLimit(canManage: boolean, percent: number | null): SettingsErrors | null {
+  if (!canManage) return { form: "Only the business owner can change the discount limit." };
+  if (percent !== null && (!Number.isFinite(percent) || percent < 0 || percent > 100)) return { form: "Enter a percentage from 0 to 100, or leave it blank for no limit" };
+  return null;
+}
+
 export function validateExpiryAlertMonths(canManage: boolean, months: number): SettingsErrors | null {
   if (!canManage) return { form: "Only the business owner can change expiry alerts." };
   if (!Number.isInteger(months) || months < 1 || months > 12) return { form: "Enter a whole number of months between 1 and 12" };

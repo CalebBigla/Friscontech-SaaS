@@ -18,7 +18,7 @@ import type { Customer, CustomerPaymentMethod } from "@/data/mock-db";
 import { getCustomerOrders } from "@/lib/customer-calculations";
 import { formatNaira } from "@/lib/format";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
-import { useCreateCustomer, useSetCustomerCreditLimit, useUpdateCustomer } from "@/hooks/use-customers";
+import { useCreateCustomer, useCustomerAccounts, useReassignCustomers, useSetCustomerCreditLimit, useUpdateCustomer } from "@/hooks/use-customers";
 import { useRecordCustomerPayment } from "@/hooks/use-customer-payments";
 import { useIdempotencyKey } from "@/hooks/use-idempotency-key";
 import { getAccessScope } from "@/lib/session";
@@ -193,7 +193,8 @@ export function RecordCustomerPaymentDialog({
     setDate(db.tenant.referenceDate);
     setErrors({});
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-  const openOrders = getCustomerOrders(db, customer.id).filter((o) => o.paymentStatus !== "paid");
+  const { accounts } = useCustomerAccounts(db, getAccessScope(db, actorId));
+  const openOrders = getCustomerOrders(accounts, customer.id).filter((o) => o.paymentStatus !== "paid");
   const save = async () => {
     setBusy(true);
     const input = {
@@ -368,6 +369,84 @@ export function CreditLimitDialog({
           </Button>
           <Button disabled={busy} onClick={save}>
             {busy ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Owner moves a customer to another active rep. Only the customer and its ledger move. */
+export function ReassignCustomerDialog({
+  open,
+  onOpenChange,
+  customer,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  customer: Customer;
+}) {
+  const { db } = useLiveWorkspace();
+  const reassign = useReassignCustomers();
+  const [repId, setRepId] = useState("none");
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    setRepId("none");
+    setErrors({});
+  }, [open]);
+  const reps = db.users.filter(
+    (u) => u.role === "sales_rep" && u.status === "active" && u.id !== customer.assignedRepId,
+  );
+  const save = async () => {
+    if (repId === "none") {
+      setErrors({ form: "Choose a sales representative" });
+      return;
+    }
+    setBusy(true);
+    const result = await runWrite(null, () =>
+      reassign.mutateAsync({ p_customer_ids: [customer.id], p_rep_id: repId }),
+    );
+    setBusy(false);
+    if (!result.ok) {
+      setErrors(result.errors);
+      return;
+    }
+    toast.success(`${customer.name} reassigned`);
+    onOpenChange(false);
+  };
+  return (
+    <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Reassign customer</DialogTitle>
+          <DialogDescription>
+            The new rep takes over {customer.name}'s details and ledger. Past sales and targets stay
+            with the rep who made them.
+          </DialogDescription>
+        </DialogHeader>
+        <Field label="New sales representative *" error={errors.form ?? errors.repId}>
+          <FilterSelect
+            label="New sales representative"
+            className="w-full"
+            value={repId}
+            onChange={setRepId}
+            options={[
+              { value: "none", label: reps.length ? "Select a rep" : "No other active reps" },
+              ...reps.map((u) => ({
+                value: u.id,
+                label: `${u.name} · ${db.branches.find((b) => b.id === u.branchId)?.name ?? "No branch"}`,
+              })),
+            ]}
+          />
+        </Field>
+        <DialogFooter>
+          <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button disabled={busy || !reps.length} onClick={save}>
+            {busy ? "Saving…" : "Reassign"}
           </Button>
         </DialogFooter>
       </DialogContent>

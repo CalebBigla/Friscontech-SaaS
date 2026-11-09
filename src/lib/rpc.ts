@@ -102,7 +102,7 @@ export type PlannedRpcs = {
   };
   /**
    * Sales rep adds a customer to their own branch (branch_id = caller's branch,
-   * created_by = caller). Phone must be unique in the tenant. Returns the customers row.
+   * created_by and assigned_rep_id = caller). Phone must be unique in the tenant. Returns the customers row.
    */
   create_customer: {
     p_name: string;
@@ -111,7 +111,7 @@ export type PlannedRpcs = {
     p_email: string | null;
     p_address: string;
   };
-  /** Sales rep edits a customer of their own branch. Returns the customers row. */
+  /** Sales rep edits a customer assigned to them. Returns the customers row. */
   update_customer: {
     p_customer_id: string;
     p_name: string;
@@ -124,6 +124,44 @@ export type PlannedRpcs = {
   set_customer_status: {
     p_customer_id: string;
     p_status: "active" | "inactive";
+  };
+  /**
+   * Owner moves customers to an active sales rep, all or nothing. The customer joins
+   * the rep's branch; sales, payments and targets do not move. Returns the customers rows.
+   */
+  reassign_customers: {
+    p_customer_ids: string[];
+    p_rep_id: string;
+  };
+  /** The full ledger of the caller's assigned customers: { sales, payments } rows. */
+  get_assigned_customer_ledgers: Record<string, never>;
+  /** Names of customers on the rep's own history that now belong to another rep. */
+  get_former_customer_names: Record<string, never>;
+  /**
+   * One order, all lines or none. The server reads each price, works out the discount
+   * and applies the rep's limit. The sales trigger uses units already issued to the rep
+   * first and deducts only the rest from the branch. A promo item needs a sold product
+   * on the same order. Returns the sales rows.
+   */
+  record_sale: {
+    p_branch_id: string;
+    p_sale_date: string;
+    p_customer_id: string | null;
+    p_walk_in_name: string | null;
+    p_walk_in_phone: string | null;
+    p_items: {
+      product_id: string;
+      quantity: number;
+      is_promo: boolean;
+      discount_type: "percent" | "amount" | null;
+      discount_value: number | null;
+    }[];
+    /** Same key while the form is open: a retried submit returns the first result. */
+    p_idempotency_key: string;
+  };
+  /** Owner sets the most a sales rep may discount a line (null = no limit). Returns the tenants row. */
+  set_max_rep_discount: {
+    p_percent: number | null;
   };
   /** Owner sets or clears (null) a credit limit. Returns the customers row. */
   set_customer_credit_limit: {
@@ -307,6 +345,8 @@ export type PlannedRpcs = {
     p_unit_cost: number;
     p_low_stock_threshold: number;
     p_description: string | null;
+    /** promo = given away free on a sale (price 0). Defaults to regular. */
+    p_product_type?: "regular" | "promo";
   };
   /**
    * Edit catalogue fields. Branch thresholds still equal to the old product

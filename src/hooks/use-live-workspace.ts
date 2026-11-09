@@ -128,6 +128,7 @@ function hiddenTenant(tenantId: string): Tenant {
     timezone: TENANT_DEFAULT_TIMEZONE,
     plan: "",
     expiryAlertMonths: TENANT_DEFAULT_EXPIRY_ALERT_MONTHS,
+    maxRepDiscountPercent: null,
     createdAt: "",
     updatedAt: "",
   };

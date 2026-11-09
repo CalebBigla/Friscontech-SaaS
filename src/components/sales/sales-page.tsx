@@ -114,7 +114,7 @@ export function SalesPage() {
             range,
             repId ? { repId } : { branchId, branchIds: scope.branchIds },
           );
-    const rows = filterSales(db, { ...filters, includeNonCompleted: true }).sort((a, b) =>
+    const rows = filterSales(db, { ...filters, includeNonCompleted: true, includePromo: true }).sort((a, b) =>
       b.createdAt.localeCompare(a.createdAt),
     );
     return {
@@ -434,7 +434,14 @@ export function SalesPage() {
                     <SaleTypeBadge db={db} sale={s} />
                   </td>
                   <td className="px-4 py-3">{s.quantity}</td>
-                  <td className="px-4 py-3 font-bold">{formatNaira(saleTotal(s))}</td>
+                  <td className="px-4 py-3 font-bold">
+                    {formatNaira(saleTotal(s))}
+                    {s.discountAmount > 0 && (
+                      <span className="block text-[10px] font-normal text-muted-foreground">
+                        {formatNaira(s.discountAmount)} off
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`status ${statusClass[s.status]}`}>{s.status}</span>
                   </td>
@@ -505,7 +512,17 @@ export function SalesPage() {
                 ],
                 ["Product", product(selected.productId)?.name ?? "—"],
                 ["Quantity", String(selected.quantity)],
-                ["Unit price", formatNaira(selected.unitPrice)],
+                ...(selected.isPromo
+                  ? [["Promo item", "Free"]]
+                  : [["Unit price", formatNaira(selected.unitPrice)]]),
+                ...(selected.discountAmount > 0
+                  ? [[
+                      "Discount",
+                      selected.discountType === "percent"
+                        ? `${selected.discountValue}% · ${formatNaira(selected.discountAmount)}`
+                        : formatNaira(selected.discountAmount),
+                    ]]
+                  : []),
                 ["Status", selected.status],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between py-2.5">
@@ -551,6 +568,11 @@ function SaleTypeBadge({ db, sale }: { db: Db; sale: Sale }) {
       ) : (
         <span className="status status-brand whitespace-nowrap" title={sale.walkInName}>
           Walk-in
+        </span>
+      )}
+      {sale.isPromo && (
+        <span className="status status-violet whitespace-nowrap" title="Free promo item">
+          Promo
         </span>
       )}
       {byOwner && (

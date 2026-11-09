@@ -12,6 +12,7 @@ import type { Role, User, UserStatus } from "@/data/mock-db";
 import { useAuth } from "@/contexts/auth-context";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { useRequestTeamMember, useSetTeamMemberStatus, useUpdateTeamMember } from "@/hooks/use-users";
+import { useReassignCustomers } from "@/hooks/use-customers";
 import {
   runWrite,
   splitName,
@@ -244,6 +245,29 @@ export function MemberStatusDialog({ member, onClose, actorId }: { member: User 
   const scope = getAccessScope(db, actorId);
   const deactivating = member?.status !== "inactive";
   const deleting = scope.user.role === "owner" && deactivating;
+  const reassign = useReassignCustomers();
+  // customer id → the rep taking over. Customers left blank wait on the Customers page.
+  const [moves, setMoves] = useState<Record<string, string>>({});
+  useEffect(() => { setMoves({}); }, [member?.id]);
+  const isRep = deactivating && member?.role === "sales_rep";
+  const repCustomers = isRep && scope.user.role === "owner" ? db.customers.filter((c) => c.assignedRepId === member.id) : [];
+  const otherReps = db.users.filter((u) => u.role === "sales_rep" && u.status === "active" && u.id !== member?.id);
+  const repOptions = [
+    { value: "none", label: "Decide later" },
+    ...otherReps.map((u) => ({ value: u.id, label: `${u.name} · ${db.branches.find((b) => b.id === u.branchId)?.name ?? "No branch"}` })),
+  ];
+  const moveCustomers = async () => {
+    const byRep = new Map<string, string[]>();
+    for (const c of repCustomers) {
+      const repId = moves[c.id];
+      if (repId) byRep.set(repId, [...(byRep.get(repId) ?? []), c.id]);
+    }
+    for (const [repId, ids] of byRep) {
+      const r = await runWrite(null, () => reassign.mutateAsync({ p_customer_ids: ids, p_rep_id: repId }));
+      if (!r.ok) return r.errors.form ?? "Could not reassign the customers";
+    }
+    return null;
+  };
 
   return (
     <AlertDialog open={!!member} onOpenChange={(o) => !o && onClose()}>
@@ -257,9 +281,43 @@ export function MemberStatusDialog({ member, onClose, actorId }: { member: User 
               ? deleting
                 ? `${member?.name} will be marked inactive and lose access to Friscontech. Their sales, payments, targets, stock requests and audit history will be preserved.`
                 : `${member?.name} will no longer be able to access Friscontech. Their sales, targets, stock requests and audit history are kept.`
-              : "They regain access with their existing role and branch."}
+              : "They regain access with their existing role and branch. Customers already moved to another rep stay there."}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {repCustomers.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold">Move {repCustomers.length} customer{repCustomers.length === 1 ? "" : "s"} to</p>
+              <FilterSelect
+                label="Move all customers to"
+                className="w-52"
+                value={repCustomers.every((c) => moves[c.id] === moves[repCustomers[0]!.id]) ? moves[repCustomers[0]!.id] ?? "none" : "none"}
+                onChange={(v) => setMoves(v === "none" ? {} : Object.fromEntries(repCustomers.map((c) => [c.id, v])))}
+                options={repOptions}
+              />
+            </div>
+            {repCustomers.length > 1 && (
+              <ul className="max-h-48 divide-y divide-border overflow-y-auto rounded-md border border-border">
+                {repCustomers.map((c) => (
+                  <li key={c.id} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
+                    <span className="truncate font-semibold">{c.name}</span>
+                    <FilterSelect
+                      label={`New rep for ${c.name}`}
+                      className="w-52 shrink-0"
+                      value={moves[c.id] ?? "none"}
+                      onChange={(v) => setMoves((m) => { const next = { ...m }; if (v === "none") delete next[c.id]; else next[c.id] = v; return next; })}
+                      options={repOptions}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-[11px] text-muted-foreground">The new rep takes over each customer's details and ledger. Past sales and targets stay with {member?.name}.</p>
+          </div>
+        )}
+        {isRep && scope.user.role !== "owner" && (
+          <p className="text-[11px] text-muted-foreground">Their customers will wait for the owner to reassign them.</p>
+        )}
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
@@ -269,6 +327,8 @@ export function MemberStatusDialog({ member, onClose, actorId }: { member: User 
               e.preventDefault();
               if (!member) return;
               setBusy(true);
+              const moveError = validateMemberStatus(scope, member) ? null : await moveCustomers();
+              if (moveError) { setBusy(false); toast.error(moveError); return; }
               const r = await runWrite(validateMemberStatus(scope, member), () =>
                 setStatus.mutateAsync({ p_user_id: member.id, p_status: deactivating ? "inactive" : "active" }));
               setBusy(false);

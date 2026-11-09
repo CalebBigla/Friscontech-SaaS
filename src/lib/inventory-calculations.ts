@@ -8,7 +8,7 @@ import { addDays } from "@/lib/dates";
 export type InventoryStatus = "in_stock" | "low_stock" | "out_of_stock";
 export const inventoryStatusLabel: Record<InventoryStatus, string> = { in_stock: "In Stock", low_stock: "Low Stock", out_of_stock: "Out of Stock" };
 export const requestStatusLabel: Record<StockRequestStatus, string> = { pending: "Pending", approved: "Approved", partially_fulfilled: "Partially Fulfilled", fulfilled: "Fulfilled", rejected: "Rejected" };
-export const movementTypeLabel: Record<InventoryMovement["type"], string> = { stock_added: "Stock Added", stock_issued: "Stock Issued", sale: "Sale", adjustment: "Adjustment" };
+export const movementTypeLabel: Record<InventoryMovement["type"], string> = { stock_added: "Stock Added", stock_issued: "Stock Issued", sale: "Sale", adjustment: "Adjustment", promo: "Promo Given" };
 
 export const getAvailable = (inv: Pick<InventoryRecord, "quantityOnHand" | "quantityReserved">) => Math.max(inv.quantityOnHand - inv.quantityReserved, 0);
 export function getInventoryStatus(inv: InventoryRecord): InventoryStatus {
@@ -19,6 +19,17 @@ export function getInventoryStatus(inv: InventoryRecord): InventoryStatus {
 }
 
 export const findInventory = (db: Db, branchId: string, productId: string) => db.inventory.find((i) => i.branchId === branchId && i.productId === productId) ?? null;
+/** Units issued to a rep that they have not yet sold. A sale uses these before branch stock. */
+export function getRepHeldStock(db: Db, repId: string, productId: string) {
+  const issued = db.stockRequests
+    .filter((r) => r.repId === repId && r.productId === productId)
+    .reduce((sum, r) => sum + (r.quantityFulfilled ?? 0), 0);
+  const used = db.sales
+    .filter((s) => s.salesRepId === repId && s.productId === productId && s.status === "completed")
+    .reduce((sum, s) => sum + s.quantityFromRepStock, 0);
+  return Math.max(issued - used, 0);
+}
+
 export function getAvailableStock(db: Db, productId: string, branchId: string) {
   const inv = findInventory(db, branchId, productId);
   return inv ? getAvailable(inv) : 0;
@@ -143,7 +154,7 @@ export const getRequestBatch = (db: Db, r: StockRequest) => r.batchId ? db.stock
 export type RepHolding = { productId: string; issued: number; sold: number; held: number; lastIssuedAt: string };
 /**
  * Stock currently with each rep: units issued to them through fulfilled requests
- * minus units they have sold of that product since the first issue.
+ * minus the units their sales took from that issued stock.
  */
 export function getRepStockHoldings(db: Db, branchIds: string[] | null) {
   const reps = db.users.filter((u) => u.role === "sales_rep" && u.branchId && (!branchIds || branchIds.includes(u.branchId)));
@@ -158,8 +169,7 @@ export function getRepStockHoldings(db: Db, branchIds: string[] | null) {
       byProduct.set(m.productId, h);
     }
     const holdings = [...byProduct.values()].map((h) => {
-      const first = db.inventoryMovements.filter((m) => m.type === "stock_issued" && m.productId === h.productId && m.referenceId && reqIds.has(m.referenceId)).reduce((a, m) => (m.createdAt < a ? m.createdAt : a), h.lastIssuedAt);
-      const sold = db.sales.filter((s) => s.salesRepId === rep.id && s.productId === h.productId && s.status === "completed" && s.createdAt >= first).reduce((a, s) => a + s.quantity, 0);
+      const sold = db.sales.filter((s) => s.salesRepId === rep.id && s.productId === h.productId && s.status === "completed").reduce((a, s) => a + s.quantityFromRepStock, 0);
       return { ...h, sold, held: Math.max(h.issued - sold, 0) };
     }).sort((a, b) => b.lastIssuedAt.localeCompare(a.lastIssuedAt));
     const requests = [...reqIds.values()];

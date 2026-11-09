@@ -7,8 +7,10 @@ import {
   CircleDollarSign,
   Download,
   Flag,
+  Gift,
   Package,
   PackageX,
+  Percent,
   ShoppingCart,
   Target as TargetIcon,
   TrendingUp,
@@ -161,13 +163,14 @@ function ReportsPageContent() {
     if (applied.type === "sales")
       downloadCsv(
         file,
-        ["Date", "Sales Rep", "Branch", "Product", "Quantity", "Revenue"],
+        ["Date", "Sales Rep", "Branch", "Product", "Quantity", "Discount", "Revenue"],
         sales.rows.map((s) => [
           s.saleDate,
           name(s.salesRepId),
           bname(s.branchId),
           pname(s.productId),
           s.quantity,
+          s.discountAmount,
           saleTotal(s),
         ]),
       );
@@ -400,6 +403,20 @@ function ReportsPageContent() {
                   label="Average sale value"
                   value={formatNaira(sales.average)}
                 />
+                <MetricCard
+                  icon={Percent}
+                  tone="warning"
+                  label="Discounts given"
+                  value={formatNaira(sales.discounts)}
+                  detail={`From ${formatNaira(sales.gross)} before discounts`}
+                />
+                <MetricCard
+                  icon={Gift}
+                  tone="violet"
+                  label="Promo items given"
+                  value={formatNumber(sales.promoUnits)}
+                  detail={`${formatNaira(sales.promoCost)} at cost`}
+                />
               </Kpis>
               <Panel
                 className="overflow-hidden"
@@ -430,6 +447,31 @@ function ReportsPageContent() {
                   </p>
                 )}
               </Panel>
+              {sales.promoRows.length > 0 && (
+                <Panel
+                  className="mt-5 overflow-hidden"
+                  title="Promo items given"
+                  subtitle={`${formatNumber(sales.promoUnits)} units · ${rangeLabel}`}
+                >
+                  <Table
+                    empty={null}
+                    head={["Date", "Sales Representative", "Branch", "Promo item", "Given to", "Qty|r"]}
+                  >
+                    {sales.promoRows.slice(0, 200).map((s) => (
+                      <tr key={s.id} className="border-t border-border text-xs">
+                        <td className={td}>{formatDate(s.saleDate)}</td>
+                        <td className={`${td} font-semibold`}>{name(s.salesRepId)}</td>
+                        <td className={td}>{bname(s.branchId)}</td>
+                        <td className={td}>{pname(s.productId)}</td>
+                        <td className={td}>
+                          {s.walkInName ?? db.customers.find((c) => c.id === s.customerId)?.name ?? "—"}
+                        </td>
+                        <td className={`${td} text-right`}>{s.quantity}</td>
+                      </tr>
+                    ))}
+                  </Table>
+                </Panel>
+              )}
             </>
           )}
 

@@ -9,7 +9,8 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/auth-context";
 import { queryKeys } from "@/lib/query-keys";
 import { transformSale, saleToDb } from "@/lib/type-adapters";
-import { handleSupabaseError } from "@/lib/supabase-helpers";
+import { handleSupabaseError, type Row } from "@/lib/supabase-helpers";
+import { callRpc, type PlannedRpcs } from "@/lib/rpc";
 import type { Sale } from "@/data/mock-db";
 import type { TablesInsert } from "@/types/database.types";
 
@@ -146,33 +147,24 @@ export function useCreateSale() {
 }
 
 /**
- * Bulk create sales (for multiple line items)
+ * Record one order, all lines or none (RPC record_sale). The server sets each price,
+ * works out the discount and deducts stock.
  */
-export function useBulkCreateSales() {
+export function useRecordSale() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (sales: Partial<Sale>[]) => {
-      if (!user?.tenantId) throw new Error('Not authenticated');
-      
-      const dbData = sales.map(s => saleToDb(s, user.tenantId) as TablesInsert<"sales">);
-      
-      const { data, error } = await supabase.from('sales')
-        .insert(dbData)
-        .select();
-      
-      if (error) handleSupabaseError(error);
-      
-      return (data || []).map((row) => transformSale(row as Parameters<typeof transformSale>[0]));
+    mutationFn: async (args: PlannedRpcs["record_sale"]): Promise<Sale[]> => {
+      const rows = await callRpc("record_sale", args);
+      return (rows as Row<"sales">[]).map(transformSale);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.sales.all(user?.tenantId || '') 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.inventory.all(user?.tenantId || '') 
-      });
+      const tenantId = user?.tenantId || '';
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sales.all(tenantId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all(tenantId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.customers.root() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all(tenantId) });
     },
   });
 }

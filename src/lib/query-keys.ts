@@ -87,6 +87,7 @@ export const queryKeys = {
     byBranch: (branchId: string) =>
       ["customers", "branch", branchId] as const,
     detail: (id: string) => ["customers", "detail", id] as const,
+    ledgers: (userId: string) => ["customers", "ledgers", userId] as const,
     payments: (customerId: string) =>
       ["customers", customerId, "payments"] as const,
   },

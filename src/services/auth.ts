@@ -129,23 +129,76 @@ export async function signUpOwner(input: OwnerSignupInput): Promise<AuthResult<{
   }
 }
 
+/** Wrong passwords allowed per email before sign-in is locked (see migration 20261109100000). */
+export const MAX_LOGIN_ATTEMPTS = 5;
+
+function lockedMessage(seconds: number) {
+  const minutes = Math.max(1, Math.ceil(seconds / 60));
+  return `Too many wrong passwords. Sign-in for this email is locked — try again in ${minutes} minute${minutes === 1 ? "" : "s"}, or reset your password.`;
+}
+
+/**
+ * The lock is checked and counted in the database so it holds across browsers and
+ * devices. If the check itself fails (network, or the migration is not applied yet),
+ * sign-in still goes ahead: Supabase Auth's own rate limits remain in place.
+ */
+async function loginLockSeconds(email: string): Promise<number> {
+  try {
+    const { data, error } = await supabase.rpc("login_attempt_status", { p_email: email });
+    if (error) { console.warn("[AUTH] login attempt check failed", error); return 0; }
+    return typeof data === "number" ? data : 0;
+  } catch (error) {
+    console.warn("[AUTH] login attempt check failed", error);
+    return 0;
+  }
+}
+
+async function recordLoginFailure(email: string): Promise<string> {
+  try {
+    const { data, error } = await supabase.rpc("record_login_failure", { p_email: email });
+    const row = Array.isArray(data) ? data[0] : null;
+    if (error || !row) return "Wrong email or password.";
+    if (row.locked_seconds > 0) return lockedMessage(row.locked_seconds);
+    return `Wrong email or password. ${row.attempts_left} attempt${row.attempts_left === 1 ? "" : "s"} left before sign-in is locked for 15 minutes.`;
+  } catch {
+    return "Wrong email or password.";
+  }
+}
+
 /**
  * Sign in with email + password. Authentication is Supabase; authorization is the
  * public.users profile. Refuses sign-in unless the profile status is 'active'.
+ * After MAX_LOGIN_ATTEMPTS wrong passwords for an email within 15 minutes, that email
+ * is locked for 15 minutes.
  */
 export async function signIn(email: string, password: string): Promise<AuthResult> {
   try {
+    const normalizedEmail = email.trim().toLowerCase();
+    const lockSeconds = await loginLockSeconds(normalizedEmail);
+    if (lockSeconds > 0) return { ok: false, error: lockedMessage(lockSeconds) };
+
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
+      email: normalizedEmail,
       password,
     });
     if (authError) {
-      if ((authError as { code?: string }).code === "email_not_confirmed") {
+      const code = (authError as { code?: string }).code;
+      if (code === "email_not_confirmed") {
         return { ok: false, error: "Confirm your email before signing in. Check your inbox for the confirmation link." };
       }
-      return { ok: false, error: "Wrong email or password." };
+      if (authError.status === 429 || code === "over_request_rate_limit") {
+        return { ok: false, error: "Too many sign-in attempts from this network. Wait a few minutes and try again." };
+      }
+      if (code === "invalid_credentials" || authError.status === 400) {
+        return { ok: false, error: await recordLoginFailure(normalizedEmail) };
+      }
+      return { ok: false, error: "We couldn't sign you in. Check your connection and try again." };
     }
     if (!authData.user) return { ok: false, error: "Failed to sign in." };
+
+    // Right password: the wrong-password count for this email starts again.
+    const { error: clearError } = await supabase.rpc("clear_login_failures");
+    if (clearError) console.warn("[AUTH] clearing login attempts failed", clearError);
 
     // The profile id IS the auth user id (users.id references auth.users(id)).
     const { data: profile, error: profileError } = await supabase

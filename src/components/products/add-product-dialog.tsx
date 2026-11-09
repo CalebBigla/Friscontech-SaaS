@@ -24,31 +24,33 @@ export function ProductFormDialog({ open, onOpenChange, product, categories = []
   const [form, setForm] = useState(empty);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
+  const [newIsPromo, setNewIsPromo] = useState(false);
+  const isPromo = product ? product.productType === "promo" : newIsPromo;
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const { db } = useLiveWorkspace();
   const userId = useCurrentUserId();
-  useEffect(() => { if (open) { setForm(product ? fromProduct(product) : empty); setErrors({}); } }, [open, product]);
+  useEffect(() => { if (open) { setForm(product ? fromProduct(product) : empty); setErrors({}); setNewIsPromo(false); } }, [open, product]);
   const set = (k: Key, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const units = product && !PRODUCT_UNITS.includes(product.unit) ? [product.unit, ...PRODUCT_UNITS] : PRODUCT_UNITS;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     const num = (v: string) => (v.trim() === "" ? Number.NaN : Number(v));
-    const input = { name: form.name, sku: form.sku, category: form.category, unit: form.unit, unitPrice: num(form.unitPrice), unitCost: num(form.unitCost), lowStockThreshold: num(form.threshold), description: form.description };
+    const input = { productType: isPromo ? "promo" as const : "regular" as const, name: form.name, sku: form.sku, category: form.category, unit: form.unit, unitPrice: num(form.unitPrice), unitCost: num(form.unitCost), lowStockThreshold: num(form.threshold), description: form.description };
     const fields = {
       p_name: input.name.trim(),
       p_sku: input.sku.trim().toUpperCase(),
       p_category: input.category.trim(),
       p_unit: input.unit.trim(),
-      p_unit_price: input.unitPrice,
+      p_unit_price: isPromo ? 0 : input.unitPrice,
       p_unit_cost: input.unitCost,
       p_low_stock_threshold: input.lowStockThreshold,
       p_description: input.description.trim() || null,
     };
     setSaving(true);
     const result = await runWrite(validateProductWrite(db, getAccessScope(db, userId), input, product ?? undefined), () =>
-      product ? updateProduct.mutateAsync({ p_product_id: product.id, ...fields }) : createProduct.mutateAsync(fields),
+      product ? updateProduct.mutateAsync({ p_product_id: product.id, ...fields }) : createProduct.mutateAsync({ ...fields, p_product_type: input.productType }),
     );
     setSaving(false);
     if (!result.ok) {
@@ -70,13 +72,14 @@ export function ProductFormDialog({ open, onOpenChange, product, categories = []
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader><DialogTitle>{product ? "Edit product" : "Add product"}</DialogTitle><DialogDescription className="text-xs">{product ? `${product.sku} · updates the shared catalogue.` : "The product joins the shared catalogue used by inventory, sales and stock requests."}</DialogDescription></DialogHeader>
         <form onSubmit={submit} className="space-y-4" noValidate>
+          {!product && <label className="flex items-start gap-2 rounded-md border border-border p-3 text-xs"><input type="checkbox" className="mt-0.5" checked={newIsPromo} onChange={(e) => setNewIsPromo(e.target.checked)} /><span><span className="font-semibold">Promo item</span><span className="block text-muted-foreground">Given away free with a sale. It keeps its own stock and adds nothing to revenue. This can't be changed later.</span></span></label>}
           {field("name", "Product name *", "name", { placeholder: "e.g. Samsung Galaxy A15" })}
           <div className="grid gap-3 sm:grid-cols-3">
             {field("sku", "SKU *", "sku", { placeholder: "SMS-A15" })}
             <div><Label htmlFor="p-category" className="text-xs">Category *</Label><Input id="p-category" list="product-categories" value={form.category} onChange={(e) => set("category", e.target.value)} className="mt-1.5 h-9" /><datalist id="product-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist><FieldError message={errors.category} /></div>
             <div><Label className="text-xs">Unit *</Label><div className="mt-1.5"><FilterSelect label="Unit" className="w-full" value={form.unit} onChange={(v) => set("unit", v)} options={units.map((u) => ({ value: u, label: u }))} /></div><FieldError message={errors.unit} /></div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">{field("unitPrice", "Selling price (₦) *", "unitPrice", { type: "number", min: 0, inputMode: "decimal" })}{field("unitCost", "Unit cost (₦) *", "unitCost", { type: "number", min: 0, inputMode: "decimal" })}{field("threshold", "Low-stock threshold *", "threshold", { type: "number", min: 0, step: 1, inputMode: "numeric" })}</div>
+          <div className="grid gap-3 sm:grid-cols-3">{!isPromo && field("unitPrice", "Selling price (₦) *", "unitPrice", { type: "number", min: 0, inputMode: "decimal" })}{field("unitCost", "Unit cost (₦) *", "unitCost", { type: "number", min: 0, inputMode: "decimal" })}{field("threshold", "Low-stock threshold *", "threshold", { type: "number", min: 0, step: 1, inputMode: "numeric" })}</div>
           <div><Label htmlFor="p-description" className="text-xs">Description</Label><Textarea id="p-description" value={form.description} onChange={(e) => set("description", e.target.value)} className="mt-1.5" rows={3} placeholder="Optional" /></div>
           <DialogFooter className="gap-2"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit" disabled={saving}>{saving && <Loader2 className="size-4 animate-spin" />}{product ? "Save changes" : "Add product"}</Button></DialogFooter>
         </form>

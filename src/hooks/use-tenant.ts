@@ -50,6 +50,24 @@ export function useTenant() {
   });
 }
 
+/** Owner only: the most a sales rep may discount a line (RPC set_max_rep_discount). */
+export function useSetMaxRepDiscount() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const tenantId = user?.tenantId ?? "";
+
+  return useMutation({
+    mutationFn: async (args: PlannedRpcs["set_max_rep_discount"]): Promise<Tenant> => {
+      const row = await callRpc("set_max_rep_discount", args);
+      return transformTenant(row as TenantMigrationRow);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tenant.detail(tenantId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all(tenantId) });
+    },
+  });
+}
+
 /** Owner only: business profile and expiry alerts (RPC update_tenant_settings). */
 export function useUpdateTenantSettings() {
   const { user } = useAuth();

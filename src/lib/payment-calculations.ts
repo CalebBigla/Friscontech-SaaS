@@ -61,6 +61,7 @@ export function getRepSalesForPeriod(db: Db, repId: string, period: string) {
       sale.tenantId === db.tenant.id &&
       sale.salesRepId === repId &&
       !sale.customerId &&
+      !sale.isPromo &&
       sale.status === "completed" &&
       sale.saleDate >= from &&
       sale.saleDate <= to,

@@ -4,7 +4,7 @@
  * Same rules and messages the app has always shown. The database (RPCs and
  * CHECK constraints) enforces them again; this only gives faster feedback.
  */
-import type { ApprovalRequest, Branch, BranchStatus, Customer, CustomerPayment, CustomerPaymentMethod, Db, Expense, ExpenseCategory, InventoryRecord, ManagerRemittance, Payment, Product, ProductStatus, Role, StockRequest, Target, User, UserStatus } from "@/data/mock-db";
+import type { ApprovalRequest, Branch, BranchStatus, Customer, CustomerPayment, CustomerPaymentMethod, Db, Expense, ExpenseCategory, InventoryRecord, ManagerRemittance, Payment, Product, ProductStatus, ProductType, Role, StockRequest, Target, User, UserStatus } from "@/data/mock-db";
 import { assignableRoles, canEditMember, roleNeedsBranch } from "@/lib/team";
 import type { OwnerRemittancePayeeType, OwnerRemittancePaymentMethod } from "@/data/remittances";
 import {
@@ -71,7 +71,7 @@ export const FIELD_NAMES = [
 ] as const;
 export type FieldName = (typeof FIELD_NAMES)[number];
 export type FieldErrors = Partial<Record<FieldName, string>> & {
-  itemErrors?: Record<number, Partial<Record<"productId" | "quantity", string>>>;
+  itemErrors?: Record<number, Partial<Record<"productId" | "quantity" | "discount", string>>>;
 };
 
 export type Result<T> = { ok: true; data: T } | { ok: false; errors: FieldErrors };
@@ -265,18 +265,18 @@ export function validateCustomer(db: Db, input: CustomerInput, editingId?: strin
   return errors;
 }
 
-/** Sales reps create and edit customers of their own branch. */
+/** Sales reps create customers and edit the ones assigned to them. */
 export function validateCustomerWrite(db: Db, scope: AccessScope, input: CustomerInput, existing?: Customer): FieldErrors | null {
   if (!isActiveActor(db, scope) || !scope.canManageCustomers)
     return { form: existing ? "You cannot edit this customer" : "Only sales representatives can add customers" };
-  if (existing?.branchId && !scope.branchIds?.includes(existing.branchId)) return { form: "You cannot edit this customer" };
+  if (existing && existing.assignedRepId !== scope.user.id) return { form: "You cannot edit this customer" };
   const errors = validateCustomer(db, input, existing?.id);
   return hasErrors(errors) ? errors : null;
 }
 
 /** Soft (de)activation only — customers are never deleted. */
 export function validateCustomerStatus(db: Db, scope: AccessScope, existing: Customer): FieldErrors | null {
-  if (!isActiveActor(db, scope) || !scope.canManageCustomers || (existing.branchId && !scope.branchIds?.includes(existing.branchId)))
+  if (!isActiveActor(db, scope) || !scope.canManageCustomers || existing.assignedRepId !== scope.user.id)
     return { form: "You cannot change this customer" };
   return null;
 }
@@ -303,7 +303,7 @@ export function validateCustomerPayment(db: Db, scope: AccessScope, input: Custo
     return { form: "Only sales representatives can record customer payments" };
   const errors: FieldErrors = {};
   const customer = db.customers.find((c) => c.id === input.customerId && c.tenantId === db.tenant.id);
-  if (!customer || (customer.branchId && customer.branchId !== scope.user.branchId)) errors.customerId = "Choose a customer from your branch";
+  if (!customer || customer.assignedRepId !== scope.user.id) errors.customerId = "Choose one of your customers";
   if (!Number.isFinite(input.amount) || input.amount <= 0) errors.amount = "Amount must be greater than zero";
   if (input.method !== "cash" && input.method !== "transfer") errors.method = "Choose a method";
   if (input.method === "transfer" && !input.reference?.trim()) errors.reference = "A transfer reference is required";
@@ -592,6 +592,7 @@ export function validateTargetUpdate(db: Db, scope: AccessScope, target: Target,
 // ---------- products ----------
 
 export type ProductInput = {
+  productType?: ProductType;
   name: string;
   sku: string;
   category: string;
@@ -611,9 +612,9 @@ export function validateProduct(db: Db, input: ProductInput, editingId?: string)
     errors.sku = "This SKU is already used by another product";
   if (!input.category.trim()) errors.category = "Enter a category";
   if (!input.unit.trim()) errors.unit = "Select a unit";
-  if (!Number.isFinite(input.unitPrice) || input.unitPrice <= 0) errors.unitPrice = "Enter a selling price above zero";
+  if (input.productType !== "promo" && (!Number.isFinite(input.unitPrice) || input.unitPrice <= 0)) errors.unitPrice = "Enter a selling price above zero";
   if (!Number.isFinite(input.unitCost) || input.unitCost < 0) errors.unitCost = "Enter a unit cost of zero or more";
-  else if (input.unitCost > input.unitPrice) errors.unitCost = "Unit cost cannot exceed selling price";
+  else if (input.productType !== "promo" && input.unitCost > input.unitPrice) errors.unitCost = "Unit cost cannot exceed selling price";
   if (!Number.isInteger(input.lowStockThreshold) || input.lowStockThreshold < 0) errors.threshold = "Enter a whole number of zero or more";
   return errors;
 }
