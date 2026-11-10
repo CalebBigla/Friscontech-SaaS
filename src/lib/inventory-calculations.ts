@@ -45,7 +45,7 @@ export function resolveInventory(db: Db, record: InventoryRecord): InventoryRow 
   const product = db.products.find((p) => p.id === record.productId);
   const branch = db.branches.find((b) => b.id === record.branchId);
   if (!product || !branch) return null;
-  return { record, product, branch, available: getAvailable(record), status: getInventoryStatus(record), value: record.quantityOnHand * product.unitCost };
+  return { record, product, branch, available: getAvailable(record), status: getInventoryStatus(record), value: record.quantityOnHand * (product.unitCost ?? 0) };
 }
 export const getInventoryRows = (db: Db, s: InventoryScope = {}) => getInventoryByBranch(db, s).map((r) => resolveInventory(db, r)).filter((r): r is InventoryRow => !!r);
 

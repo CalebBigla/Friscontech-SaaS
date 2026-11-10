@@ -598,7 +598,8 @@ export type ProductInput = {
   category: string;
   unit: string;
   unitPrice: number;
-  unitCost: number;
+  /** null when the caller can't set cost (anyone but the Owner) */
+  unitCost: number | null;
   lowStockThreshold: number;
   description?: string;
 };
@@ -613,7 +614,8 @@ export function validateProduct(db: Db, input: ProductInput, editingId?: string)
   if (!input.category.trim()) errors.category = "Enter a category";
   if (!input.unit.trim()) errors.unit = "Select a unit";
   if (input.productType !== "promo" && (!Number.isFinite(input.unitPrice) || input.unitPrice <= 0)) errors.unitPrice = "Enter a selling price above zero";
-  if (!Number.isFinite(input.unitCost) || input.unitCost < 0) errors.unitCost = "Enter a unit cost of zero or more";
+  if (input.unitCost === null) { /* cost is the Owner's to set */ }
+  else if (!Number.isFinite(input.unitCost) || input.unitCost < 0) errors.unitCost = "Enter a unit cost of zero or more";
   else if (input.productType !== "promo" && input.unitCost > input.unitPrice) errors.unitCost = "Unit cost cannot exceed selling price";
   if (!Number.isInteger(input.lowStockThreshold) || input.lowStockThreshold < 0) errors.threshold = "Enter a whole number of zero or more";
   return errors;

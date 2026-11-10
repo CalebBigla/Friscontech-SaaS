@@ -415,7 +415,7 @@ function ReportsPageContent() {
                   tone="violet"
                   label="Promo items given"
                   value={formatNumber(sales.promoUnits)}
-                  detail={`${formatNaira(sales.promoCost)} at cost`}
+                  detail={scope.canSeeCost ? `${formatNaira(sales.promoCost)} at cost` : undefined}
                 />
               </Kpis>
               <Panel
@@ -580,13 +580,15 @@ function ReportsPageContent() {
                   label="Out of stock"
                   value={formatNumber(inventory.out)}
                 />
-                <MetricCard
-                  icon={Wallet}
-                  tone="success"
-                  label="Inventory value"
-                  value={formatNaira(inventory.value)}
-                  detail="On hand × unit cost"
-                />
+                {scope.canSeeCost && (
+                  <MetricCard
+                    icon={Wallet}
+                    tone="success"
+                    label="Inventory value"
+                    value={formatNaira(inventory.value)}
+                    detail="On hand × unit cost"
+                  />
+                )}
               </Kpis>
               <Panel
                 className="overflow-hidden"

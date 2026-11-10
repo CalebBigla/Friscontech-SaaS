@@ -91,7 +91,8 @@ export type Product = {
   category: string;
   unit: string;
   unitPrice: number;
-  unitCost: number;
+  /** Owner only: null for everyone else, and until the Owner sets it. */
+  unitCost: number | null;
   lowStockThreshold: number;
   description?: string;
   status: ProductStatus;

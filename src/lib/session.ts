@@ -86,6 +86,8 @@ export type AccessScope = {
   canManageCustomers: boolean;
   /** set a customer's credit limit (owner) */
   canSetCreditLimit: boolean;
+  /** cost price and anything worked out from it, such as inventory value (owner only) */
+  canSeeCost: boolean;
 };
 
 const none = {
@@ -138,6 +140,7 @@ export function getScopeForUser(user: User | null, userId: string = user?.id ?? 
       canViewCustomers: false,
       canManageCustomers: false,
       canSetCreditLimit: false,
+      canSeeCost: false,
     };
   }
 
@@ -155,6 +158,7 @@ export function getScopeForUser(user: User | null, userId: string = user?.id ?? 
     canViewCustomers: r === "sales_rep" || r === "storekeeper" || r === "owner",
     canManageCustomers: r === "sales_rep",
     canSetCreditLimit: r === "owner",
+    canSeeCost: r === "owner",
   };
 }
 type Extra =
@@ -168,7 +172,8 @@ type Extra =
   | "canConfirmPayments"
   | "canViewCustomers"
   | "canManageCustomers"
-  | "canSetCreditLimit";
+  | "canSetCreditLimit"
+  | "canSeeCost";
 function baseScope(user: User | null, userId: string): Omit<AccessScope, Extra> {
 
   // If no user found through normal channels, return zero-permission scope to deny access

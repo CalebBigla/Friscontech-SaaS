@@ -79,14 +79,14 @@ export function ProductsPage() {
         </div>}>
         {/* desktop / tablet table */}
         <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[880px] text-left">
-          <thead><tr className="text-[10px] uppercase text-muted-foreground"><th className="px-5 py-3">Product</th><th className="px-5 py-3">SKU</th><th className="px-5 py-3">Category</th><th className="px-5 py-3">Unit</th><th className="px-5 py-3 text-right">Selling price</th>{manage ? <><th className="px-5 py-3 text-right">Unit cost</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Created</th><th className="px-5 py-3 text-right">Actions</th></> : <><th className="px-5 py-3 text-right">Available</th><th className="px-5 py-3">Stock</th></>}</tr></thead>
+          <thead><tr className="text-[10px] uppercase text-muted-foreground"><th className="px-5 py-3">Product</th><th className="px-5 py-3">SKU</th><th className="px-5 py-3">Category</th><th className="px-5 py-3">Unit</th><th className="px-5 py-3 text-right">Selling price</th>{manage ? <>{scope.canSeeCost && <th className="px-5 py-3 text-right">Unit cost</th>}<th className="px-5 py-3">Status</th><th className="px-5 py-3">Created</th><th className="px-5 py-3 text-right">Actions</th></> : <><th className="px-5 py-3 text-right">Available</th><th className="px-5 py-3">Stock</th></>}</tr></thead>
           <tbody>{list.map((p) => { const row = branchRows.find((r) => r.product.id === p.id); return (
             <tr key={p.id} className="border-t border-border text-xs">
               <td className="px-5 py-3 font-bold">{manage ? <Link to="/products/$productId" params={{ productId: p.id }} className="hover:text-primary">{p.name}</Link> : p.name}{p.productType === "promo" && <span className="status status-violet ml-2 whitespace-nowrap">Promo</span>}</td>
               <td className="whitespace-nowrap px-5 py-3 font-mono text-[11px] text-muted-foreground">{p.sku}</td><td className="px-5 py-3">{p.category}</td><td className="px-5 py-3">{p.unit}</td>
               <td className="px-5 py-3 text-right font-semibold">{formatNaira(p.unitPrice)}</td>
               {manage ? <>
-                <td className="px-5 py-3 text-right text-muted-foreground">{formatNaira(p.unitCost)}</td><td className="px-5 py-3"><ProductStatusBadge status={p.status} /></td>
+                {scope.canSeeCost && <td className="px-5 py-3 text-right text-muted-foreground">{p.unitCost === null ? "Not set" : formatNaira(p.unitCost)}</td>}<td className="px-5 py-3"><ProductStatusBadge status={p.status} /></td>
                 <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">{formatDate(p.createdAt.slice(0, 10))}</td><td className="px-5 py-3 text-right">{actions(p)}</td>
               </> : <><td className="px-5 py-3 text-right font-bold">{row ? formatNumber(row.available) : "—"}</td><td className="px-5 py-3">{row ? <StockStatusBadge status={row.status} /> : <span className="text-muted-foreground">Not stocked</span>}</td></>}
             </tr>); })}</tbody>
@@ -95,7 +95,7 @@ export function ProductsPage() {
         <div className="divide-y divide-border md:hidden">{list.map((p) => { const row = branchRows.find((r) => r.product.id === p.id); return (
           <div key={p.id} className="flex items-start justify-between gap-3 p-4">
             <div className="min-w-0"><p className="truncate text-sm font-bold">{p.name}{p.productType === "promo" && <span className="status status-violet ml-2 whitespace-nowrap">Promo</span>}</p><p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{p.sku} · {p.category} · {p.unit}</p>
-              <p className="mt-2 text-sm font-semibold">{formatNaira(p.unitPrice)}{manage && <span className="ml-2 text-[11px] font-normal text-muted-foreground">cost {formatNaira(p.unitCost)}</span>}</p>
+              <p className="mt-2 text-sm font-semibold">{formatNaira(p.unitPrice)}{manage && scope.canSeeCost && <span className="ml-2 text-[11px] font-normal text-muted-foreground">cost {p.unitCost === null ? "Not set" : formatNaira(p.unitCost)}</span>}</p>
               <div className="mt-2">{manage ? <ProductStatusBadge status={p.status} /> : row ? <span className="flex items-center gap-2 text-xs"><StockStatusBadge status={row.status} />{formatNumber(row.available)} available</span> : <span className="text-xs text-muted-foreground">Not stocked</span>}</div></div>
             {manage && actions(p)}
           </div>); })}</div>

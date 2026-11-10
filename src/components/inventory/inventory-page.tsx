@@ -94,7 +94,7 @@ export function InventoryPage({ initialBranch, initialStatus }: { initialBranch?
         <MetricCard icon={Layers} tone="violet" label="Total units" value={formatNumber(summary.units)} detail="On hand in this selection" />
         <MetricCard icon={AlertTriangle} tone="warning" label="Low stock" value={formatNumber(summary.low)} detail="At or below threshold" badge={summary.low ? "Review" : undefined} />
         <MetricCard icon={PackageX} tone="warning" label="Out of stock" value={formatNumber(summary.out)} detail="Zero available units" />
-        {!simple && <MetricCard icon={Wallet} tone="success" label="Inventory value" value={formatCompactNaira(summary.value)} detail="On hand × unit cost" />}
+        {!simple && scope.canSeeCost && <MetricCard icon={Wallet} tone="success" label="Inventory value" value={formatCompactNaira(summary.value)} detail="On hand × unit cost" />}
       </section>
 
       <Panel className="mt-4 overflow-hidden" title="Stock levels" subtitle={`${visible.length} of ${rows.length} records`}

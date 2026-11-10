@@ -15,6 +15,34 @@ import { handleSupabaseError } from "@/lib/supabase-helpers";
 import type { ApprovalRequest, Product } from "@/data/mock-db";
 
 /**
+ * Every product column except unit_cost, which only the Owner may read (migration
+ * 20261110100000). The database refuses select("*") on products for that reason.
+ */
+const PRODUCT_COLUMNS =
+  "id, tenant_id, name, sku, category, unit, unit_price, low_stock_threshold, description, status, product_type, created_at, updated_at";
+
+type ProductRow = Parameters<typeof transformProduct>[0];
+
+/** Adds cost to the rows for the Owner; everyone else gets products without it. */
+async function withCosts(rows: ProductRow[], isOwner: boolean): Promise<Product[]> {
+  const products = rows.map((row) => transformProduct(row));
+  if (!isOwner || products.length === 0) return products;
+  let costs: Map<string, number | null>;
+  const { data, error } = await supabase.rpc("get_product_costs");
+  if (!error) {
+    costs = new Map((data ?? []).map((c) => [c.product_id, c.unit_cost]));
+  } else {
+    // Before migration 20261110100000 is applied the function does not exist, but the
+    // Owner can still read the column directly. Once applied, only this branch's
+    // fallback is refused, and products show without cost rather than failing.
+    console.warn("[PRODUCTS] get_product_costs failed; reading cost directly", error);
+    const direct = await supabase.from("products").select("id, unit_cost");
+    costs = new Map(direct.error ? [] : (direct.data ?? []).map((c) => [c.id, c.unit_cost]));
+  }
+  return products.map((p) => ({ ...p, unitCost: costs.get(p.id) ?? null }));
+}
+
+/**
  * Fetch all products for the current tenant
  */
 export function useProducts() {
@@ -26,13 +54,13 @@ export function useProducts() {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
       const { data, error } = await supabase.from('products')
-        .select('*')
+        .select(PRODUCT_COLUMNS)
         .eq('tenant_id', user.tenantId)
         .order('name');
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map((row) => transformProduct(row as Parameters<typeof transformProduct>[0]));
+      return withCosts((data || []) as ProductRow[], user.role === "owner");
     },
     enabled: !!user?.tenantId,
   });
@@ -50,14 +78,14 @@ export function useActiveProducts() {
       if (!user?.tenantId) throw new Error('Not authenticated');
       
       const { data, error } = await supabase.from('products')
-        .select('*')
+        .select(PRODUCT_COLUMNS)
         .eq('tenant_id', user.tenantId)
         .eq('status', 'active')
         .order('name');
       
       if (error) handleSupabaseError(error);
       
-      return (data || []).map((row) => transformProduct(row as Parameters<typeof transformProduct>[0]));
+      return withCosts((data || []) as ProductRow[], user.role === "owner");
     },
     enabled: !!user?.tenantId,
   });
@@ -67,19 +95,21 @@ export function useActiveProducts() {
  * Fetch a single product by ID
  */
 export function useProduct(productId: string | undefined) {
+  const { user } = useAuth();
   return useQuery({
     queryKey: queryKeys.products.detail(productId || ''),
     queryFn: async () => {
       if (!productId) throw new Error('Product ID required');
       
       const { data, error } = await supabase.from('products')
-        .select('*')
+        .select(PRODUCT_COLUMNS)
         .eq('id', productId)
         .single();
       
       if (error) handleSupabaseError(error);
       
-      return transformProduct(data as Parameters<typeof transformProduct>[0]);
+      const [product] = await withCosts([data as ProductRow], user?.role === "owner");
+      return product!;
     },
     enabled: !!productId,
   });

@@ -342,7 +342,8 @@ export type PlannedRpcs = {
     p_category: string;
     p_unit: string;
     p_unit_price: number;
-    p_unit_cost: number;
+    /** Only the Owner's value is used; a storekeeper's is ignored. */
+    p_unit_cost: number | null;
     p_low_stock_threshold: number;
     p_description: string | null;
     /** promo = given away free on a sale (price 0). Defaults to regular. */
@@ -359,7 +360,8 @@ export type PlannedRpcs = {
     p_category: string;
     p_unit: string;
     p_unit_price: number;
-    p_unit_cost: number;
+    /** Only the Owner's value is used; a storekeeper's is ignored. */
+    p_unit_cost: number | null;
     p_low_stock_threshold: number;
     p_description: string | null;
   };
@@ -393,7 +395,7 @@ export type PlannedRpcs = {
       category: string;
       unit: string;
       unit_price: number;
-      unit_cost: number;
+      unit_cost: number | null;
       low_stock_threshold: number;
       description: string | null;
       opening_quantity: number;

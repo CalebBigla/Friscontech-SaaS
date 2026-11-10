@@ -6,6 +6,8 @@ export const IMPORT_COLUMNS = [
   "description", "openingQuantity", "batchNumber", "expiryDate",
 ] as const;
 export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
+/** Template columns: the cost column only for the Owner, who alone sets cost. */
+export const importColumns = (withCost: boolean) => IMPORT_COLUMNS.filter((c) => withCost || c !== "unitCost");
 export const IMPORT_EXAMPLE: Record<ImportColumn, string | number> = {
   name: "Example Rice 50kg", sku: "RICE-50", category: "Grains", unit: "bag", unitPrice: 78000,
   unitCost: 65000, lowStockThreshold: 10, description: "Long grain parboiled", openingQuantity: 40,
@@ -15,7 +17,7 @@ export const IMPORT_EXAMPLE: Record<ImportColumn, string | number> = {
 export type ImportRow = {
   rowNumber: number;
   name: string; sku: string; category: string; unit: string;
-  unitPrice: number; unitCost: number; lowStockThreshold: number; description: string;
+  unitPrice: number; unitCost: number | null; lowStockThreshold: number; description: string;
   openingQuantity: number; batchNumber: string; expiryDate: string;
   errors: string[];
   existingProductId: string | null;
@@ -43,7 +45,8 @@ function valid(y: number, mo: number, d: number) {
 
 const keyOf = (h: string) => IMPORT_COLUMNS.find((c) => c.toLowerCase() === h.replace(/[\s_*()]/g, "").replace(/optional/i, "").toLowerCase());
 
-export function validateImportRows(db: Db, raw: Record<string, unknown>[]): ImportRow[] {
+/** withCost: false for anyone but the Owner, whose cost column is ignored. */
+export function validateImportRows(db: Db, raw: Record<string, unknown>[], withCost = true): ImportRow[] {
   const seen = new Map<string, number>();
   const rows = raw.map((r, i) => {
     const g: Partial<Record<ImportColumn, unknown>> = {};
@@ -52,11 +55,12 @@ export function validateImportRows(db: Db, raw: Record<string, unknown>[]): Impo
     const name = str(g.name), sku = str(g.sku).toUpperCase();
     if (!name) errors.push("Missing name");
     if (!sku) errors.push("Missing SKU");
-    const unitPrice = num(g.unitPrice), unitCost = num(g.unitCost);
+    const unitPrice = num(g.unitPrice), unitCost = withCost ? num(g.unitCost) : null;
     const threshold = str(g.lowStockThreshold) === "" ? 0 : num(g.lowStockThreshold);
     const opening = str(g.openingQuantity) === "" ? 0 : num(g.openingQuantity);
     if (!Number.isFinite(unitPrice) || unitPrice <= 0) errors.push(Number.isFinite(unitPrice) && unitPrice < 0 ? "Negative unit price" : "Unit price must be above zero");
-    if (!Number.isFinite(unitCost)) errors.push("Missing unit cost");
+    if (unitCost === null) { /* not the caller's to set */ }
+    else if (!Number.isFinite(unitCost)) errors.push("Missing unit cost");
     else if (unitCost < 0) errors.push("Negative unit cost");
     else if (unitCost > unitPrice) errors.push("Unit cost exceeds unit price");
     if (!Number.isInteger(threshold) || threshold < 0) errors.push(threshold < 0 ? "Negative low-stock threshold" : "Threshold must be a whole number");

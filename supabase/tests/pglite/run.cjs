@@ -97,6 +97,9 @@ async function main() {
     const loginAttempts = require(path.join(__dirname, "login-attempts.test.cjs"));
     await loginAttempts(db, tests.result);
     failed += loginAttempts.result.failed;
+    const productCost = require(path.join(__dirname, "product-cost.test.cjs"));
+    await productCost(db, tests.result);
+    failed += productCost.result.failed;
     if (process.argv.includes("--rls")) await require(path.join(__dirname, "rls-survey.cjs"))(db, tests.result);
   }
   await db.close();

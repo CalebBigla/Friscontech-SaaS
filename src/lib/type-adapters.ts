@@ -254,7 +254,7 @@ export function preferenceToDb(pref: Partial<UserPreference>, userId: string): R
 
 // ─────────────────────────── PRODUCTS ────────────────────────────
 
-export function transformProduct(dbRow: { id: string; tenant_id: string; name: string; sku: string; category: string; unit: string; unit_cost: number; unit_price: number; status: ProductStatus; product_type: string; low_stock_threshold: number | null; description: string | null; created_at: string; updated_at: string }): Product {
+export function transformProduct(dbRow: { id: string; tenant_id: string; name: string; sku: string; category: string; unit: string; unit_cost?: number | null; unit_price: number; status: ProductStatus; product_type: string; low_stock_threshold: number | null; description: string | null; created_at: string; updated_at: string }): Product {
   return {
     id:                dbRow['id'],
     tenantId:          dbRow['tenant_id'],
@@ -262,7 +262,7 @@ export function transformProduct(dbRow: { id: string; tenant_id: string; name: s
     sku:               dbRow['sku'],
     category:          dbRow['category'],
     unit:              dbRow['unit'],
-    unitCost:          dbRow['unit_cost'],
+    unitCost:          dbRow['unit_cost'] ?? null,
     unitPrice:         dbRow['unit_price'],
     status:            dbRow['status'] as ProductStatus,
     productType:       dbRow['product_type'] as ProductType,

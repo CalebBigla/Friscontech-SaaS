@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { FilterSelect } from "@/components/shared";
 import type { Db } from "@/data/mock-db";
-import { IMPORT_COLUMNS, IMPORT_EXAMPLE, importErrorsCsv, validateImportRows, type ImportRow } from "@/lib/product-import";
+import { IMPORT_EXAMPLE, importColumns, importErrorsCsv, validateImportRows, type ImportRow } from "@/lib/product-import";
 import type { AccessScope } from "@/lib/session";
 import { formatNaira, formatNumber } from "@/lib/format";
 import { useImportProducts, type ImportSummary } from "@/hooks/use-products";
@@ -20,10 +20,13 @@ function download(name: string, blob: Blob) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export async function downloadImportTemplate() {
+/** withCost: the cost column is in the Owner's template only. */
+export async function downloadImportTemplate(withCost = true) {
   const XLSX = await import("xlsx");
-  const ws = XLSX.utils.json_to_sheet([IMPORT_EXAMPLE], { header: [...IMPORT_COLUMNS] });
-  ws["!cols"] = IMPORT_COLUMNS.map((c) => ({ wch: Math.max(12, c.length + 2) }));
+  const columns = importColumns(withCost);
+  const example = Object.fromEntries(columns.map((c) => [c, IMPORT_EXAMPLE[c]]));
+  const ws = XLSX.utils.json_to_sheet([example], { header: [...columns] });
+  ws["!cols"] = columns.map((c) => ({ wch: Math.max(12, c.length + 2) }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Products");
   const out = XLSX.write(wb, { type: "array", bookType: "xlsx" });
@@ -64,7 +67,7 @@ export function ImportProductsDialog({ open, onOpenChange, db, scope }: { open: 
       const raw = sheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" }) : [];
       if (!raw.length) return setError("The file has no product rows.");
       setFile(f.name);
-      setRows(validateImportRows(db, raw));
+      setRows(validateImportRows(db, raw, scope.canSeeCost));
     } catch {
       setError("Couldn't read this file. Use the template and save it as .xlsx or .csv.");
     }
@@ -138,7 +141,7 @@ export function ImportProductsDialog({ open, onOpenChange, db, scope }: { open: 
         ) : (
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => void downloadImportTemplate()}><FileSpreadsheet className="size-4" />Download template</Button>
+              <Button variant="outline" size="sm" onClick={() => void downloadImportTemplate(scope.canSeeCost)}><FileSpreadsheet className="size-4" />Download template</Button>
               <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent">
                 <Upload className="size-4" />{file || "Choose file"}
                 <input type="file" accept=".xlsx,.xls,.csv" className="sr-only" onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ""; }} />

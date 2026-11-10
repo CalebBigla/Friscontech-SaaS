@@ -1207,7 +1207,7 @@ export type Database = {
           status: string
           tenant_id: string
           unit: string
-          unit_cost: number
+          unit_cost: number | null
           unit_price: number
           updated_at: string
         }
@@ -1223,7 +1223,7 @@ export type Database = {
           status?: string
           tenant_id: string
           unit?: string
-          unit_cost: number
+          unit_cost?: number | null
           unit_price: number
           updated_at?: string
         }
@@ -1239,7 +1239,7 @@ export type Database = {
           status?: string
           tenant_id?: string
           unit?: string
-          unit_cost?: number
+          unit_cost?: number | null
           unit_price?: number
           updated_at?: string
         }
@@ -2673,6 +2673,10 @@ export type Database = {
       get_assigned_customer_ledgers: {
         Args: never
         Returns: Json
+      }
+      get_product_costs: {
+        Args: never
+        Returns: { product_id: string; unit_cost: number | null }[]
       }
       get_former_customer_names: {
         Args: never
