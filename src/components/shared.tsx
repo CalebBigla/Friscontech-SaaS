@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Inbox, Search, type LucideIcon } from "lucide-react";
 import type { StockRequest, StockRequestStatus } from "@/data/mock-db";
 import { getRequestDisplayStatus, inventoryStatusLabel, requestDisplayLabel, type InventoryStatus, type RequestDisplayStatus } from "@/lib/inventory-calculations";
@@ -85,10 +86,13 @@ export function LoadingState({ label = "Loading data…" }: { label?: string }) 
   );
 }
 export function ErrorState({ title = "Could not load data", error }: { title?: string; error: unknown }) {
+  const queryClient = useQueryClient();
   return (
     <div role="alert" className="flex gap-3 rounded-xl border border-destructive/25 bg-danger-soft p-4 text-sm">
       <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-      <div className="min-w-0"><p className="font-semibold text-destructive">{title}</p><p className="mt-1 text-xs text-muted-foreground">{errorMessage(error)}</p></div>
+      <div className="min-w-0 flex-1"><p className="font-semibold text-destructive">{title}</p><p className="mt-1 text-xs text-muted-foreground">{errorMessage(error)}</p></div>
+      {/* Refetches only the failed queries; the rest stay cached. */}
+      <button type="button" onClick={() => void queryClient.refetchQueries({ predicate: (q) => q.state.status === "error" })} className="h-8 shrink-0 self-start rounded-md border border-border bg-card px-3 text-xs font-semibold hover:bg-muted">Try again</button>
     </div>
   );
 }

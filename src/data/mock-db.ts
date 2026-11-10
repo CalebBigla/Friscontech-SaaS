@@ -210,18 +210,24 @@ export type NotificationType =
   | "payment_confirmed"
   | "payment_declined"
   | "onboarding_submitted"
+  | "onboarding_approved"
+  | "onboarding_rejected"
   | "guarantor_completed"
   | "stock_request_submitted"
   | "stock_request_approved"
   | "stock_request_rejected"
-  | "stock_request_fulfilled";
+  | "stock_request_fulfilled"
+  /** storekeeper -> manager stock additions and product deactivations (20261111110000) */
+  | "approval_requested"
+  | "approval_approved"
+  | "approval_rejected";
 /** Notifications-ready rows for the next approver; delivery is added later. */
 export type AppNotification = {
   id: string;
   tenantId: string;
   recipientId: string;
   type: NotificationType;
-  entityType: "payment" | "customer_payment" | "onboarding" | "stock_request";
+  entityType: "payment" | "customer_payment" | "onboarding" | "stock_request" | "approval_request";
   entityId: string;
   message: string;
   createdAt: string;

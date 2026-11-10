@@ -33,6 +33,16 @@ export class SupabaseRequestError extends Error {
 }
 
 /**
+ * Whether a failed read is worth trying again. Network failures, timeouts and an
+ * expired token can pass on a retry; a permission error, a missing column or a
+ * validation error fails the same way every time, so retrying only delays the error.
+ */
+export function isRetryable(error: unknown): boolean {
+  if (!(error instanceof SupabaseRequestError) || !error.code) return true;
+  return /^(08|40|53|57)/.test(error.code) || error.code === 'PGRST301';
+}
+
+/**
  * Standard error handler for Supabase queries
  */
 export function handleSupabaseError(error: any): never {

@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
+import { isRetryable } from "@/lib/supabase-helpers";
 
 export const getRouter = () => {
   // Cached data is served without asking the database again for 30 seconds; after
@@ -12,7 +13,8 @@ export const getRouter = () => {
       queries: {
         staleTime: 30_000,
         gcTime: 10 * 60_000,
-        retry: 2,
+        // Up to two retries, and only for failures a retry can fix (see isRetryable).
+        retry: (failureCount, error) => failureCount < 2 && isRetryable(error),
       },
     },
   });

@@ -15,6 +15,7 @@ function target(n: AppNotification) {
   if (n.entityType === "stock_request")
     return { to: "/stock-requests/$requestId" as const, params: { requestId: n.entityId } };
   if (n.entityType === "onboarding") return { to: "/team" as const };
+  if (n.entityType === "approval_request") return { to: "/approvals" as const };
   return { to: "/payment" as const };
 }
 

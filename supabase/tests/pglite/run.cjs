@@ -100,6 +100,9 @@ async function main() {
     const productCost = require(path.join(__dirname, "product-cost.test.cjs"));
     await productCost(db, tests.result);
     failed += productCost.result.failed;
+    const relationships = require(path.join(__dirname, "relationships.test.cjs"));
+    await relationships(db, tests.result);
+    failed += relationships.result.failed;
     if (process.argv.includes("--rls")) await require(path.join(__dirname, "rls-survey.cjs"))(db, tests.result);
   }
   await db.close();

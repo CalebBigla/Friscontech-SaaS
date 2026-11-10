@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Contact,
   Activity,
@@ -214,6 +214,45 @@ const sectionsFor = (role: string) =>
 
 
 
+/**
+ * The sidebar preference read once per page load. Every screen renders its own
+ * AppShell, so without this each navigation would start expanded and then
+ * collapse, which looks like the page reloading.
+ */
+let sidebarCollapsedPreference: boolean | null = null;
+
+/**
+ * Pages render only once the sign-in and profile are loaded. Until then the
+ * scope has no role, so a page would show "Access restricted" or empty data for
+ * a moment on every refresh. Signed-out visitors go to the sign-in page.
+ */
+function useSessionReady() {
+  const { authStatus, profileStatus, profileError, retryProfile } = useAuth();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (authStatus === "unauthenticated") void navigate({ to: "/login", replace: true });
+  }, [authStatus, navigate]);
+  if (authStatus === "loading" || (authStatus === "authenticated" && (profileStatus === "idle" || profileStatus === "loading")))
+    return { ready: false, gate: <SessionScreen title="Loading your account" detail="Checking your sign-in and role." /> };
+  if (authStatus === "unauthenticated")
+    return { ready: false, gate: <SessionScreen title="Redirecting to sign in" detail="Sign in to continue." /> };
+  if (profileStatus !== "loaded")
+    return {
+      ready: false,
+      gate: <SessionScreen title="We couldn't load your account" detail={profileError ?? "Your profile is not active. Contact the Owner."}
+        action={profileStatus === "failed" ? <Button size="sm" onClick={() => void retryProfile()}>Try again</Button> : undefined} />,
+    };
+  return { ready: true, gate: null };
+}
+
+function SessionScreen({ title, detail, action }: { title: string; detail: string; action?: ReactNode }) {
+  return (
+    <div role="status" aria-live="polite" className="grid min-h-screen place-items-center bg-background p-6 text-center text-foreground">
+      <div><p className="text-sm font-semibold">{title}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p>{action && <div className="mt-4">{action}</div>}</div>
+    </div>
+  );
+}
+
 export function AppShell({
   title,
   subtitle,
@@ -228,24 +267,28 @@ export function AppShell({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [sidebarPreferenceReady, setSidebarPreferenceReady] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(sidebarCollapsedPreference ?? false);
+  const [sidebarPreferenceReady, setSidebarPreferenceReady] = useState(sidebarCollapsedPreference !== null);
   useEffect(() => {
+    if (sidebarCollapsedPreference !== null) return;
     try {
-      setSidebarCollapsed(window.localStorage.getItem("friscontech-sidebar-collapsed") === "true");
+      sidebarCollapsedPreference = window.localStorage.getItem("friscontech-sidebar-collapsed") === "true";
     } catch {
-      setSidebarCollapsed(false);
+      sidebarCollapsedPreference = false;
     }
+    setSidebarCollapsed(sidebarCollapsedPreference);
     setSidebarPreferenceReady(true);
   }, []);
   useEffect(() => {
     if (!sidebarPreferenceReady) return;
+    sidebarCollapsedPreference = sidebarCollapsed;
     try {
       window.localStorage.setItem("friscontech-sidebar-collapsed", String(sidebarCollapsed));
     } catch {
       // The sidebar remains usable if local storage is unavailable.
     }
   }, [sidebarCollapsed, sidebarPreferenceReady]);
+  const session = useSessionReady();
   const { user: authUser } = useAuth();
   const legacyUserId = useCurrentUserId();
   const userId = authUser?.id ?? legacyUserId;
@@ -255,6 +298,8 @@ export function AppShell({
   const branch = branches.find((b) => b.id === scope.user.branchId);
   const tabs = mobileTabs[scope.user.role];
   const { data: photos = {} } = useMemberPhotos(!!authUser);
+
+  if (!session.ready) return session.gate;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -503,6 +548,9 @@ export function RoleGate({
   const legacyUserId = useCurrentUserId();
   const userId = authUser?.id ?? legacyUserId;
   const scope = getScopeForUser(authUser ?? null, userId);
+  const session = useSessionReady();
+  // Decide access only once the role is known, never from the empty pre-load scope.
+  if (!session.ready) return session.gate;
   if (!allow(scope))
     return (
       <AppShell title={title}>

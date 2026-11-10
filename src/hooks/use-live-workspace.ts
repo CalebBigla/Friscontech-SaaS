@@ -102,13 +102,31 @@ export function useLiveWorkspace(options: WorkspaceOptions = {}) {
     ownerRemittances, notifications, onboardings, preferences, movements, batches,
     activities,
   ];
+  const failed = queries.findIndex((query) => query.error);
   return {
     db,
     isLoading: queries.some((query) => query.isLoading),
-    error: queries.find((query) => query.error)?.error ?? null,
+    error: failed < 0 ? null : new WorkspaceLoadError(QUERY_LABELS[failed]!, queries[failed]!.error),
     /** False when RLS hides the tenant row (only owners and managers may read it). */
     tenantVisible: tenant.data != null,
   };
+}
+
+/** Names for the queries above, in the same order, for error messages. */
+const QUERY_LABELS = [
+  "business profile", "branches", "team members", "products", "sales", "inventory", "targets", "customers",
+  "customer payments", "stock requests", "payments", "approvals", "expenses", "manager remittances",
+  "owner remittances", "notifications", "onboardings", "preferences", "stock movements", "stock batches",
+  "audit log",
+];
+
+/** A workspace query failed; the message names which data could not load. */
+export class WorkspaceLoadError extends Error {
+  constructor(readonly source: string, readonly failure: unknown) {
+    const detail = failure instanceof Error && failure.message ? failure.message : "The database request failed.";
+    super(`Couldn't load ${source}: ${detail}`);
+    this.name = "WorkspaceLoadError";
+  }
 }
 
 /**
