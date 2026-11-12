@@ -54,32 +54,46 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
   // ---------------- discounts ----------------
   const plain = ok("record_sale: no discount", await walkIn(ID.repA1, items(line())));
   check("record_sale: server sets the list price", close(plain.unit_price, 1000) && close(plain.line_total, 2000), JSON.stringify(plain));
-  const pct = ok("record_sale: percentage discount", await walkIn(ID.repA1, items(line({ discount_type: "percent", discount_value: 10 }))));
+  const pct = ok("record_sale: percentage discount", await walkIn(ID.owner, items(line({ discount_type: "percent", discount_value: 10 }))));
   check("discount: 10% of a 2,000 line is 200", close(pct.discount_amount, 200) && close(pct.line_total, 1800), JSON.stringify(pct));
   check("discount: entered value is kept", pct.discount_type === "percent" && close(pct.discount_value, 10));
   const amt = ok("record_sale: amount discount", await walkIn(ID.owner, items(line({ discount_type: "amount", discount_value: 150 }))));
   check("discount: amount comes off the line, not each unit", close(amt.discount_amount, 150) && close(amt.line_total, 1850), JSON.stringify(amt));
-  const rounded = ok("record_sale: percentage rounds to kobo", await walkIn(ID.repA1,
+  const rounded = ok("record_sale: percentage rounds to kobo", await walkIn(ID.owner,
     items({ product_id: product.id, quantity: 1, discount_type: "percent", discount_value: 33.33 })));
   check("discount: 33.33% of 1,000", close(rounded.line_total, 666.7), JSON.stringify(rounded));
-  const zero = ok("record_sale: a zero discount is no discount", await walkIn(ID.repA1, items(line({ discount_type: "amount", discount_value: 0 }))));
+  const zero = ok("record_sale: a zero discount is no discount", await walkIn(ID.owner, items(line({ discount_type: "amount", discount_value: 0 }))));
   check("discount: zero stores nothing", zero.discount_type === null && zero.discount_value === null && close(zero.discount_amount, 0));
 
-  err("discount: percentage above 100", await walkIn(ID.repA1, items(line({ discount_type: "percent", discount_value: 101 }))), { hint: "items" });
-  err("discount: amount above the line", await walkIn(ID.repA1, items(line({ discount_type: "amount", discount_value: 2001 }))), { hint: "items" });
-  err("discount: negative", await walkIn(ID.repA1, items(line({ discount_type: "amount", discount_value: -5 }))), { hint: "items" });
-  err("discount: unknown type", await walkIn(ID.repA1, items(line({ discount_type: "free", discount_value: 5 }))), { hint: "items" });
+  err("discount: percentage above 100", await walkIn(ID.owner, items(line({ discount_type: "percent", discount_value: 101 }))), { hint: "items" });
+  err("discount: amount above the line", await walkIn(ID.owner, items(line({ discount_type: "amount", discount_value: 2001 }))), { hint: "items" });
+  err("discount: negative", await walkIn(ID.owner, items(line({ discount_type: "amount", discount_value: -5 }))), { hint: "items" });
+  err("discount: unknown type", await walkIn(ID.owner, items(line({ discount_type: "free", discount_value: 5 }))), { hint: "items" });
 
   // Rep limit: the owner sets it, reps are held to it, the owner is not.
   err("set_max_rep_discount: rep cannot", await as(ID.repA1, `SELECT public.set_max_rep_discount(50)`), DENY);
   err("set_max_rep_discount: above 100", await as(ID.owner, `SELECT public.set_max_rep_discount(101)`));
   ok("set_max_rep_discount: owner", await as(ID.owner, `SELECT public.set_max_rep_discount(10)`));
-  err("discount limit: rep over limit by percentage", await walkIn(ID.repA1, items(line({ discount_type: "percent", discount_value: 11 }))), { includes: "limit is 10%" });
-  err("discount limit: rep over limit by amount", await walkIn(ID.repA1, items(line({ discount_type: "amount", discount_value: 201 }))), { includes: "limit is 10%" });
-  ok("discount limit: rep exactly at limit", await walkIn(ID.repA1, items(line({ discount_type: "amount", discount_value: 200 }))));
-  ok("discount limit: owner is not limited", await walkIn(ID.owner, items(line({ discount_type: "percent", discount_value: 100 }))));
+  err("rep discount: percentage refused", await walkIn(ID.repA1, items(line({ discount_type: "percent", discount_value: 5 }))), { includes: "Only the Owner" });
+  err("rep discount: amount refused", await walkIn(ID.repA1, items(line({ discount_type: "amount", discount_value: 1 }))), { includes: "Only the Owner" });
+  ok("rep discount: a zero discount is still list price", await walkIn(ID.repA1, items(line({ discount_type: "amount", discount_value: 0 }))));
+  ok("discount: owner up to 100%", await walkIn(ID.owner, items(line({ discount_type: "percent", discount_value: 100 }))));
   ok("set_max_rep_discount: remove the limit", await as(ID.owner, `SELECT public.set_max_rep_discount(null)`));
-  ok("discount limit: removed", await walkIn(ID.repA1, items(line({ discount_type: "percent", discount_value: 50 }))));
+
+  // The Owner discounts a rep's sale afterwards; it stays the rep's sale.
+  err("apply_sale_discount: rep cannot", await as(ID.repA1, `SELECT * FROM public.apply_sale_discount($1,'percent',10)`, [plain.id]), DENY);
+  err("apply_sale_discount: manager cannot", await as(ID.mgrA1, `SELECT * FROM public.apply_sale_discount($1,'percent',10)`, [plain.id]), DENY);
+  err("apply_sale_discount: above 100%", await as(ID.owner, `SELECT * FROM public.apply_sale_discount($1,'percent',101)`, [plain.id]), { hint: "discount" });
+  err("apply_sale_discount: above the line", await as(ID.owner, `SELECT * FROM public.apply_sale_discount($1,'amount',2001)`, [plain.id]), { hint: "discount" });
+  err("apply_sale_discount: no type", await as(ID.owner, `SELECT * FROM public.apply_sale_discount($1,null,5)`, [plain.id]), { hint: "discountType" });
+  const disc = ok("apply_sale_discount: owner, 10% on a rep's sale", await as(ID.owner, `SELECT * FROM public.apply_sale_discount($1,'percent',10)`, [plain.id]));
+  check("apply_sale_discount: line total after discount", close(disc?.discount_amount, 200) && close(disc?.line_total, 1800) && disc?.sales_rep_id === ID.repA1, JSON.stringify(disc));
+  const changed = ok("apply_sale_discount: change to an amount", await as(ID.owner, `SELECT * FROM public.apply_sale_discount($1,'amount',500)`, [plain.id]));
+  check("apply_sale_discount: amount replaces percentage", changed?.discount_type === "amount" && close(changed?.line_total, 1500), JSON.stringify(changed));
+  const cleared = ok("apply_sale_discount: clear", await as(ID.owner, `SELECT * FROM public.apply_sale_discount($1,null,0)`, [plain.id]));
+  check("apply_sale_discount: cleared back to list price", cleared?.discount_type === null && close(cleared?.line_total, 2000), JSON.stringify(cleared));
+  ok("apply_sale_discount: final 10%", await as(ID.owner, `SELECT * FROM public.apply_sale_discount($1,'percent',10)`, [plain.id]));
+  check("apply_sale_discount: audited", (await one(`SELECT count(*)::int n FROM public.activities WHERE entity_id=$1 AND action LIKE 'Sale discount%'`, [plain.id])).n === 4);
 
   // Everything that adds up sales counts the discounted figure.
   const repLines = await one(`SELECT sum(quantity * unit_price)::numeric gross, sum(line_total)::numeric net FROM public.sales
@@ -146,8 +160,15 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
   check("promo: can be requested like any product", !promoRequest.error, promoRequest.error?.message);
 
   const salesBefore = (await one(`SELECT COALESCE(sum(line_total),0)::numeric n FROM public.sales WHERE sales_rep_id=$1`, [ID.repA1])).n;
-  const order = await walkIn(ID.repA1, items(line(), { product_id: promo.id, quantity: 3, is_promo: true }));
+  err("promo: rep can't add a promo item", await walkIn(ID.repA1, items(line(), { product_id: promo.id, quantity: 3, is_promo: true })), { includes: "Only the Owner" });
+  const repSale = ok("promo: rep records the sale at list price", await walkIn(ID.repA1, items(line())));
+  err("add_sale_promo: rep cannot", await as(ID.repA1, `SELECT * FROM public.add_sale_promo($1,$2::jsonb)`, [repSale?.id, items({ product_id: promo.id, quantity: 1 })]), DENY);
+  err("add_sale_promo: only promo products", await as(ID.owner, `SELECT * FROM public.add_sale_promo($1,$2::jsonb)`, [repSale?.id, items({ product_id: product.id, quantity: 1 })]), { includes: "not a promo item" });
+  const promoAdd = await as(ID.owner, `SELECT * FROM public.add_sale_promo($1,$2::jsonb)`, [repSale?.id, items({ product_id: promo.id, quantity: 3 })]);
+  const order = { rows: [repSale, ...(promoAdd.rows ?? [])].filter(Boolean), error: promoAdd.error };
   check("promo: goes out on a sale", !order.error && order.rows?.length === 2, order.error?.message);
+  check("promo: added to the rep's order", promoAdd.rows?.[0]?.sales_rep_id === ID.repA1 && promoAdd.rows?.[0]?.order_id === repSale?.order_id && promoAdd.rows?.[0]?.is_promo === true,
+    JSON.stringify(promoAdd.rows?.[0]));
   const promoLine = order.rows?.find((r) => r.is_promo);
   check("promo: line has no value", close(promoLine?.unit_price, 0) && close(promoLine?.line_total, 0), JSON.stringify(promoLine));
   check("promo: stock falls", (await onHand(promo.id)) === 47);
@@ -158,10 +179,10 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
   const paidMove = await one(`SELECT type FROM public.inventory_movements WHERE reference_type='sale' AND reference_id=$1`, [order.rows?.find((r) => !r.is_promo)?.id]);
   check("promo: sold lines stay type sale", paidMove?.type === "sale");
 
-  err("promo: needs a sold product alongside", await walkIn(ID.repA1, items({ product_id: promo.id, quantity: 1, is_promo: true })), { hint: "items" });
-  err("promo: cannot be sold as a normal line", await walkIn(ID.repA1, items({ product_id: promo.id, quantity: 1 })), { includes: "is a promo item" });
-  err("promo: a regular product cannot be given as promo", await walkIn(ID.repA1, items({ product_id: product.id, quantity: 1, is_promo: true })), { includes: "not a promo item" });
-  err("promo: cannot take a discount", await walkIn(ID.repA1, items(line(), { product_id: promo.id, quantity: 1, is_promo: true, discount_type: "amount", discount_value: 1 })), { includes: "already free" });
+  err("promo: needs a sold product alongside", await walkIn(ID.owner, items({ product_id: promo.id, quantity: 1, is_promo: true })), { hint: "items" });
+  err("promo: cannot be sold as a normal line", await walkIn(ID.owner, items({ product_id: promo.id, quantity: 1 })), { includes: "is a promo item" });
+  err("promo: a regular product cannot be given as promo", await walkIn(ID.owner, items({ product_id: product.id, quantity: 1, is_promo: true })), { includes: "not a promo item" });
+  err("promo: cannot take a discount", await walkIn(ID.owner, items(line(), { product_id: promo.id, quantity: 1, is_promo: true, discount_type: "amount", discount_value: 1 })), { includes: "already free" });
 
   // ---------------- stock issued to a rep is not deducted again when sold ----------------
   const held = ok("setup: product for issued stock", await as(ID.owner,
@@ -229,8 +250,9 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
   err("direct sale: not their customer", directCustomer);
 
   // The old rep builds some history on the account.
-  const oldSale = await customerSale(ID.repA1, c1.id, items(line({ quantity: 10, discount_type: "amount", discount_value: 1000 })));
-  check("customer sale: recorded with discount", close(oldSale.rows?.[0]?.line_total, 9000), oldSale.error?.message);
+  const oldSale = await customerSale(ID.repA1, c1.id, items(line({ quantity: 10 })));
+  ok("customer sale: owner discounts it", await as(ID.owner, `SELECT * FROM public.apply_sale_discount($1,'amount',1000)`, [oldSale.rows?.[0]?.id]));
+  check("customer sale: recorded with discount", close((await one(`SELECT line_total FROM public.sales WHERE id=$1`, [oldSale.rows?.[0]?.id])).line_total, 9000), oldSale.error?.message);
   const pay = ok("customer payment by old rep", await as(ID.repA1,
     `SELECT * FROM public.record_customer_payment($1,4000,'cash',null,CURRENT_DATE,null,null,null)`, [c1.id]));
   ok("customer payment acknowledged", await as(ID.mgrA1, `SELECT public.acknowledge_customer_payment($1,null,null)`, [pay.id]));

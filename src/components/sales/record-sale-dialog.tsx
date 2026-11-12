@@ -115,7 +115,9 @@ export function RecordSaleDialog({
 
   const total = lines.reduce((sum, line) => sum + lineGross(line) - lineDiscount(line), 0);
   const discountTotal = lines.reduce((sum, line) => sum + lineDiscount(line), 0);
-  const hasPromoItems = db.products.some((x) => x.status === "active" && x.productType === "promo");
+  /** Discounts and promo items are the Owner's to give; reps record sales at list price. */
+  const canAdjustPrice = scope.user.role === "owner";
+  const hasPromoItems = canAdjustPrice && db.products.some((x) => x.status === "active" && x.productType === "promo");
   const setLine = (key: number, patch: Partial<Line>) =>
     setLines((rows) => rows.map((line) => (line.key === key ? { ...line, ...patch } : line)));
   async function submit(e: React.FormEvent) {
@@ -141,7 +143,7 @@ export function RecordSaleDialog({
         const available = getAvailableStock(db, product.id, branchId) + (scope.repId ? getRepHeldStock(db, scope.repId, product.id) : 0);
         if (requested > available) (itemErrors[index] ??= {}).quantity = `Insufficient stock — ${available} available for all lines`;
       }
-      if (!line.isPromo && line.discount.trim()) {
+      if (canAdjustPrice && !line.isPromo && line.discount.trim()) {
         const value = Number(line.discount);
         if (!Number.isFinite(value) || value < 0) (itemErrors[index] ??= {}).discount = "Enter a discount of zero or more";
         else if (line.discountType === "percent" && value > 100) (itemErrors[index] ??= {}).discount = "A discount cannot be more than 100%";
@@ -177,7 +179,7 @@ export function RecordSaleDialog({
         p_walk_in_name: saleType === "customer" ? null : requiredWalkInName,
         p_walk_in_phone: saleType === "customer" ? null : walkInPhone.trim() || null,
         p_items: lines.map((line) => {
-          const value = line.isPromo ? 0 : Number(line.discount);
+          const value = line.isPromo || !canAdjustPrice ? 0 : Number(line.discount);
           return {
             product_id: line.productId,
             quantity: Number(line.quantity),
@@ -209,7 +211,9 @@ export function RecordSaleDialog({
         <DialogHeader>
           <DialogTitle>Record sale</DialogTitle>
           <DialogDescription className="text-xs">
-            Add one or more products. Revenue is quantity × unit price, less any discount. Promo items are free.
+            {canAdjustPrice
+              ? "Add one or more products. Revenue is quantity × unit price, less any discount. Promo items are free."
+              : "Add one or more products at list price. Revenue is quantity × unit price."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
@@ -459,7 +463,7 @@ export function RecordSaleDialog({
                         <FieldError message={errors.unitPrice} />
                       </div>
                     )}
-                    {!line.isPromo && (
+                    {canAdjustPrice && !line.isPromo && (
                       <div>
                         <Label htmlFor={`sale-discount-${line.key}`} className="text-xs">
                           Discount

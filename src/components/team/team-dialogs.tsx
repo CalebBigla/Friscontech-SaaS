@@ -29,7 +29,7 @@ import { copyText } from "@/components/team/onboarding-panel";
 import { onboardingService } from "@/services/onboarding-service";
 
 const NONE = "none";
-const roleTone: Record<Role, string> = { owner: "status-violet", manager: "status-brand", storekeeper: "status-warning", sales_rep: "status-success" };
+const roleTone: Record<Role, string> = { owner: "status-violet", manager: "status-brand", storekeeper: "status-warning", sales_rep: "status-success", supervisor: "status-muted" };
 export function RoleBadge({ role }: { role: Role }) {
   return <span className={`status whitespace-nowrap ${roleTone[role]}`}>{role === "owner" ? "Business Owner" : roleLabel[role]}</span>;
 }

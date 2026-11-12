@@ -46,7 +46,7 @@ type AuthContextType = {
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const validRoles: readonly Role[] = ["owner", "manager", "storekeeper", "sales_rep"];
+const validRoles: readonly Role[] = ["owner", "manager", "storekeeper", "sales_rep", "supervisor"];
 const isRole = (value: unknown): value is Role =>
   typeof value === "string" && validRoles.includes(value as Role);
 

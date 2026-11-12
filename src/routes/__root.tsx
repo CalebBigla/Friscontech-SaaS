@@ -94,10 +94,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
-      },
-      {
-        rel: "stylesheet",
         href: appCss,
       },
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
@@ -111,6 +107,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+/**
+ * The Inter stylesheet is added from a script instead of a <link> in the head: a
+ * head stylesheet blocks the first paint until Google Fonts answers (about 0.7 s
+ * measured from Lagos). Inserted this way it loads in parallel; text shows in the
+ * system fallback until Inter arrives (font-display: swap), then switches.
+ */
+const FONT_STYLESHEET = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap";
+const FONT_LOAD_SCRIPT = `(function(){var l=document.createElement("link");l.rel="stylesheet";l.href="${FONT_STYLESHEET}";document.head.appendChild(l);})();`;
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
     // The theme script may add the `dark` class before React hydrates.
@@ -118,6 +123,8 @@ function RootShell({ children }: { children: ReactNode }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: FONT_LOAD_SCRIPT }} />
+        <noscript><link rel="stylesheet" href={FONT_STYLESHEET} /></noscript>
       </head>
       <body>
         {children}

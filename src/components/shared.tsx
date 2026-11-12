@@ -11,7 +11,7 @@ export const ALL = "all";
 
 export function MetricCard({ icon: Icon, tone, label, value, detail, badge }: { icon: LucideIcon; tone: "success" | "brand" | "violet" | "warning"; label: string; value: string; detail?: string | undefined; badge?: string | undefined }) {
   return (
-    <article className="h-full min-w-0 rounded-xl border border-border bg-card p-4 shadow-panel transition-shadow hover:shadow-raised sm:p-5">
+    <article className="motion-lift h-full min-w-0 rounded-xl border border-border bg-card p-4 shadow-panel sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 truncate text-[13px] font-medium text-muted-foreground">{label}</p>
         <span className={`metric-icon metric-icon-${tone} shrink-0`}><Icon className="size-[18px]" /></span>
@@ -129,7 +129,7 @@ export function DetailItem({ label, children }: { label: string; children: React
 /** Compact summary tile for dense overview rows. */
 export function StatTile({ label, value, detail, tone = "brand" }: { label: string; value: string; detail?: string | undefined; tone?: "success" | "brand" | "violet" | "warning" | "danger" }) {
   return (
-    <article className="min-w-0 rounded-xl border border-border bg-card px-4 py-3 shadow-panel">
+    <article className="motion-lift min-w-0 rounded-xl border border-border bg-card px-4 py-3 shadow-panel">
       <div className="flex items-center gap-2"><span className={`size-2 shrink-0 rounded-full ${tone === "success" ? "bg-success" : tone === "warning" ? "bg-warning" : tone === "danger" ? "bg-destructive" : tone === "violet" ? "bg-violet" : "bg-primary"}`} /><p className="truncate text-[11px] text-muted-foreground">{label}</p></div>
       <p className="mt-1 truncate text-base font-semibold tracking-tight tabular-nums sm:text-lg">{value}</p>
       {detail && <p className="truncate text-[10px] text-muted-foreground">{detail}</p>}

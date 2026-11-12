@@ -159,6 +159,38 @@ export type PlannedRpcs = {
     /** Same key while the form is open: a retried submit returns the first result. */
     p_idempotency_key: string;
   };
+  /**
+   * Owner only: set, change or clear (null / 0) the discount on one sold line. The
+   * sale keeps its rep. Returns the sales row.
+   */
+  apply_sale_discount: {
+    p_sale_id: string;
+    p_discount_type: "percent" | "amount" | null;
+    p_discount_value: number | null;
+  };
+  /** Owner only: add promo items to a completed sale's order. Returns the new sales rows. */
+  add_sale_promo: {
+    p_sale_id: string;
+    p_items: { product_id: string; quantity: number }[];
+  };
+  /** Supervisor asks for a report; inventory ignores the dates (it is today's stock). Returns the report_requests row. */
+  request_report: {
+    p_report_type: "sales" | "inventory";
+    p_branch_id: string | null;
+    p_period_from: string | null;
+    p_period_to: string | null;
+    p_note: string | null;
+  };
+  /** Owner approves (open for 7 days) or rejects with a reason. Returns the report_requests row. */
+  review_report_request: {
+    p_request_id: string;
+    p_approve: boolean;
+    p_reason: string | null;
+  };
+  /** The approved report's data only (no cost prices). Returns JSON: request, branches, products, people, sales, inventory. */
+  get_report_data: {
+    p_request_id: string;
+  };
   /** Owner sets the most a sales rep may discount a line (null = no limit). Returns the tenants row. */
   set_max_rep_discount: {
     p_percent: number | null;
@@ -415,7 +447,7 @@ export type PlannedRpcs = {
   request_team_member: {
     p_name: string;
     p_email: string;
-    p_role: "owner" | "manager" | "storekeeper" | "sales_rep";
+    p_role: "owner" | "manager" | "storekeeper" | "sales_rep" | "supervisor";
     p_branch_id: string | null;
   };
   /**
@@ -429,7 +461,7 @@ export type PlannedRpcs = {
     p_user_id: string;
     p_first_name: string;
     p_last_name: string;
-    p_role: "owner" | "manager" | "storekeeper" | "sales_rep";
+    p_role: "owner" | "manager" | "storekeeper" | "sales_rep" | "supervisor";
     p_branch_id: string | null;
     p_status: "active" | "inactive" | "pending";
   };

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Contact,
   Activity,
@@ -177,6 +177,14 @@ const repSections: NavSection[] = [
     ],
   },
 ];
+/** Supervisors work from their Reports page (home) and their own settings. */
+const supervisorSections: NavSection[] = [
+  { title: "Reports", items: [{ label: "Reports", icon: BarChart3, to: "/" }] },
+  { title: "Account", items: [{ label: "Settings", icon: Settings, to: "/settings" }] },
+];
+/** Pages a Supervisor may open; any other page shows a notice instead of an empty screen. */
+const supervisorPaths = new Set(["/", "/settings"]);
+
 const storekeeperSections: NavSection[] = [
   { title: "Overview", items: [{ label: "Dashboard", icon: LayoutDashboard, to: "/" }] },
   {
@@ -204,7 +212,9 @@ const storekeeperSections: NavSection[] = [
   },
 ];
 const sectionsFor = (role: string) =>
-  role === "sales_rep"
+  role === "supervisor"
+    ? supervisorSections
+    : role === "sales_rep"
     ? repSections
     : role === "storekeeper"
       ? storekeeperSections
@@ -289,6 +299,7 @@ export function AppShell({
     }
   }, [sidebarCollapsed, sidebarPreferenceReady]);
   const session = useSessionReady();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user: authUser } = useAuth();
   const legacyUserId = useCurrentUserId();
   const userId = authUser?.id ?? legacyUserId;
@@ -470,7 +481,9 @@ export function AppShell({
         <main
           className={`page-enter mx-auto max-w-[1440px] p-4 sm:p-6 lg:px-8 lg:py-7 ${tabs ? "pb-24 lg:pb-7" : ""}`}
         >
-          {children}
+          {scope.user.role === "supervisor" && !supervisorPaths.has(pathname)
+            ? <RestrictedNotice message="Supervisors request and open reports from their Reports page." />
+            : children}
         </main>
       </div>
       {tabs && (

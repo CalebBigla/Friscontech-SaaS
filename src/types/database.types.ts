@@ -68,6 +68,46 @@ export type Database = {
           },
         ]
       }
+      report_requests: {
+        Row: {
+          branch_id: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          note: string | null
+          period_from: string
+          period_to: string
+          rejection_reason: string | null
+          report_type: string
+          requested_by: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          branch_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          note?: string | null
+          period_from: string
+          period_to: string
+          rejection_reason?: string | null
+          report_type: string
+          requested_by: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          branch_id?: string | null
+          note?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       approval_requests: {
         Row: {
           applied_at: string | null
@@ -2700,6 +2740,26 @@ export type Database = {
       }
       set_max_rep_discount: {
         Args: { p_percent: number }
+        Returns: Json
+      }
+      request_report: {
+        Args: { p_report_type: string; p_branch_id: string; p_period_from: string; p_period_to: string; p_note: string }
+        Returns: Json
+      }
+      review_report_request: {
+        Args: { p_request_id: string; p_approve: boolean; p_reason: string }
+        Returns: Json
+      }
+      get_report_data: {
+        Args: { p_request_id: string }
+        Returns: Json
+      }
+      apply_sale_discount: {
+        Args: { p_sale_id: string; p_discount_type: string; p_discount_value: number }
+        Returns: Json
+      }
+      add_sale_promo: {
+        Args: { p_sale_id: string; p_items: Json }
         Returns: Json
       }
       login_attempt_status: {

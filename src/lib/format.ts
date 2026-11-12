@@ -24,7 +24,7 @@ export function formatMonth(month: string) {
   const [y = 0, m = 1] = month.split("-").map(Number);
   return `${MONTHS[m - 1]} ${y}`;
 }
-export const roleLabel = { owner: "Owner", manager: "Manager", storekeeper: "Storekeeper", sales_rep: "Sales Representative" } as const;
+export const roleLabel = { owner: "Owner", manager: "Manager", storekeeper: "Storekeeper", sales_rep: "Sales Representative", supervisor: "Supervisor" } as const;
 export const initials = (name: string) => name.split(" ").map((x) => x[0]).slice(0, 2).join("").toUpperCase();
 /** "Today, 10:42" / "Yesterday, 15:15" / "Sep 24, 11:20" relative to the tenant reference date. */
 export function formatDayTime(iso: string, today: string) {

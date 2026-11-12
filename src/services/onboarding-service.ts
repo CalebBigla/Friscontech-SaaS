@@ -519,7 +519,7 @@ export const onboardingService = {
     return o ? { ok: true, data: o } : fail("Not found");
   },
 
-  async approve(id: string, role: "manager" | "storekeeper" | "sales_rep", branchId: string | null, _actorId: string): Promise<R<Onboarding>> {
+  async approve(id: string, role: "manager" | "storekeeper" | "sales_rep" | "supervisor", branchId: string | null, _actorId: string): Promise<R<Onboarding>> {
     const { error } = await supabase.rpc("approve_onboarding", {
       p_onboarding_id: id,
       p_role: role,

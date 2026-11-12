@@ -103,6 +103,9 @@ async function main() {
     const relationships = require(path.join(__dirname, "relationships.test.cjs"));
     await relationships(db, tests.result);
     failed += relationships.result.failed;
+    const supervisor = require(path.join(__dirname, "supervisor.test.cjs"));
+    await supervisor(db, tests.result);
+    failed += supervisor.result.failed;
     if (process.argv.includes("--rls")) await require(path.join(__dirname, "rls-survey.cjs"))(db, tests.result);
   }
   await db.close();

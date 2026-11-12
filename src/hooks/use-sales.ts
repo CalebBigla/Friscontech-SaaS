@@ -150,6 +150,36 @@ export function useCreateSale() {
  * Record one order, all lines or none (RPC record_sale). The server sets each price,
  * works out the discount and deducts stock.
  */
+/** Sales, stock, customer balances and the audit log all move with a sale change. */
+function invalidateSaleChange(queryClient: ReturnType<typeof useQueryClient>, tenantId: string) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.sales.all(tenantId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all(tenantId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.customers.root() });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.activities.all(tenantId) });
+}
+
+/** Owner: discount a sold line (see apply_sale_discount). */
+export function useApplySaleDiscount() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: PlannedRpcs["apply_sale_discount"]): Promise<Sale> =>
+      transformSale((await callRpc("apply_sale_discount", args)) as Row<"sales">),
+    onSuccess: () => invalidateSaleChange(queryClient, user?.tenantId || ''),
+  });
+}
+
+/** Owner: add promo items to a sale's order (see add_sale_promo). */
+export function useAddSalePromo() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: PlannedRpcs["add_sale_promo"]): Promise<Sale[]> =>
+      ((await callRpc("add_sale_promo", args)) as Row<"sales">[]).map(transformSale),
+    onSuccess: () => invalidateSaleChange(queryClient, user?.tenantId || ''),
+  });
+}
+
 export function useRecordSale() {
   const { user } = useAuth();
   const queryClient = useQueryClient();

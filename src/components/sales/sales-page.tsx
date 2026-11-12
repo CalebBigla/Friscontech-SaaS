@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { ALL, EmptyState, FilterSelect, MetricCard, Panel } from "@/components/shared";
 import { RecordSaleDialog } from "@/components/sales/record-sale-dialog";
+import { OwnerSaleAdjustments } from "@/components/sales/owner-sale-adjustments";
 import type { Db, Sale } from "@/data/mock-db";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
@@ -535,6 +536,9 @@ export function SalesPage() {
                 <dd className="text-base font-bold">{formatNaira(saleTotal(selected))}</dd>
               </div>
             </dl>
+          )}
+          {selected && scope.user.role === "owner" && selected.status === "completed" && !selected.isPromo && (
+            <OwnerSaleAdjustments key={selected.id} db={db} sale={selected} onChanged={setSelected} />
           )}
           {selected &&
             scope.user.role !== "owner" &&

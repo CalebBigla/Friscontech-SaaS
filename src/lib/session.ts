@@ -268,6 +268,17 @@ function baseScope(user: User | null, userId: string): Omit<AccessScope, Extra> 
         canManageTeam: false,
         canViewReports: false,
       };
+    // Reads nothing directly; asks the Owner for each report (report_requests).
+    case "supervisor":
+      return {
+        user,
+        branchIds: own,
+        canManageBranches: false,
+        canRecordSales: false,
+        canViewSales: false,
+        ...none,
+        canViewInventoryAdmin: false,
+      };
     case "sales_rep":
       return {
         user,

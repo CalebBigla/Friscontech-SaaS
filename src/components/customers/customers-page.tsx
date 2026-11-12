@@ -74,6 +74,18 @@ export function CustomersPage() {
   const branches = db.branches.filter(
     (b) => scope.branchIds === null || scope.branchIds.includes(b.id),
   );
+  // Filtered by one rep: what their customers have bought, paid and still owe,
+  // over the rows shown (other filters still apply).
+  const repTotals = repFilter !== "all" && repFilter !== "unmanaged"
+    ? {
+        customers: rows.length,
+        sold: rows.reduce((sum, r) => sum + r.summary.debits, 0),
+        paid: rows.reduce((sum, r) => sum + r.summary.credits, 0),
+        owed: rows.reduce((sum, r) => sum + r.summary.owed, 0),
+        inCredit: rows.reduce((sum, r) => sum + Math.max(r.summary.balance, 0), 0),
+        pending: rows.reduce((sum, r) => sum + r.summary.pending, 0),
+      }
+    : null;
   const branchName = (id: string | null) =>
     id ? (db.branches.find((b) => b.id === id)?.name ?? "—") : "All branches";
 
@@ -127,6 +139,32 @@ export function CustomersPage() {
           {unmanagedCount} customer{unmanagedCount === 1 ? " has" : "s have"} no active sales rep.
           Open each one to reassign it.
         </button>
+      )}
+      {repTotals && (
+        <section aria-label={`Totals for ${repName(repFilter)}`} className="mt-4 rounded-xl border border-border bg-card p-4 shadow-panel">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm font-semibold">Totals for {repName(repFilter)}</p>
+            <p className="text-xs text-muted-foreground">
+              {repTotals.customers} customer{repTotals.customers === 1 ? "" : "s"} shown
+            </p>
+          </div>
+          <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              ["Total sold", formatNaira(repTotals.sold), "text-foreground"],
+              ["Total paid", formatNaira(repTotals.paid), "text-success"],
+              ["Outstanding", formatNaira(repTotals.owed), repTotals.owed > 0 ? "text-destructive" : "text-foreground"],
+              ["Awaiting confirmation", formatNaira(repTotals.pending), "text-warning"],
+            ].map(([label, value, tone]) => (
+              <div key={label} className="rounded-lg bg-muted/50 p-3">
+                <dt className="text-[11px] text-muted-foreground">{label}</dt>
+                <dd className={`mt-1 text-base font-bold tabular-nums ${tone}`}>{value}</dd>
+              </div>
+            ))}
+          </dl>
+          {repTotals.inCredit > 0 && (
+            <p className="mt-2 text-[11px] text-muted-foreground">Customers in credit hold {formatNaira(repTotals.inCredit)} more than they owe.</p>
+          )}
+        </section>
       )}
       <Panel
         title="Customer accounts"

@@ -4,6 +4,7 @@ import { OwnerDashboard } from "@/components/owner-dashboard";
 import { RepDashboard } from "@/components/dashboards/rep-dashboard";
 import { ManagerDashboard } from "@/components/dashboards/manager-dashboard";
 import { StorekeeperDashboard } from "@/components/dashboards/storekeeper-dashboard";
+import { SupervisorReportsPage } from "@/components/reports/supervisor-reports-page";
 import { Button } from "@/components/ui/button";
 import { useAuth, type ProfileStatus } from "@/contexts/auth-context";
 import type { Role } from "@/data/mock-db";
@@ -57,6 +58,7 @@ function dashboardForRole(role: Role) {
     case "manager": return <ManagerDashboard />;
     case "storekeeper": return <StorekeeperDashboard />;
     case "sales_rep": return <RepDashboard />;
+    case "supervisor": return <SupervisorReportsPage />;
   }
 }
 
@@ -70,6 +72,7 @@ function Index() {
         manager: "ManagerDashboard",
         storekeeper: "StorekeeperDashboard",
         sales_rep: "RepDashboard",
+        supervisor: "SupervisorReports",
       } as const)[user.role]
     : null;
 

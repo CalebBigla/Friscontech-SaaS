@@ -351,7 +351,7 @@ function ApproveDialog({ open, onOpenChange, o, scope, onDone }: {
 }) {
   const { data: branches = [] } = useBranches();
   const activeBranches = branches.filter((b: Branch) => b.status === "active");
-  const [role, setRole] = useState<"manager" | "storekeeper" | "sales_rep">("sales_rep");
+  const [role, setRole] = useState<"manager" | "storekeeper" | "sales_rep" | "supervisor">("sales_rep");
   const [branchId, setBranchId] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -369,11 +369,12 @@ function ApproveDialog({ open, onOpenChange, o, scope, onDone }: {
             <Label className="text-xs">Role *</Label>
             <div className="mt-1.5">
               <FilterSelect label="Role" className="w-full" value={role}
-                onChange={(v) => setRole(v as "manager" | "storekeeper" | "sales_rep")}
+                onChange={(v) => setRole(v as "manager" | "storekeeper" | "sales_rep" | "supervisor")}
                 options={[
                   { value: "manager", label: roleLabel.manager },
                   { value: "storekeeper", label: roleLabel.storekeeper },
                   { value: "sales_rep", label: roleLabel.sales_rep },
+                  { value: "supervisor", label: roleLabel.supervisor },
                 ]} />
             </div>
           </div>

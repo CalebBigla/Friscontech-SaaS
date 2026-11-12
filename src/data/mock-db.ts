@@ -7,7 +7,7 @@ import type { OwnerRemittance } from "./remittances";
  * they are computed in src/lib/calculations.ts.
  */
 
-export type Role = "owner" | "manager" | "storekeeper" | "sales_rep";
+export type Role = "owner" | "manager" | "storekeeper" | "sales_rep" | "supervisor";
 export type BranchStatus = "active" | "inactive";
 export type SaleStatus = "completed" | "pending" | "voided";
 
@@ -220,14 +220,18 @@ export type NotificationType =
   /** storekeeper -> manager stock additions and product deactivations (20261111110000) */
   | "approval_requested"
   | "approval_approved"
-  | "approval_rejected";
+  | "approval_rejected"
+  /** supervisor report requests (20261113110000) */
+  | "report_requested"
+  | "report_approved"
+  | "report_rejected";
 /** Notifications-ready rows for the next approver; delivery is added later. */
 export type AppNotification = {
   id: string;
   tenantId: string;
   recipientId: string;
   type: NotificationType;
-  entityType: "payment" | "customer_payment" | "onboarding" | "stock_request" | "approval_request";
+  entityType: "payment" | "customer_payment" | "onboarding" | "stock_request" | "approval_request" | "report_request";
   entityId: string;
   message: string;
   createdAt: string;
@@ -399,7 +403,8 @@ export type AuditEntity =
   | "inventory"
   | "settings"
   | "session"
-  | "customer";
+  | "customer"
+  | "report";
 /** Audit log entry (see src/data/auditLogs.ts): actorId = user_id, createdAt = timestamp, subject = description. */
 export type Activity = {
   id: string;

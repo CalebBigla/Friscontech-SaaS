@@ -231,6 +231,12 @@ export const queryKeys = {
       ["activities", tenantId, "recent", limit] as const,
   },
 
+  // Supervisor report requests
+  reportRequests: {
+    all: (tenantId: string) => ["report_requests", tenantId] as const,
+    data: (requestId: string) => ["report_requests", "data", requestId] as const,
+  },
+
   // Onboardings
   onboardings: {
     /** Prefix of every onboarding query. */

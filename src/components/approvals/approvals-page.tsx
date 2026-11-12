@@ -29,6 +29,7 @@ import {
   getApprovalSummary,
 } from "@/lib/approvals";
 import { formatDayTime, formatNumber } from "@/lib/format";
+import { ReportRequestsReview } from "@/components/approvals/report-requests-review";
 
 const statusTone = {
   pending: "status-warning",
@@ -174,6 +175,7 @@ export function ApprovalsPage() {
       </div>
 
       <DataGate isLoading={isLoading} error={error}>
+      {scope.user.role === "owner" && <ReportRequestsReview db={db} />}
       <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <MetricCard
           icon={Clock}

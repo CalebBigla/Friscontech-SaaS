@@ -34,11 +34,11 @@ export function getTeamMember(db: Db, scope: AccessScope, id: string) {
 
 /** Roles the caller may assign. Owners are never created through the Team form. */
 export function assignableRoles(scope: AccessScope): Role[] {
-  if (scope.user.role === "owner") return ["manager", "storekeeper", "sales_rep"];
+  if (scope.user.role === "owner") return ["manager", "storekeeper", "sales_rep", "supervisor"];
   if (scope.user.role === "manager") return ["storekeeper", "sales_rep"];
   return [];
 }
-export const roleNeedsBranch = (role: Role) => role === "manager" || role === "storekeeper" || role === "sales_rep";
+export const roleNeedsBranch = (role: Role) => role === "manager" || role === "storekeeper" || role === "sales_rep" || role === "supervisor";
 
 /** Latest timestamp the user authored anything: sales, requests, reviews, stock movements or logged activities. */
 export function getLastActivity(db: Db, userId: string): string | null {
@@ -90,7 +90,7 @@ export function getManagerTeam(db: Db, manager: User) {
 }
 
 export type TeamSortKey = "name" | "role" | "joined" | "activity";
-const roleOrder: Record<Role, number> = { owner: 0, manager: 1, storekeeper: 2, sales_rep: 3 };
+const roleOrder: Record<Role, number> = { owner: 0, manager: 1, storekeeper: 2, sales_rep: 3, supervisor: 4 };
 export function sortTeam(db: Db, list: User[], key: TeamSortKey, dir: "asc" | "desc") {
   const m = dir === "asc" ? 1 : -1;
   const act = new Map(list.map((u) => [u.id, getLastActivity(db, u.id) ?? ""]));
