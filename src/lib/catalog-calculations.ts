@@ -4,7 +4,7 @@
  */
 import type { Db, Product, Target } from "@/data/mock-db";
 import { addDays, daysInMonth } from "@/lib/dates";
-import { filterSales, getRepTarget, saleTotal } from "@/lib/calculations";
+import { filterSales, getRepTarget, keptQuantity, saleTotal } from "@/lib/calculations";
 import { getInventoryMovements, resolveInventory } from "@/lib/inventory-calculations";
 
 // ---------- products ----------
@@ -29,7 +29,7 @@ export function getProductInventory(db: Db, productId: string, branchIds?: strin
 
 export function getProductSales(db: Db, productId: string, range?: { from: string; to: string }, branchIds?: string[] | null) {
   const rows = filterSales(db, { productId, range, branchIds });
-  return { rows, units: rows.reduce((s, x) => s + x.quantity, 0), revenue: rows.reduce((s, x) => s + saleTotal(x), 0), count: rows.length };
+  return { rows, units: rows.reduce((s, x) => s + keptQuantity(x), 0), revenue: rows.reduce((s, x) => s + saleTotal(x), 0), count: rows.length };
 }
 
 export const getProductStockMovements = (db: Db, productId: string, branchIds?: string[] | null) =>

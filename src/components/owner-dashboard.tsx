@@ -231,7 +231,7 @@ function OwnerDashboardContent() {
       <ExpiringSoonPanel db={db} branchIds={scope.branchIds} />
 
       <section className="mt-4">
-        <Panel title="Inventory summary" subtitle="Shared inventory records · on hand × unit cost">
+        <Panel title="Inventory summary" subtitle="Shared inventory records · available × selling price">
           <div className="grid grid-cols-2 gap-3 p-4">
             <MetricCard
               icon={Package}
@@ -252,7 +252,7 @@ function OwnerDashboardContent() {
               tone="success"
               label="Inventory Value"
               value={formatCompactNaira(data.inventorySummary.value)}
-              detail="On hand × product unit cost"
+              detail="Available × selling price"
             />
             <MetricCard
               icon={AlertTriangle}

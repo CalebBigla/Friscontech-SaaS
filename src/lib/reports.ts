@@ -5,7 +5,7 @@
  */
 import type { Db } from "@/data/mock-db";
 import type { AccessScope } from "@/lib/session";
-import { filterSales, getSalesRevenue, saleGross, saleTotal } from "@/lib/calculations";
+import { filterSales, getSalesRevenue, keptQuantity, saleGross, saleTotal } from "@/lib/calculations";
 import type { DateRange } from "@/lib/dates";
 import { getMonthTargets, getTargetSummary } from "@/lib/catalog-calculations";
 import { getInventoryRows } from "@/lib/inventory-calculations";
@@ -77,7 +77,7 @@ export function getSalesReport(db: Db, scope: AccessScope, f: ReportFilters) {
       0,
     ),
     count: rows.length,
-    units: rows.reduce((s, x) => s + x.quantity, 0),
+    units: rows.reduce((s, x) => s + keptQuantity(x), 0),
     average: rows.length ? revenue / rows.length : 0,
     walkInRevenue: rows.filter((x) => !x.customerId).reduce((s, x) => s + saleTotal(x), 0),
     customerRevenue: rows.filter((x) => !!x.customerId).reduce((s, x) => s + saleTotal(x), 0),

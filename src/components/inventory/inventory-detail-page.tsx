@@ -50,7 +50,7 @@ export function InventoryDetailPage({ inventoryId }: { inventoryId: string }) {
             <DetailItem label="Low-stock threshold"><span className="text-2xl font-bold">{row.record.lowStockThreshold}</span></DetailItem>
           </div>
           <div className="mx-5 mb-5 h-2 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${status === "in_stock" ? "bg-success" : status === "low_stock" ? "bg-warning" : "bg-destructive"}`} style={{ width: `${Math.min((available / Math.max(row.record.reorderLevel * 2, 1)) * 100, 100)}%` }} /></div>
-          <p className="mx-5 -mt-3 mb-5 text-[11px] text-muted-foreground">Reorder level {row.record.reorderLevel}{scope.canSeeCost && <> · stock value {formatNaira(row.value)} at cost</>}</p>
+          <p className="mx-5 -mt-3 mb-5 text-[11px] text-muted-foreground">Reorder level {row.record.reorderLevel} · stock value {formatNaira(row.value)} at selling price</p>
         </Panel>
         <Panel title="Product information">
           <div className="grid grid-cols-2 gap-5 p-5">

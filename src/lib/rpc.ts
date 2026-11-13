@@ -173,6 +173,24 @@ export type PlannedRpcs = {
     p_sale_id: string;
     p_items: { product_id: string; quantity: number }[];
   };
+  /** Business name and contacts for invoices; any active member. */
+  get_business_profile: Record<string, never>;
+  /** Rep: a customer returns units of a sale for another product. Returns the stock_exchanges row. */
+  request_exchange: {
+    p_sale_id: string;
+    p_return_quantity: number;
+    p_replacement_product_id: string;
+    p_replacement_quantity: number;
+    p_reason: string;
+  };
+  /** Branch storekeeper: replacement is in stock. */
+  approve_exchange: { p_exchange_id: string };
+  /** Branch storekeeper: with a reason for the rep. */
+  reject_exchange: { p_exchange_id: string; p_reason: string };
+  /** Branch storekeeper: returned units back into stock, replacement out as a new sale line. */
+  fulfil_exchange: { p_exchange_id: string };
+  /** Rep: the customer has the replacement. */
+  acknowledge_exchange: { p_exchange_id: string };
   /** Supervisor asks for a report; inventory ignores the dates (it is today's stock). Returns the report_requests row. */
   request_report: {
     p_report_type: "sales" | "inventory";

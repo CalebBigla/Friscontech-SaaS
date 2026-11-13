@@ -488,9 +488,9 @@ function PaymentDrawer({
                 <Row label="Transfer">{formatNaira(entry.transfer)}</Row>
                 {repPosition && (
                   <>
-                    <Row label="Walk-in sales for the month">
-                      {formatNaira(repPosition.totalSales)}
-                    </Row>
+                    <Row label="Walk-in sales for the month">{formatNaira(repPosition.walkInSales)}</Row>
+                    <Row label="Customer payments collected">{formatNaira(repPosition.customerCollections)}</Row>
+                    <Row label="Total to pay in">{formatNaira(repPosition.totalSales)}</Row>
                     <Row label="Confirmed so far">{formatNaira(repPosition.confirmed)}</Row>
                     <Row label="Outstanding (not yet reported)">
                       {formatNaira(repPosition.outstanding)}
@@ -817,8 +817,9 @@ function SubmitPaymentDialog({
         <DialogHeader>
           <DialogTitle>Submit payment</DialogTitle>
           <DialogDescription>
-            Report money collected from your walk-in sales. Customer account payments are recorded
-            on the customer's page.
+            Pay in the money you collected this month: your walk-in sales (₦{position.walkInSales.toLocaleString("en-NG")})
+            and customer payments (₦{position.customerCollections.toLocaleString("en-NG")}). Your manager acknowledges
+            it and the Owner confirms it.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">

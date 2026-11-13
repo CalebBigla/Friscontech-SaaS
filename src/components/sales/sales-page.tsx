@@ -4,6 +4,7 @@ import {
   BarChart3,
   CircleDollarSign,
   Eye,
+  FileText,
   Plus,
   Receipt,
   SlidersHorizontal,
@@ -17,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { ALL, EmptyState, FilterSelect, MetricCard, Panel } from "@/components/shared";
 import { RecordSaleDialog } from "@/components/sales/record-sale-dialog";
 import { OwnerSaleAdjustments } from "@/components/sales/owner-sale-adjustments";
+import { InvoiceDialog } from "@/components/sales/invoice-dialog";
 import type { Db, Sale } from "@/data/mock-db";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
@@ -63,6 +65,7 @@ export function SalesPage() {
   const navigate = route.useNavigate();
   const [recordOpen, setRecordOpen] = useState(false);
   const [selected, setSelected] = useState<Sale | null>(null);
+  const [invoiceFor, setInvoiceFor] = useState<Sale | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [limit, setLimit] = useState(PAGE);
 
@@ -513,6 +516,8 @@ export function SalesPage() {
                 ],
                 ["Product", product(selected.productId)?.name ?? "—"],
                 ["Quantity", String(selected.quantity)],
+                ...(selected.quantityReturned > 0 ? [["Returned in exchange", String(selected.quantityReturned)]] : []),
+                ...(selected.exchangeId ? [["Exchange", `Replacement for ${selected.exchangeId}`]] : []),
                 ...(selected.isPromo
                   ? [["Promo item", "Free"]]
                   : [["Unit price", formatNaira(selected.unitPrice)]]),
@@ -537,6 +542,11 @@ export function SalesPage() {
               </div>
             </dl>
           )}
+          {selected && selected.status === "completed" && (scope.user.role === "owner" || scope.user.role === "sales_rep") && (
+            <Button variant="outline" className="w-full" onClick={() => setInvoiceFor(selected)}>
+              <FileText className="size-4" />Generate invoice
+            </Button>
+          )}
           {selected && scope.user.role === "owner" && selected.status === "completed" && !selected.isPromo && (
             <OwnerSaleAdjustments key={selected.id} db={db} sale={selected} onChanged={setSelected} />
           )}
@@ -549,6 +559,7 @@ export function SalesPage() {
             )}
         </DialogContent>
       </Dialog>
+      {invoiceFor && <InvoiceDialog open={!!invoiceFor} onOpenChange={(o) => !o && setInvoiceFor(null)} db={db} sale={invoiceFor} />}
       <RecordSaleDialog
         open={recordOpen}
         onOpenChange={setRecordOpen}

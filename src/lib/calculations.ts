@@ -19,11 +19,20 @@ export type SalesFilters = {
 };
 export type PerformanceBand = "exceeding" | "on_track" | "behind";
 
-/** What a line counts for in revenue, targets, balances and remittances: after its discount. */
-export const saleTotal = (sale: Pick<Sale, "quantity" | "unitPrice" | "discountAmount">) =>
-  sale.quantity * sale.unitPrice - sale.discountAmount;
-export const saleGross = (sale: Pick<Sale, "quantity" | "unitPrice">) =>
-  sale.quantity * sale.unitPrice;
+type Returned = { quantityReturned?: number };
+/** Units the customer kept: returned units (exchanges) no longer count. */
+export const keptQuantity = (sale: Pick<Sale, "quantity"> & Returned) => sale.quantity - (sale.quantityReturned ?? 0);
+/**
+ * What a line counts for in revenue, targets, balances and remittances: the kept
+ * units, less their share of the discount. Matches sales.line_total.
+ */
+export const saleTotal = (sale: Pick<Sale, "quantity" | "unitPrice" | "discountAmount"> & Returned) => {
+  const kept = keptQuantity(sale);
+  if (kept === sale.quantity) return sale.quantity * sale.unitPrice - sale.discountAmount;
+  return Math.round((kept * sale.unitPrice - (sale.discountAmount * kept) / sale.quantity) * 100) / 100;
+};
+export const saleGross = (sale: Pick<Sale, "quantity" | "unitPrice"> & Returned) =>
+  keptQuantity(sale) * sale.unitPrice;
 export const inRange = (date: string, range?: DateRange) =>
   !range || (date >= range.from && date <= range.to);
 

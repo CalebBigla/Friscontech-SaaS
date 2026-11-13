@@ -120,6 +120,10 @@ export type Sale = {
   isPromo: boolean;
   /** Units taken from stock already issued to the rep; the rest came from the branch. */
   quantityFromRepStock: number;
+  /** Units the customer returned in an exchange; they no longer count anywhere. */
+  quantityReturned: number;
+  /** Set on the replacement line an exchange created. */
+  exchangeId?: string;
   saleDate: string;
   createdAt: string;
   status: SaleStatus;
@@ -224,14 +228,19 @@ export type NotificationType =
   /** supervisor report requests (20261113110000) */
   | "report_requested"
   | "report_approved"
-  | "report_rejected";
+  | "report_rejected"
+  /** customer exchanges (20261114110000) */
+  | "exchange_requested"
+  | "exchange_approved"
+  | "exchange_rejected"
+  | "exchange_fulfilled";
 /** Notifications-ready rows for the next approver; delivery is added later. */
 export type AppNotification = {
   id: string;
   tenantId: string;
   recipientId: string;
   type: NotificationType;
-  entityType: "payment" | "customer_payment" | "onboarding" | "stock_request" | "approval_request" | "report_request";
+  entityType: "payment" | "customer_payment" | "onboarding" | "stock_request" | "approval_request" | "report_request" | "stock_exchange";
   entityId: string;
   message: string;
   createdAt: string;
@@ -307,7 +316,7 @@ export type StockBatch = {
   quantityRemaining: number;
   receivedAt: string;
 };
-export type MovementType = "stock_added" | "stock_issued" | "sale" | "adjustment" | "promo";
+export type MovementType = "stock_added" | "stock_issued" | "sale" | "adjustment" | "promo" | "exchange_return" | "exchange_issue";
 /** quantity is a signed delta applied to quantityOnHand. */
 export type InventoryMovement = {
   id: string;
@@ -316,7 +325,7 @@ export type InventoryMovement = {
   productId: string;
   type: MovementType;
   quantity: number;
-  referenceType?: "stock_request" | "sale" | "manual";
+  referenceType?: "stock_request" | "sale" | "manual" | "exchange";
   referenceId?: string;
   performedBy: string;
   createdAt: string;
@@ -404,7 +413,8 @@ export type AuditEntity =
   | "settings"
   | "session"
   | "customer"
-  | "report";
+  | "report"
+  | "exchange";
 /** Audit log entry (see src/data/auditLogs.ts): actorId = user_id, createdAt = timestamp, subject = description. */
 export type Activity = {
   id: string;
@@ -421,6 +431,8 @@ export type Activity = {
     productId?: string;
     targetId?: string;
     requestId?: string;
+    /** exchange entries: the original sale */
+    saleId?: string;
     salesRepId?: string;
     managerId?: string;
     period?: string;

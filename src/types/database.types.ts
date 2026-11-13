@@ -68,6 +68,37 @@ export type Database = {
           },
         ]
       }
+      stock_exchanges: {
+        Row: {
+          acknowledged_at: string | null
+          approved_at: string | null
+          approved_by: string | null
+          branch_id: string
+          customer_id: string
+          fulfilled_at: string | null
+          fulfilled_by: string | null
+          id: string
+          reason: string
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          rep_id: string
+          replacement_product_id: string
+          replacement_quantity: number
+          replacement_sale_id: string | null
+          replacement_value: number | null
+          requested_at: string
+          return_quantity: number
+          returned_product_id: string
+          returned_value: number | null
+          sale_id: string
+          status: string
+          tenant_id: string
+        }
+        Insert: { id: string; tenant_id: string; branch_id: string; customer_id: string; rep_id: string; sale_id: string; returned_product_id: string; return_quantity: number; replacement_product_id: string; replacement_quantity: number; reason: string }
+        Update: { status?: string }
+        Relationships: []
+      }
       report_requests: {
         Row: {
           branch_id: string | null
@@ -1301,6 +1332,8 @@ export type Database = {
           is_promo: boolean
           line_total: number
           quantity_from_rep_stock: number
+          quantity_returned: number
+          exchange_id: string | null
           branch_id: string
           code: string
           created_at: string
@@ -2742,6 +2775,18 @@ export type Database = {
         Args: { p_percent: number }
         Returns: Json
       }
+      get_business_profile: {
+        Args: never
+        Returns: { name: string; legal_name: string; phone: string; business_email: string }[]
+      }
+      request_exchange: {
+        Args: { p_sale_id: string; p_return_quantity: number; p_replacement_product_id: string; p_replacement_quantity: number; p_reason: string }
+        Returns: Json
+      }
+      approve_exchange: { Args: { p_exchange_id: string }; Returns: Json }
+      reject_exchange: { Args: { p_exchange_id: string; p_reason: string }; Returns: Json }
+      fulfil_exchange: { Args: { p_exchange_id: string }; Returns: Json }
+      acknowledge_exchange: { Args: { p_exchange_id: string }; Returns: Json }
       request_report: {
         Args: { p_report_type: string; p_branch_id: string; p_period_from: string; p_period_to: string; p_note: string }
         Returns: Json

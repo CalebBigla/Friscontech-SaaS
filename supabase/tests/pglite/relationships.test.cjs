@@ -104,6 +104,35 @@ module.exports = async function relationships(db, { ID, tenantA }) {
     !(await as(ID.owner, `UPDATE public.branches SET phone = phone WHERE id = $1`, [ID.brA1])).error);
   check("still readable: the rep's own requests", (await as(ID.repA1, `SELECT count(*)::int n FROM public.stock_requests`)).rows?.[0]?.n >= 2);
 
+  // ---------------- managers read their branch's customers; invoices read the business ----------------
+  const custA1 = ok("setup: a customer in Ikeja", await as(ID.repA1, `SELECT * FROM public.create_customer('Branch Co','Bisi','0805 222 0001',null,'Ikeja')`));
+  check("customers: the branch manager reads them", (await as(ID.mgrA1, `SELECT id FROM public.customers WHERE id=$1`, [custA1.id])).rows?.length === 1);
+  check("customers: another branch's manager does not", (await as(ID.mgrA2, `SELECT id FROM public.customers WHERE id=$1`, [custA1.id])).rows?.length === 0);
+  check("customers: managers can't edit them", !!(await as(ID.mgrA1, `SELECT public.update_customer($1,'X','X','0805 222 0001',null,'x')`, [custA1.id])).error);
+  const profile = (await as(ID.repA1, `SELECT * FROM public.get_business_profile()`)).rows?.[0];
+  check("invoice: a rep reads the business name", !!profile?.name, JSON.stringify(profile));
+  check("invoice: anonymous visitors can't", !!(await (async () => { try { await db.transaction(async (tx) => { await tx.exec("SET LOCAL ROLE anon"); await tx.query("SELECT * FROM public.get_business_profile()"); }); return null; } catch (e) { return e; } })()));
+
+  // ---------------- staff follow their branch manager ----------------
+  await db.query(`UPDATE public.branches SET manager_id = NULL WHERE id=$1`, [ID.brA1]);
+  check("manager sync: staff lose the manager with the branch", (await one(`SELECT manager_id FROM public.users WHERE id=$1`, [ID.repA1])).manager_id === null);
+  await db.query(`UPDATE public.branches SET manager_id = $2 WHERE id=$1`, [ID.brA1, ID.mgrA1]);
+  check("manager sync: staff get the new manager", (await one(`SELECT manager_id FROM public.users WHERE id=$1`, [ID.repA1])).manager_id === ID.mgrA1);
+  check("manager sync: other branches untouched", (await one(`SELECT count(*)::int n FROM public.users WHERE branch_id=$1 AND manager_id=$2`, [ID.brA2, ID.mgrA1])).n === 0);
+
+  // ---------------- the main reads use the matching indexes ----------------
+  const plan = async (sql) => (await db.query(`EXPLAIN ${sql}`)).rows.map((r) => r["QUERY PLAN"]).join(" ");
+  await db.exec("SET enable_seqscan = off");
+  check("index: audit log by business, newest first", (await plan(`SELECT * FROM public.activities WHERE tenant_id = '${tenantA}' ORDER BY created_at DESC LIMIT 50`)).includes("idx_activities_tenant_created"));
+  // Which of the sales indexes the planner picks depends on the data; what matters
+  // is that the composite exists and the read never scans the whole table.
+  check("index: sales by business and date exists",
+    (await one(`SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_sales_tenant_date'`))?.indexdef?.includes("(tenant_id, sale_date DESC)"));
+  check("index: sales by business and date avoids a full scan", !(await plan(`SELECT * FROM public.sales WHERE tenant_id = '${tenantA}' AND sale_date >= CURRENT_DATE - 30`)).includes("Seq Scan"));
+  check("index: a rep's sales in a month", (await plan(`SELECT sum(line_total) FROM public.sales WHERE sales_rep_id = '${ID.repA1}' AND sale_date BETWEEN CURRENT_DATE - 30 AND CURRENT_DATE`)).includes("idx_sales_rep_date"));
+  check("index: notifications for one person", (await plan(`SELECT * FROM public.notifications WHERE recipient_id = '${ID.repA1}' ORDER BY created_at DESC`)).includes("idx_notifications_recipient_created"));
+  await db.exec("RESET enable_seqscan");
+
   console.log(`\nRelationship tests: ${passed} passed, ${failures.length} failed`);
   for (const f of failures) console.log("  FAIL " + f);
   module.exports.result = { passed, failed: failures.length };

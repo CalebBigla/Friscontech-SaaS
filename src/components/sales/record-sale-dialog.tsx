@@ -140,8 +140,12 @@ export function RecordSaleDialog({
         const key = `${branchId}:${product.id}`;
         const requested = (requestedByItem.get(key) ?? 0) + quantity;
         requestedByItem.set(key, requested);
-        const available = getAvailableStock(db, product.id, branchId) + (scope.repId ? getRepHeldStock(db, scope.repId, product.id) : 0);
-        if (requested > available) (itemErrors[index] ??= {}).quantity = `Insufficient stock — ${available} available for all lines`;
+        // A rep sells only stock issued to them; the Owner sells from the branch.
+        const available = scope.repId ? getRepHeldStock(db, scope.repId, product.id) : getAvailableStock(db, product.id, branchId);
+        if (requested > available)
+          (itemErrors[index] ??= {}).quantity = scope.repId
+            ? `You hold ${available} — request more stock from the storekeeper first`
+            : `Insufficient stock — ${available} available for all lines`;
       }
       if (canAdjustPrice && !line.isPromo && line.discount.trim()) {
         const value = Number(line.discount);
@@ -213,7 +217,7 @@ export function RecordSaleDialog({
           <DialogDescription className="text-xs">
             {canAdjustPrice
               ? "Add one or more products. Revenue is quantity × unit price, less any discount. Promo items are free."
-              : "Add one or more products at list price. Revenue is quantity × unit price."}
+              : "Sell from the stock issued to you, at list price. Need more? Request it from the storekeeper first."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
@@ -413,7 +417,8 @@ export function RecordSaleDialog({
                         options={[
                           { value: "none", label: "Select product" },
                           ...db.products
-                            .filter((x) => x.status === "active" && (x.productType === "promo") === line.isPromo)
+                            .filter((x) => x.status === "active" && (x.productType === "promo") === line.isPromo
+                              && (!scope.repId || x.id === line.productId || getRepHeldStock(db, scope.repId, x.id) > 0))
                             .map((x) => ({
                               value: x.id,
                               label: line.isPromo ? x.name : `${x.name} · ${formatNaira(x.unitPrice)}`,
@@ -424,9 +429,9 @@ export function RecordSaleDialog({
                     <FieldError message={itemErrors?.productId} />
                     {branchId && line.productId && (
                       <p className="mt-1 text-[11px] text-muted-foreground">
-                        Available at branch:{" "}
-                        {formatUnits(getAvailableStock(db, line.productId, branchId))}
-                        {scope.repId && ` · With you: ${formatUnits(getRepHeldStock(db, scope.repId, line.productId))}`}
+                        {scope.repId
+                          ? `With you: ${formatUnits(getRepHeldStock(db, scope.repId, line.productId))} (issued from your stock requests)`
+                          : `Available at branch: ${formatUnits(getAvailableStock(db, line.productId, branchId))}`}
                       </p>
                     )}
                   </div>

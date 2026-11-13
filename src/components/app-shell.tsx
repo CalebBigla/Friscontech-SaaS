@@ -92,7 +92,8 @@ type NavTo =
   | "/settings"
   | "/approvals"
   | "/customers"
-  | "/manager-remittances";
+  | "/manager-remittances"
+  | "/exchanges";
 type NavItem = {
   label: string;
   icon: LucideIcon;
@@ -111,11 +112,13 @@ const managementSections: NavSection[] = [
       { label: "Branches", icon: Store, to: "/branches", needsBranches: true },
       { label: "Sales", icon: ShoppingCart, to: "/sales", needsSales: true },
       { label: "Payment", icon: Wallet, to: "/payment" },
+      { label: "Customers", icon: Contact, to: "/customers", managerOnly: true },
       { label: "Expenses", icon: Receipt, to: "/expenses", managerOnly: true },
       { label: "Manager Remittance", icon: Landmark, to: "/remittance", managerOnly: true },
       { label: "Manager Remittance Approvals", icon: Landmark, to: "/remittance", ownerOnly: true },
       { label: "Inventory", icon: Boxes, to: "/inventory" },
       { label: "Stock Requests", icon: ClipboardList, to: "/stock-requests" },
+      { label: "Exchanges", icon: ArrowLeftRight, to: "/exchanges" },
       { label: "Products", icon: Package, to: "/products" },
       { label: "Targets", icon: Target, to: "/targets", ownerOnly: true },
       { label: "Reports", icon: BarChart3, to: "/reports" },
@@ -147,6 +150,7 @@ const ownerSections: NavSection[] = [
       { label: "Payment", icon: Wallet, to: "/payment" },
       { label: "Manager Remittances", icon: Landmark, to: "/manager-remittances" },
       { label: "Customers", icon: Contact, to: "/customers" },
+      { label: "Exchanges", icon: ArrowLeftRight, to: "/exchanges" },
       { label: "Expenses", icon: Receipt, to: "/expenses" },
     ],
   },
@@ -167,6 +171,7 @@ const repSections: NavSection[] = [
       { label: "Customers", icon: Contact, to: "/customers" },
       { label: "Payment", icon: Wallet, to: "/payment" },
       { label: "Stock Requests", icon: ClipboardList, to: "/stock-requests" },
+      { label: "Exchanges", icon: ArrowLeftRight, to: "/exchanges" },
     ],
   },
   {
@@ -200,6 +205,7 @@ const storekeeperSections: NavSection[] = [
     title: "Operations",
     items: [
       { label: "Stock Requests", icon: ClipboardList, to: "/stock-requests" },
+      { label: "Exchanges", icon: ArrowLeftRight, to: "/exchanges" },
       { label: "My Approvals", icon: BadgeCheck, to: "/approvals" },
     ],
   },

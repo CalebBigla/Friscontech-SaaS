@@ -71,6 +71,20 @@ export function getRepSalesForPeriod(db: Db, repId: string, period: string) {
 export const getRepTotalSales = (db: Db, repId: string, period: string) =>
   getRepSalesForPeriod(db, repId, period).reduce((sum, sale) => sum + saleTotal(sale), 0);
 
+/** Customer payments a rep collected in the month (credited to the customer at once). */
+export const getRepCustomerCollections = (db: Db, repId: string, period: string) =>
+  db.customerPayments
+    .filter((p) => p.tenantId === db.tenant.id && p.receivedBy === repId && p.status === "confirmed" && p.paymentDate.startsWith(period))
+    .reduce((sum, p) => sum + p.amount, 0);
+
+/**
+ * What a rep must pay in for a month: walk-in sales plus the customer payments
+ * they collected (app_private.rep_amount_due). Payments are not sales: targets
+ * only count sales.
+ */
+export const getRepAmountDue = (db: Db, repId: string, period: string) =>
+  getRepTotalSales(db, repId, period) + getRepCustomerCollections(db, repId, period);
+
 export const getPaymentOutstanding = (
   totalSales: number,
   cashAmount: number,
@@ -91,7 +105,10 @@ export function getRepPaymentSummary(db: Db, repId: string, period: string) {
   );
   const cash = rows.reduce((sum, payment) => sum + payment.cashAmount, 0);
   const transfer = rows.reduce((sum, payment) => sum + payment.transferAmount, 0);
-  const totalSales = getRepTotalSales(db, repId, period);
+  const walkInSales = getRepTotalSales(db, repId, period);
+  const customerCollections = getRepCustomerCollections(db, repId, period);
+  /** what the rep must pay in: walk-in sales + customer payments collected */
+  const totalSales = walkInSales + customerCollections;
   const confirmedRows = rows.filter((payment) => payment.status === "confirmed");
   const confirmed = confirmedRows.reduce((sum, payment) => sum + getPaymentTotal(payment), 0);
   return {
@@ -101,12 +118,14 @@ export function getRepPaymentSummary(db: Db, repId: string, period: string) {
     /** received = owner-confirmed only */
     confirmed,
     awaitingConfirmation: cash + transfer - confirmed,
+    walkInSales,
+    customerCollections,
     totalSales,
     outstanding: Math.max(totalSales - cash - transfer, 0),
   };
 }
 export const getPaymentTotalSales = (db: Db, payment: Payment) =>
-  getRepTotalSales(db, payment.salesRepId, payment.period);
+  getRepAmountDue(db, payment.salesRepId, payment.period);
 export function getPaymentCollectedToDate(db: Db, payment: Payment) {
   return db.payments
     .filter(

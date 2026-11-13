@@ -86,7 +86,7 @@ export type AccessScope = {
   canManageCustomers: boolean;
   /** set a customer's credit limit (owner) */
   canSetCreditLimit: boolean;
-  /** cost price and anything worked out from it, such as inventory value (owner only) */
+  /** cost price and anything worked out from it, such as promo items at cost (owner only) */
   canSeeCost: boolean;
 };
 
@@ -155,7 +155,8 @@ export function getScopeForUser(user: User | null, userId: string = user?.id ?? 
     canAcknowledgeStock: r === "sales_rep",
     canAcknowledgePayments: r === "manager",
     canConfirmPayments: r === "owner",
-    canViewCustomers: r === "sales_rep" || r === "storekeeper" || r === "owner",
+    // Managers read their branch's customers (read-only).
+    canViewCustomers: r === "sales_rep" || r === "storekeeper" || r === "owner" || r === "manager",
     canManageCustomers: r === "sales_rep",
     canSetCreditLimit: r === "owner",
     canSeeCost: r === "owner",

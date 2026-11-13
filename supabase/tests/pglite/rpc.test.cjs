@@ -272,16 +272,11 @@ module.exports = async function run(db) {
     `SELECT public.record_customer_payment($1,100,'cash',null,CURRENT_DATE + 3,null,null,null)`, [cust.id]), { hint: "paymentDate" });
   err("record_customer_payment: customer of another branch", await as(ID.repA2,
     `SELECT public.record_customer_payment($1,100,'cash',null,CURRENT_DATE,null,null,null)`, [cust.id]), { hint: "customerId" });
-  err("acknowledge_customer_payment: other manager", await as(ID.mgrA2,
-    `SELECT public.acknowledge_customer_payment($1,null,null)`, [cp.id]), DENY);
-  err("confirm_customer_payment: manager cannot confirm", await as(ID.mgrA1, `SELECT public.confirm_customer_payment($1)`, [cp.id]), DENY);
-  ok("acknowledge_customer_payment: branch manager", await as(ID.mgrA1, `SELECT public.acknowledge_customer_payment($1,null,null)`, [cp.id]));
-  err("acknowledge_customer_payment: repeat", await as(ID.mgrA1, `SELECT public.acknowledge_customer_payment($1,null,null)`, [cp.id]), { includes: "submitted" });
-  err("decline_customer_payment: manager after acknowledgement", await as(ID.mgrA1, `SELECT public.decline_customer_payment($1,'x')`, [cp.id]), { includes: "submitted" });
-  ok("confirm_customer_payment: owner", await as(ID.owner, `SELECT public.confirm_customer_payment($1)`, [cp.id]));
-  err("confirm_customer_payment: repeat", await as(ID.owner, `SELECT public.confirm_customer_payment($1)`, [cp.id]), { includes: "pending" });
-  const ownerNotes = await one(`SELECT count(*)::int n FROM public.notifications WHERE recipient_id=$1 AND type='payment_awaiting_confirmation'`, [ID.owner]);
-  check("acknowledge_customer_payment: owner notified", ownerNotes.n === 1);
+  // Customer payments are credited at once (20261115100000): no manager or Owner steps.
+  check("record_customer_payment: credited at once", cp?.status === "confirmed" && !!cp?.confirmed_at && cp?.confirmed_by === ID.repA1, JSON.stringify(cp));
+  err("acknowledge_customer_payment: nothing to acknowledge", await as(ID.mgrA1, `SELECT public.acknowledge_customer_payment($1,null,null)`, [cp.id]), { includes: "submitted" });
+  err("confirm_customer_payment: nothing to confirm", await as(ID.owner, `SELECT public.confirm_customer_payment($1)`, [cp.id]), { includes: "pending" });
+  check("record_customer_payment: no approval notifications", (await one(`SELECT count(*)::int n FROM public.notifications WHERE entity_id=$1`, [cp.id])).n === 0);
 
   // ---------------- rep payments ----------------
   const period = (await one(`SELECT to_char(CURRENT_DATE,'YYYY-MM') p`)).p;
@@ -297,7 +292,9 @@ module.exports = async function run(db) {
   await as(ID.repA1, `SELECT * FROM public.submit_payment($1,200000,100000,'TRX-9',null,$2)`, [period, payKey]);
   const payCount = await one(`SELECT count(*)::int n FROM public.payments`);
   check("submit_payment: repeat does not create twice", payCount.n === 1, `got ${payCount.n}`);
-  err("submit_payment: nothing outstanding", await as(ID.repA1, `SELECT public.submit_payment($1,1,0,null,null,null)`, [period]), { hint: "transferAmount" });
+  // What the rep owes includes the 20,000 they collected from a customer.
+  err("submit_payment: no more than walk-in sales + customer collections", await as(ID.repA1, `SELECT public.submit_payment($1,20001,0,null,null,null)`, [period]), { hint: "transferAmount" });
+  check("rep_amount_due: walk-in sales + customer collections", Number((await one(`SELECT app_private.rep_amount_due($1,$2,$3) n`, [tenantA, ID.repA1, period])).n) === 320000);
   err("acknowledge_payment: wrong tenant", await as(ID.mgrB1, `SELECT public.acknowledge_payment($1,null,null)`, [pay.id]), { includes: "not found" });
   ok("acknowledge_payment: branch manager", await as(ID.mgrA1, `SELECT public.acknowledge_payment($1,null,null)`, [pay.id]));
   err("decline_payment: rep cannot", await as(ID.repA1, `SELECT public.decline_payment($1,'x')`, [pay.id]), DENY);

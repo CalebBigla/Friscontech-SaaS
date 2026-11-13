@@ -47,6 +47,14 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
     `SELECT public.add_stock($1,$2,100,null,null,'2028-01-01',false,null,null)`, [ID.brA2, product.id]));
 
   const items = (...lines) => JSON.stringify(lines);
+  // Reps sell only stock issued to them (20261115100000): request, approve, issue.
+  const issue = async (repId, productId, quantity, branch = ID.brA1, keeper = ID.skA1) => {
+    const req = (await as(repId, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,null,null)`, [branch, JSON.stringify([{ product_id: productId, quantity }])])).rows?.[0];
+    await as(keeper, `SELECT public.approve_stock_request($1)`, [req?.id]);
+    return as(keeper, `SELECT public.fulfil_stock_request($1,$2)`, [req?.id, quantity]);
+  };
+  ok("setup: 150 soap issued to repA1", await issue(ID.repA1, product.id, 150));
+  ok("setup: 60 soap issued to the second rep", await issue(repA3, product.id, 60));
   const line = (extra = {}) => ({ product_id: product.id, quantity: 2, ...extra });
   const walkIn = (userId, itemsJson, key = null, branch = ID.brA1) => as(userId,
     `SELECT * FROM public.record_sale($1,CURRENT_DATE,null,'Walk-in','',$2::jsonb,$3)`, [branch, itemsJson, key]);
@@ -104,11 +112,12 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
   check("discount: rep remittance total is net of discounts", close(remit.n, allNet.n) && close(remit.m, allNet.n), `${remit.n} vs ${allNet.n}`);
 
   // Server rules
-  const before = await onHand(product.id);
+  const repHeld = async () => Number((await one(`SELECT (SELECT COALESCE(sum(quantity_fulfilled),0) FROM public.stock_requests WHERE rep_id='${ID.repA1}' AND product_id=$1) - (SELECT COALESCE(sum(quantity_from_rep_stock),0) FROM public.sales WHERE sales_rep_id='${ID.repA1}' AND product_id=$1 AND status='completed') n`, [product.id])).n);
+  const before = await repHeld();
   const key = "abcdabcd-5555-4555-8555-abcdabcdabcd";
   ok("record_sale: first call with a key", await walkIn(ID.repA1, items(line()), key));
   const replay = ok("record_sale: repeat with the same key", await walkIn(ID.repA1, items(line()), key));
-  const afterRepeat = await onHand(product.id); check("record_sale: repeat does not sell twice", afterRepeat === before - 2 && close(replay?.line_total, 2000), `before ${before} after ${afterRepeat} replay ${JSON.stringify(replay)}`);
+  const afterRepeat = await repHeld(); check("record_sale: repeat does not sell twice", afterRepeat === before - 2 && close(replay?.line_total, 2000), `before ${before} after ${afterRepeat} replay ${JSON.stringify(replay)}`);
   const multi = await walkIn(ID.repA1, items(line(), line({ quantity: 1 })));
   check("record_sale: lines of one order share an order id", multi.rows?.length === 2 && multi.rows[0].order_id === multi.rows[1].order_id);
   err("record_sale: wrong role", await walkIn(ID.mgrA1, items(line())), DENY);
@@ -177,7 +186,7 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
   const move = await one(`SELECT type, quantity FROM public.inventory_movements WHERE reference_type='sale' AND reference_id=$1`, [promoLine?.id]);
   check("promo: has its own movement type", move?.type === "promo" && move?.quantity === -3, JSON.stringify(move));
   const paidMove = await one(`SELECT type FROM public.inventory_movements WHERE reference_type='sale' AND reference_id=$1`, [order.rows?.find((r) => !r.is_promo)?.id]);
-  check("promo: sold lines stay type sale", paidMove?.type === "sale");
+  check("promo: the rep's sold line moves no branch stock (it was issued earlier)", paidMove === undefined, JSON.stringify(paidMove));
 
   err("promo: needs a sold product alongside", await walkIn(ID.owner, items({ product_id: promo.id, quantity: 1, is_promo: true })), { hint: "items" });
   err("promo: cannot be sold as a normal line", await walkIn(ID.owner, items({ product_id: promo.id, quantity: 1 })), { includes: "is a promo item" });
@@ -198,29 +207,29 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
   check("issued stock: split recorded", sold6?.quantity_from_rep_stock === 6);
   check("issued stock: no movement when branch stock did not change",
     (await one(`SELECT count(*)::int n FROM public.inventory_movements WHERE reference_type='sale' AND reference_id=$1`, [sold6?.id])).n === 0);
-  const sold7 = (await walkIn(repA3, heldLine(7))).rows?.[0];
-  check("issued stock: only the shortfall comes from the branch", (await onHand(held.id)) === 87 && sold7?.quantity_from_rep_stock === 4, `on hand ${await onHand(held.id)}`);
-  const shortfall = await one(`SELECT type, quantity FROM public.inventory_movements WHERE reference_type='sale' AND reference_id=$1`, [sold7?.id]);
-  check("issued stock: movement shows the units the branch lost", shortfall?.quantity === -3 && shortfall?.type === "sale", JSON.stringify(shortfall));
-  ok("issued stock: other rep sells from the branch", await walkIn(ID.repA1, heldLine(1)));
-  check("issued stock: another rep's held units are not theirs", (await onHand(held.id)) === 86);
+  err("issued stock: a rep can't sell more than was issued to them", await walkIn(repA3, heldLine(7)), { hint: "quantity", includes: "You hold 4" });
+  check("issued stock: a refused sale leaves the branch alone", (await onHand(held.id)) === 90);
+  const sold4 = (await walkIn(repA3, heldLine(4))).rows?.[0];
+  check("issued stock: the rest of the issued units sell", sold4?.quantity_from_rep_stock === 4 && (await onHand(held.id)) === 90, JSON.stringify(sold4));
+  err("issued stock: another rep holds none of it", await walkIn(ID.repA1, heldLine(1)), { hint: "quantity", includes: "Request stock" });
   ok("issued stock: owner sells from the branch", await walkIn(ID.owner, heldLine(1)));
-  check("issued stock: owner sale deducts the branch", (await onHand(held.id)) === 85);
-  const twoLines = await walkIn(repA3, heldLine(1));
-  check("issued stock: nothing left, so the branch again", (await onHand(held.id)) === 84 && twoLines.rows?.[0]?.quantity_from_rep_stock === 0);
+  check("issued stock: owner sale deducts the branch", (await onHand(held.id)) === 89);
+  err("issued stock: nothing left, so the rep must request more", await walkIn(repA3, heldLine(1)), { hint: "quantity" });
   const req2 = (await as(repA3, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,null,null)`, [ID.brA1, heldLine(5)])).rows[0];
   await as(ID.skA1, `SELECT public.approve_stock_request($1)`, [req2.id]);
   await as(ID.skA1, `SELECT public.fulfil_stock_request($1,5)`, [req2.id]);
-  check("issued stock: a second issue deducts the branch", (await onHand(held.id)) === 79);
-  const split = await walkIn(repA3, items({ product_id: held.id, quantity: 3 }, { product_id: held.id, quantity: 3 }));
+  check("issued stock: a second issue deducts the branch", (await onHand(held.id)) === 84);
+  err("issued stock: one order can't use more than is held", await walkIn(repA3, items({ product_id: held.id, quantity: 3 }, { product_id: held.id, quantity: 3 })), { hint: "quantity" });
+  const split = await walkIn(repA3, items({ product_id: held.id, quantity: 3 }, { product_id: held.id, quantity: 2 }));
   check("issued stock: lines of one order share the held units",
-    split.rows?.[0]?.quantity_from_rep_stock === 3 && split.rows?.[1]?.quantity_from_rep_stock === 2 && (await onHand(held.id)) === 78, JSON.stringify(split.rows ?? split.error));
+    split.rows?.[0]?.quantity_from_rep_stock === 3 && split.rows?.[1]?.quantity_from_rep_stock === 2 && (await onHand(held.id)) === 84, JSON.stringify(split.rows ?? split.error));
+  ok("setup: one unit issued to repA1", await issue(ID.repA1, held.id, 1));
   const forged = await as(ID.repA1,
     `INSERT INTO public.sales (tenant_id, code, branch_id, sales_rep_id, product_id, quantity, unit_price, sale_date, walk_in_name, quantity_from_rep_stock)
-     VALUES ($1,'SAL-forged',$2,$3,$4,1,100,CURRENT_DATE,'W',1) RETURNING quantity_from_rep_stock q`, [tenantA, ID.brA1, ID.repA1, held.id]);
-  check("issued stock: the split can't be set by the caller", forged.rows?.[0]?.q === 0 && (await onHand(held.id)) === 77, JSON.stringify(forged.rows ?? forged.error));
+     VALUES ($1,'SAL-forged',$2,$3,$4,1,100,CURRENT_DATE,'W',0) RETURNING quantity_from_rep_stock q`, [tenantA, ID.brA1, ID.repA1, held.id]);
+  check("issued stock: the split can't be set by the caller", forged.rows?.[0]?.q === 1 && (await onHand(held.id)) === 83, JSON.stringify(forged.rows ?? forged.error));
   const noStock = await walkIn(repA3, heldLine(99999));
-  err("issued stock: more than rep and branch hold together", noStock, { hint: "quantity" });
+  err("issued stock: far more than issued", noStock, { hint: "quantity" });
 
   // ---------------- customer assignment ----------------
   const c1 = ok("create_customer: assigned to the rep who added it", await as(ID.repA1,
@@ -255,8 +264,7 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
   check("customer sale: recorded with discount", close((await one(`SELECT line_total FROM public.sales WHERE id=$1`, [oldSale.rows?.[0]?.id])).line_total, 9000), oldSale.error?.message);
   const pay = ok("customer payment by old rep", await as(ID.repA1,
     `SELECT * FROM public.record_customer_payment($1,4000,'cash',null,CURRENT_DATE,null,null,null)`, [c1.id]));
-  ok("customer payment acknowledged", await as(ID.mgrA1, `SELECT public.acknowledge_customer_payment($1,null,null)`, [pay.id]));
-  ok("customer payment confirmed", await as(ID.owner, `SELECT public.confirm_customer_payment($1)`, [pay.id]));
+  check("customer payment credited at once", pay?.status === "confirmed");
   check("balance: counts the discounted order", close((await one(`SELECT public.get_customer_balance($1) b`, [c1.id])).b, 5000));
 
   const repOwnSales = async (userId) => (await as(userId, `SELECT COALESCE(sum(line_total),0)::numeric n FROM public.sales`)).rows[0].n;
@@ -318,8 +326,7 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
     `SELECT * FROM public.record_customer_payment($1,1000,'cash',null,CURRENT_DATE,null,null,null)`, [c1.id]));
   check("collection: recorded against the new rep", newPay?.received_by === repA3);
   const targetAfterSale = await achieved(target.id);
-  ok("collection: acknowledged", await as(ID.mgrA1, `SELECT public.acknowledge_customer_payment($1,null,null)`, [newPay.id]));
-  ok("collection: confirmed", await as(ID.owner, `SELECT public.confirm_customer_payment($1)`, [newPay.id]));
+  check("collection: credited at once", newPay?.status === "confirmed");
   check("collection: does not count toward the sales target", close(await achieved(target.id), targetAfterSale));
   check("collection: reduces the customer's balance", close((await one(`SELECT public.get_customer_balance($1) b`, [c1.id])).b, 9000));
 

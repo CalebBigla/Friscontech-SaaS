@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { Download, Loader2, Plus } from "lucide-react";
+import { toast } from "sonner";
 
 import { AppShell } from "@/components/app-shell";
 import { CustomerFormDialog } from "@/components/customers/customer-dialogs";
 import { DataGate, EmptyState, FilterSelect, Panel, SearchBox, StatTile } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { getCustomerSummary, getCustomersForScope, needsReassignment } from "@/lib/customer-calculations";
-import { formatNaira } from "@/lib/format";
+import { formatNaira, formatNumber } from "@/lib/format";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { useCustomerAccounts } from "@/hooks/use-customers";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
@@ -86,6 +87,40 @@ export function CustomersPage() {
         pending: rows.reduce((sum, r) => sum + r.summary.pending, 0),
       }
     : null;
+  // Owner, managers and reps can take the table away as an Excel file (the rows shown, with filters applied).
+  const canDownload = isOwner || scope.user.role === "manager" || scope.user.role === "sales_rep";
+  const [exporting, setExporting] = useState(false);
+  async function downloadExcel() {
+    setExporting(true);
+    try {
+      const XLSX = await import("xlsx");
+      const data = rows.map(({ customer: c, summary: s }) => ({
+        Customer: c.name,
+        "Contact person": c.contactPerson,
+        Phone: c.phone,
+        Email: c.email,
+        Address: c.address,
+        Branch: branchName(c.branchId),
+        "Sales rep": repName(c.assignedRepId),
+        Status: c.status === "active" ? "Active" : "Inactive",
+        Orders: s.orders,
+        "Total sold (NGN)": s.debits,
+        "Total paid (NGN)": s.credits,
+        "Balance (NGN)": s.balance,
+        Position: s.balance < 0 ? "Owes" : s.balance > 0 ? "In credit" : "Settled",
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      ws["!cols"] = Object.keys(data[0] ?? { Customer: "" }).map((k) => ({ wch: Math.max(12, k.length + 2) }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Customers");
+      XLSX.writeFile(wb, `customers-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success(`${rows.length} customer${rows.length === 1 ? "" : "s"} downloaded`);
+    } catch (failure) {
+      toast.error("Could not create the Excel file", { description: failure instanceof Error ? failure.message : undefined });
+    } finally {
+      setExporting(false);
+    }
+  }
   const branchName = (id: string | null) =>
     id ? (db.branches.find((b) => b.id === id)?.name ?? "—") : "All branches";
 
@@ -98,12 +133,20 @@ export function CustomersPage() {
             Walk-in buyers are sold to directly in Sales and have no account.
           </p>
         </div>
-        {scope.canManageCustomers && (
-          <Button size="sm" onClick={() => setAddOpen(true)}>
-            <Plus className="size-4" />
-            Add customer
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {canDownload && (
+            <Button size="sm" variant="outline" disabled={exporting || !rows.length} onClick={() => void downloadExcel()}>
+              {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              Download Excel
+            </Button>
+          )}
+          {scope.canManageCustomers && (
+            <Button size="sm" onClick={() => setAddOpen(true)}>
+              <Plus className="size-4" />
+              Add customer
+            </Button>
+          )}
+        </div>
       </div>
       <DataGate isLoading={isLoading} error={error}>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -148,8 +191,9 @@ export function CustomersPage() {
               {repTotals.customers} customer{repTotals.customers === 1 ? "" : "s"} shown
             </p>
           </div>
-          <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
             {[
+              ["Customers", formatNumber(repTotals.customers), "text-foreground"],
               ["Total sold", formatNaira(repTotals.sold), "text-foreground"],
               ["Total paid", formatNaira(repTotals.paid), "text-success"],
               ["Outstanding", formatNaira(repTotals.owed), repTotals.owed > 0 ? "text-destructive" : "text-foreground"],

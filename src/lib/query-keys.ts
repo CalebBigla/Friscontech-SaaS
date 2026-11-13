@@ -231,6 +231,11 @@ export const queryKeys = {
       ["activities", tenantId, "recent", limit] as const,
   },
 
+  // Customer exchanges
+  exchanges: {
+    all: (tenantId: string) => ["exchanges", tenantId] as const,
+  },
+
   // Supervisor report requests
   reportRequests: {
     all: (tenantId: string) => ["report_requests", tenantId] as const,

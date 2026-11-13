@@ -16,6 +16,7 @@ function target(n: AppNotification) {
     return { to: "/stock-requests/$requestId" as const, params: { requestId: n.entityId } };
   if (n.entityType === "onboarding") return { to: "/team" as const };
   if (n.entityType === "approval_request") return { to: "/approvals" as const };
+  if (n.entityType === "stock_exchange") return { to: "/exchanges" as const };
   // The Owner reviews report requests in Approvals; the Supervisor's reports are on their home page.
   if (n.entityType === "report_request") return n.type === "report_requested" ? { to: "/approvals" as const } : { to: "/" as const };
   return { to: "/payment" as const };

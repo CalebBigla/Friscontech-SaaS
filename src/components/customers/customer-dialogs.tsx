@@ -223,7 +223,7 @@ export function RecordCustomerPaymentDialog({
       setErrors(result.errors);
       return;
     }
-    toast.success("Payment recorded · sent to manager for acknowledgement");
+    toast.success("Payment recorded · credited to the customer", { description: "Pay the money in through your Payment page." });
     onOpenChange(false);
   };
   return (

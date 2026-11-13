@@ -15,11 +15,12 @@ import { canAccessMember } from "@/lib/team";
 import { getPeriodRange, type PeriodKey } from "@/lib/dates";
 import { formatNumber, formatTime, initials, roleLabel } from "@/lib/format";
 import { auditEntityLabel } from "@/data/auditLogs";
+import { SaleAuditDetails, StockRequestAuditDetails } from "@/components/audit/audit-record-details";
 import type { AuditEntity } from "@/data/mock-db";
 
 const entityIcon: Record<AuditEntity, LucideIcon> = {
   product: Package, sale: ShoppingCart, payment: Wallet, expense: Receipt, remittance: Landmark, stock_request: ClipboardList, target: Target, team_member: Users,
-  branch: Store, inventory: ArrowLeftRight, settings: Settings, session: KeyRound, customer: Contact, report: FileBarChart,
+  branch: Store, inventory: ArrowLeftRight, settings: Settings, session: KeyRound, customer: Contact, report: FileBarChart, exchange: ArrowLeftRight,
 };
 const periods = [{ value: ALL, label: "All time" }, { value: "today", label: "Today" }, { value: "week", label: "Last 7 days" }, { value: "month", label: "This month" }, { value: "quarter", label: "This quarter" }];
 
@@ -147,11 +148,15 @@ export function AuditLogPage() {
         <DetailItem label="Role">{u ? roleLabel[u.role] : "—"}</DetailItem>
         <DetailItem label="Date & time">{stamp(row.createdAt)}</DetailItem>
         <DetailItem label="Entity">{auditEntityLabel[row.entity]}</DetailItem>
-        <DetailItem label="Reference">{row.entityId && /^(SR|SAL)-/.test(row.entityId) ? row.entityId : "—"}</DetailItem>
+        <DetailItem label="Reference">{row.entity === "sale" ? (db.sales.find((s) => s.id === row.entityId)?.code ?? "—") : row.entityId && /^(SR|SAL)-/.test(row.entityId) ? row.entityId : "—"}</DetailItem>
         <DetailItem label="Related branch">{bname(row.branchId)}</DetailItem>
         {product && <DetailItem label="Product">{product.name}</DetailItem>}
       </div>
       <div className="mt-6 rounded-md bg-muted p-4"><p className="text-[11px] text-muted-foreground">Description</p><p className="mt-1 text-sm font-semibold">{row.subject}</p></div>
+      {row.entity === "sale" && row.entityId && <SaleAuditDetails db={db} saleId={row.entityId} />}
+      {row.entity === "exchange" && row.metadata?.saleId && <SaleAuditDetails db={db} saleId={row.metadata.saleId} />}
+      {row.entity === "exchange" && <Link to="/exchanges" className="mt-4 inline-block text-xs font-semibold text-primary hover:underline">Open exchanges</Link>}
+      {row.entityId?.startsWith("SR-") && <StockRequestAuditDetails db={db} requestId={row.entityId} />}
       {row.entityId?.startsWith("SR-") && <Link to="/stock-requests/$requestId" params={{ requestId: row.entityId }} className="mt-4 inline-block text-xs font-semibold text-primary hover:underline">Open stock request</Link>}
     </>;
   }

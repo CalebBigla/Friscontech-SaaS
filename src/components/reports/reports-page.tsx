@@ -38,7 +38,7 @@ import { DataGate } from "@/components/shared";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getPreferences } from "@/lib/settings";
 import { getPeriodRange, type PeriodKey } from "@/lib/dates";
-import { saleTotal } from "@/lib/calculations";
+import { keptQuantity, saleTotal } from "@/lib/calculations";
 import { formatDate, formatMonth, formatNaira, formatNumber, formatPercent } from "@/lib/format";
 import { progressLabel, targetStatusLabel } from "@/lib/catalog-calculations";
 import { inventoryStatusLabel } from "@/lib/inventory-calculations";
@@ -169,7 +169,7 @@ function ReportsPageContent() {
           name(s.salesRepId),
           bname(s.branchId),
           pname(s.productId),
-          s.quantity,
+          keptQuantity(s),
           s.discountAmount,
           saleTotal(s),
         ]),
@@ -580,15 +580,13 @@ function ReportsPageContent() {
                   label="Out of stock"
                   value={formatNumber(inventory.out)}
                 />
-                {scope.canSeeCost && (
-                  <MetricCard
-                    icon={Wallet}
-                    tone="success"
-                    label="Inventory value"
-                    value={formatNaira(inventory.value)}
-                    detail="On hand × unit cost"
-                  />
-                )}
+                <MetricCard
+                  icon={Wallet}
+                  tone="success"
+                  label="Inventory value"
+                  value={formatNaira(inventory.value)}
+                  detail="Available × selling price"
+                />
               </Kpis>
               <Panel
                 className="overflow-hidden"

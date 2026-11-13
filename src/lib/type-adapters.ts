@@ -394,6 +394,8 @@ export function transformSale(dbRow: Row<"sales">): Sale {
     ...(dbRow['discount_value'] !== null ? { discountValue: dbRow['discount_value'] } : {}),
     isPromo:     dbRow['is_promo'],
     quantityFromRepStock: dbRow['quantity_from_rep_stock'],
+    quantityReturned: dbRow['quantity_returned'] ?? 0,
+    ...(dbRow['exchange_id'] ? { exchangeId: dbRow['exchange_id'] } : {}),
     saleDate:    dbRow['sale_date'],
     createdAt:   dbRow['created_at'],
     // sales.status CHECK: completed | pending | voided (generated types say string).

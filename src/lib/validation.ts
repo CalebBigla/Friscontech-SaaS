@@ -13,7 +13,7 @@ import {
   getManagerNetRemittanceDue,
   validateRemittanceReconciliation,
 } from "@/lib/remittance-calculations";
-import { getRepTotalSales, isValidPaymentPeriod } from "@/lib/payment-calculations";
+import { getRepAmountDue, isValidPaymentPeriod } from "@/lib/payment-calculations";
 import { fieldErrorsFrom } from "@/lib/supabase-helpers";
 import { canReviewApproval } from "@/lib/approvals";
 import { findInventory, getAvailable, getRequestOutstanding } from "@/lib/inventory-calculations";
@@ -344,8 +344,8 @@ export function validatePaymentSubmission(db: Db, scope: AccessScope, input: Pay
     const previouslyCollected = db.payments
       .filter((p) => p.tenantId === rep.tenantId && p.salesRepId === rep.id && p.period === input.period && p.status !== "declined")
       .reduce((sum, p) => sum + p.cashAmount + p.transferAmount, 0);
-    if (getRepTotalSales(db, rep.id, input.period) - previouslyCollected - input.cashAmount - input.transferAmount < 0)
-      errors.transferAmount = "Cash and transfer cannot exceed total sales";
+    if (getRepAmountDue(db, rep.id, input.period) - previouslyCollected - input.cashAmount - input.transferAmount < 0)
+      errors.transferAmount = "Cash and transfer cannot exceed what you collected (walk-in sales and customer payments)";
   }
   return hasErrors(errors) ? errors : null;
 }
