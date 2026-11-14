@@ -18,7 +18,8 @@ import { Input } from "@/components/ui/input";
 import { ALL, EmptyState, FilterSelect, MetricCard, Panel } from "@/components/shared";
 import { RecordSaleDialog } from "@/components/sales/record-sale-dialog";
 import { OwnerSaleAdjustments } from "@/components/sales/owner-sale-adjustments";
-import { InvoiceDialog } from "@/components/sales/invoice-dialog";
+import { InvoiceDialog, invoiceCustomerKey } from "@/components/sales/invoice-dialog";
+import { keptQuantity } from "@/lib/calculations";
 import type { Db, Sale } from "@/data/mock-db";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
@@ -65,7 +66,20 @@ export function SalesPage() {
   const navigate = route.useNavigate();
   const [recordOpen, setRecordOpen] = useState(false);
   const [selected, setSelected] = useState<Sale | null>(null);
-  const [invoiceFor, setInvoiceFor] = useState<Sale | null>(null);
+  const [invoiceFor, setInvoiceFor] = useState<Sale[] | null>(null);
+  // Lines picked for one invoice: one customer at a time.
+  const [picked, setPicked] = useState<Sale[]>([]);
+  const canInvoice = scope.user.role === "owner" || scope.user.role === "sales_rep";
+  const pickKey = picked[0] ? invoiceCustomerKey(picked[0]) : null;
+  const isPicked = (s: Sale) => picked.some((x) => x.id === s.id);
+  const pickable = (s: Sale) => s.status === "completed" && keptQuantity(s) > 0 && (!pickKey || invoiceCustomerKey(s) === pickKey);
+  const togglePick = (s: Sale) =>
+    setPicked((cur) => (cur.some((x) => x.id === s.id) ? cur.filter((x) => x.id !== s.id) : pickable(s) ? [...cur, s] : cur));
+  const pickedCustomer = picked[0]
+    ? picked[0].customerId
+      ? (db.customers.find((c) => c.id === picked[0]!.customerId)?.name ?? "Customer")
+      : `${picked[0].walkInName || "Walk-in"} (walk-in)`
+    : "";
   const [showFilters, setShowFilters] = useState(false);
   const [limit, setLimit] = useState(PAGE);
 
@@ -400,10 +414,25 @@ export function SalesPage() {
         {showFilters && (
           <div className="border-b border-border p-4 lg:hidden">{filterControls}</div>
         )}
+        {canInvoice && picked.length > 0 && (
+          <div className="page-enter flex flex-wrap items-center justify-between gap-2 border-b border-border bg-primary/5 px-4 py-3 text-xs">
+            <p>
+              <span className="font-semibold">{picked.length} line{picked.length === 1 ? "" : "s"}</span> for{" "}
+              <span className="font-semibold">{pickedCustomer}</span> · {formatNaira(picked.reduce((sum, s) => sum + saleTotal(s), 0))}
+            </p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setPicked([])}>Clear</Button>
+              <Button size="sm" onClick={() => setInvoiceFor(picked)}>
+                <FileText className="size-4" />Generate invoice
+              </Button>
+            </div>
+          </div>
+        )}
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[900px] text-left">
             <thead>
               <tr className="text-[10px] uppercase text-muted-foreground">
+                {canInvoice && <th className="w-10 px-4 py-3"><span className="sr-only">Pick for invoice</span></th>}
                 {[
                   "Sale ID",
                   "Date",
@@ -429,6 +458,19 @@ export function SalesPage() {
                   className="cursor-pointer border-t border-border text-xs hover:bg-muted/50"
                   onClick={() => setSelected(s)}
                 >
+                  {canInvoice && (
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="size-4 cursor-pointer accent-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-30"
+                        aria-label={`Pick sale ${s.code} for an invoice`}
+                        title={isPicked(s) || pickable(s) ? "Pick for an invoice" : "An invoice covers one customer"}
+                        checked={isPicked(s)}
+                        disabled={!isPicked(s) && !pickable(s)}
+                        onChange={() => togglePick(s)}
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 font-mono text-[11px] font-bold">#{s.code}</td>
                   <td className="px-4 py-3 text-muted-foreground">{formatDate(s.saleDate)}</td>
                   <td className="px-4 py-3 font-semibold">{name(s.salesRepId)}</td>
@@ -461,10 +503,22 @@ export function SalesPage() {
         </div>
         <div className="divide-y divide-border md:hidden">
           {data.rows.slice(0, limit).map((s) => (
+            <div key={s.id} className="flex items-stretch">
+            {canInvoice && (
+              <label className="grid place-items-center pl-4">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[var(--primary)] disabled:opacity-30"
+                  aria-label={`Pick sale ${s.code} for an invoice`}
+                  checked={isPicked(s)}
+                  disabled={!isPicked(s) && !pickable(s)}
+                  onChange={() => togglePick(s)}
+                />
+              </label>
+            )}
             <button
-              key={s.id}
               onClick={() => setSelected(s)}
-              className="flex w-full items-start justify-between gap-3 p-4 text-left"
+              className="flex min-w-0 flex-1 items-start justify-between gap-3 p-4 text-left"
             >
               <div className="min-w-0">
                 <p className="text-xs font-bold">
@@ -482,6 +536,7 @@ export function SalesPage() {
                 <span className={`status mt-1 ${statusClass[s.status]}`}>{s.status}</span>
               </div>
             </button>
+            </div>
           ))}
         </div>
         {data.rows.length === 0 && (
@@ -543,7 +598,7 @@ export function SalesPage() {
             </dl>
           )}
           {selected && selected.status === "completed" && (scope.user.role === "owner" || scope.user.role === "sales_rep") && (
-            <Button variant="outline" className="w-full" onClick={() => setInvoiceFor(selected)}>
+            <Button variant="outline" className="w-full" onClick={() => setInvoiceFor([selected])}>
               <FileText className="size-4" />Generate invoice
             </Button>
           )}
@@ -559,7 +614,7 @@ export function SalesPage() {
             )}
         </DialogContent>
       </Dialog>
-      {invoiceFor && <InvoiceDialog open={!!invoiceFor} onOpenChange={(o) => !o && setInvoiceFor(null)} db={db} sale={invoiceFor} />}
+      {invoiceFor && <InvoiceDialog open={!!invoiceFor} onOpenChange={(o) => !o && setInvoiceFor(null)} db={db} sales={invoiceFor} />}
       <RecordSaleDialog
         open={recordOpen}
         onOpenChange={setRecordOpen}

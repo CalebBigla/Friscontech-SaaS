@@ -37,19 +37,38 @@ function useBusinessProfile(enabled: boolean) {
   });
 }
 
-/** Invoice for the whole order this sale belongs to: asks for the account number to pay into, then downloads a PDF. */
-export function InvoiceDialog({ open, onOpenChange, db, sale }: { open: boolean; onOpenChange: (o: boolean) => void; db: Db; sale: Sale }) {
+/** Lines picked for one customer share this key (walk-ins: same name and phone). */
+export const invoiceCustomerKey = (s: Sale) =>
+  s.customerId ?? `walk-in:${(s.walkInName ?? "").trim().toLowerCase()}|${(s.walkInPhone ?? "").trim()}`;
+
+function shortHash(text: string) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(16).toUpperCase().padStart(8, "0");
+}
+
+/**
+ * Invoice for one customer: one sale (its whole order) or several lines picked in
+ * the sales list. Asks for the account number to pay into, then downloads a PDF.
+ */
+export function InvoiceDialog({ open, onOpenChange, db, sales }: { open: boolean; onOpenChange: (o: boolean) => void; db: Db; sales: Sale[] }) {
+  const sale = sales[0]!;
   const { data: business } = useBusinessProfile(open);
   const [form, setForm] = useState<Saved>({ accountNumber: "", bankName: "", accountName: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (open) { setForm(load()); setError(""); } }, [open]);
 
-  const lines = (sale.orderId ? db.sales.filter((s) => s.orderId === sale.orderId) : [sale])
-    .filter((s) => s.status === "completed" && keptQuantity(s) > 0);
+  // One sale: its whole order. Several picked lines: exactly those lines.
+  const lines = (sales.length > 1 ? sales : sale.orderId ? db.sales.filter((s) => s.orderId === sale.orderId) : [sale])
+    .filter((s) => s.status === "completed" && keptQuantity(s) > 0)
+    .sort((a, b) => a.saleDate.localeCompare(b.saleDate) || a.createdAt.localeCompare(b.createdAt));
   const total = lines.reduce((sum, s) => sum + saleTotal(s), 0);
   const customer = sale.customerId ? db.customers.find((c) => c.id === sale.customerId) : undefined;
-  const number = `INV-${(sale.orderId ?? sale.id).replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+  const number = sales.length > 1
+    ? `INV-${shortHash(lines.map((l) => l.id).sort().join("|"))}`
+    : `INV-${(sale.orderId ?? sale.id).replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+  const invoiceDate = lines.reduce((d, l) => (l.saleDate > d ? l.saleDate : d), sale.saleDate);
 
   async function generate(e: FormEvent) {
     e.preventDefault();
@@ -58,12 +77,21 @@ export function InvoiceDialog({ open, onOpenChange, db, sale }: { open: boolean;
     setBusy(true);
     try {
       try { window.localStorage.setItem(STORE_KEY, JSON.stringify({ ...form, accountNumber: account })); } catch { /* remembering is optional */ }
-      const order = customer ? getCustomerOrders(db, customer.id).find((o) => o.lines.some((l) => l.id === sale.id)) : undefined;
-      const seller = db.users.find((u) => u.id === sale.salesRepId);
+      // Paid towards these lines: each order's payments, shared across its lines by value.
+      const orders = customer ? getCustomerOrders(db, customer.id).filter((o) => o.lines.some((l) => lines.some((x) => x.id === l.id))) : [];
+      const paid = customer
+        ? Math.round(orders.reduce((sum, o) => {
+            const picked = o.lines.filter((l) => lines.some((x) => x.id === l.id)).reduce((s, l) => s + saleTotal(l), 0);
+            return sum + (o.total > 0 ? (o.paid * picked) / o.total : 0);
+          }, 0) * 100) / 100
+        : undefined;
+      const sellers = [...new Set(lines.map((l) => l.salesRepId))];
+      const branches = [...new Set(lines.map((l) => l.branchId))];
+      const seller = sellers.length === 1 ? db.users.find((u) => u.id === sellers[0]) : undefined;
       const product = (id: string) => db.products.find((p) => p.id === id);
       await buildInvoicePdf({
         number,
-        date: sale.saleDate,
+        date: invoiceDate,
         business: {
           name: business?.name || db.tenant.name || "Friscontech",
           legalName: business?.legal_name || undefined,
@@ -73,13 +101,15 @@ export function InvoiceDialog({ open, onOpenChange, db, sale }: { open: boolean;
         billTo: customer
           ? { name: customer.name, lines: [customer.contactPerson, customer.phone, customer.email, customer.address] }
           : { name: sale.walkInName || "Walk-in customer", lines: [sale.walkInPhone ?? ""] },
-        servedBy: seller?.name ?? "Staff",
-        branch: db.branches.find((b) => b.id === sale.branchId)?.name ?? "",
+        servedBy: seller?.name ?? (sellers.length > 1 ? "Several staff" : "Staff"),
+        branch: branches.length === 1 ? (db.branches.find((b) => b.id === branches[0])?.name ?? "") : "Several branches",
         items: lines.map((s) => {
           const kept = keptQuantity(s);
           const p = product(s.productId);
+          // Lines from different days carry their date.
+          const dated = new Set(lines.map((l) => l.saleDate)).size > 1 ? ` · ${s.saleDate}` : "";
           return {
-            description: `${p?.name ?? "Product"}${p?.unit ? ` (${p.unit})` : ""}`,
+            description: `${p?.name ?? "Product"}${p?.unit ? ` (${p.unit})` : ""}${dated}`,
             quantity: kept,
             unitPrice: s.unitPrice,
             discount: s.quantity ? Math.round(((s.discountAmount * kept) / s.quantity) * 100) / 100 : 0,
@@ -87,7 +117,7 @@ export function InvoiceDialog({ open, onOpenChange, db, sale }: { open: boolean;
             promo: s.isPromo,
           };
         }),
-        paid: order ? order.paid : undefined,
+        paid,
         payment: { accountNumber: account, bankName: form.bankName.trim() || undefined, accountName: form.accountName.trim() || undefined },
       });
       toast.success(`${number} downloaded`);
