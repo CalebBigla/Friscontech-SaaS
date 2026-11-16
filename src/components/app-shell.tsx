@@ -56,6 +56,7 @@ import { roleLabel } from "@/lib/format";
 import { UserAvatar } from "@/components/shared";
 import { useMemberPhotos } from "@/hooks/use-onboardings";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { useLiveUpdates } from "@/hooks/use-live-updates";
 import { BRAND_NAME } from "@/lib/brand";
 
 /** Phone tab bar for field roles; "More" opens the full menu. */
@@ -284,6 +285,8 @@ export function AppShell({
   actions?: ReactNode;
   children: ReactNode;
 }) {
+  // Screens update on their own when others change things (no manual refresh).
+  useLiveUpdates();
   const [open, setOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(sidebarCollapsedPreference ?? false);
   const [sidebarPreferenceReady, setSidebarPreferenceReady] = useState(sidebarCollapsedPreference !== null);

@@ -16,7 +16,8 @@ interface NotificationFilters {
 }
 
 /** All notifications for the signed-in user (RLS filters to their rows). */
-export function useNotifications(userId: string, filters: NotificationFilters = {}) {
+/** refetchIntervalMs: how often to check for new notifications (useLiveUpdates). */
+export function useNotifications(userId: string, filters: NotificationFilters = {}, refetchIntervalMs?: number) {
   return useQuery({
     queryKey: queryKeys.notifications.list(userId, filters as any),
     queryFn: async (): Promise<AppNotification[]> => {
@@ -32,6 +33,7 @@ export function useNotifications(userId: string, filters: NotificationFilters = 
       return (data || []).map((row) => transformNotification(row as Parameters<typeof transformNotification>[0]));
     },
     enabled: !!userId,
+    ...(refetchIntervalMs ? { refetchInterval: refetchIntervalMs } : {}),
   });
 }
 
