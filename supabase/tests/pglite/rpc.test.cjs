@@ -181,68 +181,37 @@ module.exports = async function run(db) {
   ok("set_product_status: storekeeper reactivates", await as(ID.skA1, `SELECT public.set_product_status($1,'active')`, [p2.id]));
   err("set_product_status: wrong tenant", await as(ID.mgrB1, `SELECT public.set_product_status($1,'inactive')`, [p2.id]), { code: "P0002" });
 
-  // ---------------- stock requests ----------------
-  const reqKey = "22222222-2222-2222-2222-222222222222";
-  const reqs = await as(ID.repA1, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,'Restock',$3)`,
-    [ID.brA1, JSON.stringify([{ product_id: p1.id, quantity: 30 }]), reqKey]);
-  ok("create_stock_requests: rep valid", reqs);
-  const sr = reqs.rows?.[0];
-  check("create_stock_requests: text id generated", /^SR-\d+$/.test(sr?.id ?? ""), sr?.id);
-  const reqsAgain = await as(ID.repA1, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,'Restock',$3)`,
-    [ID.brA1, JSON.stringify([{ product_id: p1.id, quantity: 30 }]), reqKey]);
-  const srCount = await one(`SELECT count(*)::int n FROM public.stock_requests`);
-  check("create_stock_requests: repeat does not create twice", srCount.n === 1 && reqsAgain.rows?.[0]?.id === sr?.id, `count ${srCount.n}`);
-  err("create_stock_requests: duplicate product", await as(ID.repA1, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,null,null)`,
-    [ID.brA1, JSON.stringify([{ product_id: p1.id, quantity: 1 }, { product_id: p1.id, quantity: 2 }])]), { hint: "items" });
-  err("create_stock_requests: wrong branch", await as(ID.repA1, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,null,null)`,
-    [ID.brA2, JSON.stringify([{ product_id: p1.id, quantity: 1 }])]), { hint: "branchId" });
-  err("create_stock_requests: wrong role", await as(ID.skA1, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,null,null)`,
-    [ID.brA1, JSON.stringify([{ product_id: p1.id, quantity: 1 }])]), DENY);
-  err("create_stock_requests: wrong tenant", await as(ID.repB1, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,null,null)`,
-    [ID.brA1, JSON.stringify([{ product_id: p1.id, quantity: 1 }])]), { hint: "branchId" });
-  const skNotes = await one(`SELECT count(*)::int n FROM public.notifications WHERE recipient_id=$1 AND type='stock_request_submitted'`, [ID.skA1]);
-  check("create_stock_requests: branch storekeeper notified", skNotes.n === 1, `got ${skNotes.n}`);
-  const skSees = async (userId) => (await as(userId, `SELECT count(*)::int n FROM public.stock_requests WHERE id = $1`, [sr.id])).rows?.[0]?.n;
-  check("stock_requests read: branch storekeeper sees the rep's request", await skSees(ID.skA1) === 1);
-  check("stock_requests read: other-branch storekeeper does not", await skSees(ID.skA2) === 0);
-  check("stock_requests read: other-tenant storekeeper does not", await skSees(ID.skB1) === 0);
-  err("stock_requests write: storekeeper cannot approve directly", await as(ID.skA1,
-    `UPDATE public.stock_requests SET status = 'approved' WHERE id = $1 RETURNING id`, [sr.id]).then((r) => (r.rows?.length === 0 ? { error: { message: "no rows" } } : r)));
-  err("fulfil_stock_request: before approval", await as(ID.skA1, `SELECT public.fulfil_stock_request($1,5)`, [sr.id]), { includes: "approved" });
-  err("approve_stock_request: wrong branch", await as(ID.skA2, `SELECT public.approve_stock_request($1)`, [sr.id]), DENY);
-  err("approve_stock_request: wrong tenant", await as(ID.skB1, `SELECT public.approve_stock_request($1)`, [sr.id]), { includes: "not found" });
-  ok("approve_stock_request: valid", await as(ID.skA1, `SELECT public.approve_stock_request($1)`, [sr.id]));
-  onHand = await one(`SELECT quantity_on_hand q, quantity_reserved r FROM public.inventory_records WHERE branch_id=$1 AND product_id=$2`, [ID.brA1, p1.id]);
-  check("approve_stock_request: nothing reserved, stock unchanged", onHand.q === 125 && onHand.r === 0);
-  err("approve_stock_request: repeat", await as(ID.skA1, `SELECT public.approve_stock_request($1)`, [sr.id]), { includes: "pending" });
-  err("fulfil_stock_request: more than outstanding", await as(ID.skA1, `SELECT public.fulfil_stock_request($1,31)`, [sr.id]), { hint: "quantity" });
-  ok("fulfil_stock_request: partial 10", await as(ID.skA1, `SELECT public.fulfil_stock_request($1,10)`, [sr.id]));
-  ok("fulfil_stock_request: second partial 20", await as(ID.skA1, `SELECT public.fulfil_stock_request($1,20)`, [sr.id]));
-  onHand = await one(`SELECT quantity_on_hand q FROM public.inventory_records WHERE branch_id=$1 AND product_id=$2`, [ID.brA1, p1.id]);
-  const srRow = await one(`SELECT status, quantity_fulfilled f FROM public.stock_requests WHERE id=$1`, [sr.id]);
-  check("fulfil_stock_request: both partial issues deduct stock", onHand.q === 95, `got ${onHand.q}`);
-  check("fulfil_stock_request: fulfilled after full quantity", srRow.status === "fulfilled" && srRow.f === 30);
-  err("fulfil_stock_request: repeat after fulfilled", await as(ID.skA1, `SELECT public.fulfil_stock_request($1,1)`, [sr.id]), { includes: "approved" });
-  err("acknowledge_stock_request: other rep", await as(ID.repA2, `SELECT public.acknowledge_stock_request($1)`, [sr.id]), DENY);
-  ok("acknowledge_stock_request: requesting rep", await as(ID.repA1, `SELECT public.acknowledge_stock_request($1)`, [sr.id]));
-  err("acknowledge_stock_request: repeat", await as(ID.repA1, `SELECT public.acknowledge_stock_request($1)`, [sr.id]), { includes: "already" });
-  const sr2 = (await as(ID.repA1, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,null,null)`,
-    [ID.brA1, JSON.stringify([{ product_id: p1.id, quantity: 2 }])])).rows?.[0];
-  err("reject_stock_request: reason required", await as(ID.skA1, `SELECT public.reject_stock_request($1,' ')`, [sr2.id]), { hint: "reason" });
-  ok("reject_stock_request: valid", await as(ID.skA1, `SELECT public.reject_stock_request($1,'Not authorised')`, [sr2.id]));
+  // ---------------- stock requests retired (20261116100000) ----------------
+  check("stock requests: the old RPCs are gone", (await one(`SELECT count(*)::int n FROM pg_proc WHERE proname IN
+    ('create_stock_requests','approve_stock_request','reject_stock_request','fulfil_stock_request','acknowledge_stock_request')`)).n === 0);
 
-  // ---------------- sales trigger (FEFO) ----------------
-  ok("sale: rep walk-in sale", await as(ID.repA1,
+  // ---------------- direct sales: Owner and branch manager walk-ins ----------------
+  err("sale: a rep can't insert a sale directly", await as(ID.repA1,
     `INSERT INTO public.sales (tenant_id, code, branch_id, sales_rep_id, product_id, quantity, unit_price, sale_date, walk_in_name)
-     VALUES ($1,'S-1',$2,$3,$4,5,60000,CURRENT_DATE,'Walk-in') RETURNING id`, [tenantA, ID.brA1, ID.repA1, p1.id]));
+     VALUES ($1,'S-X',$2,$3,$4,5,60000,CURRENT_DATE,'Walk-in') RETURNING id`, [tenantA, ID.brA1, ID.repA1, p1.id]), DENY);
+  err("record_sale: reps record no sales", await as(ID.repA1,
+    `SELECT * FROM public.record_sale($1,CURRENT_DATE,null,'Walk-in','',$2::jsonb,null)`, [ID.brA1, JSON.stringify([{ product_id: p1.id, quantity: 1 }])]), DENY);
+  err("record_sale: storekeepers record no sales", await as(ID.skA1,
+    `SELECT * FROM public.record_sale($1,CURRENT_DATE,null,'Walk-in','',$2::jsonb,null)`, [ID.brA1, JSON.stringify([{ product_id: p1.id, quantity: 1 }])]), DENY);
+  err("record_sale: a manager only in their own branch", await as(ID.mgrA1,
+    `SELECT * FROM public.record_sale($1,CURRENT_DATE,null,'Walk-in','',$2::jsonb,null)`, [ID.brA2, JSON.stringify([{ product_id: p1.id, quantity: 1 }])]), { hint: "branchId" });
+  err("record_sale: a manager gives no discount", await as(ID.mgrA1,
+    `SELECT * FROM public.record_sale($1,CURRENT_DATE,null,'Walk-in','',$2::jsonb,null)`,
+    [ID.brA1, JSON.stringify([{ product_id: p1.id, quantity: 1, discount_type: "percent", discount_value: 5 }])]), { hint: "items" });
+  ok("record_sale: manager walk-in", await as(ID.mgrA1,
+    `SELECT * FROM public.record_sale($1,CURRENT_DATE,null,'Walk-in','',$2::jsonb,null)`, [ID.brA1, JSON.stringify([{ product_id: p1.id, quantity: 5 }])]));
   onHand = await one(`SELECT quantity_on_hand q FROM public.inventory_records WHERE branch_id=$1 AND product_id=$2`, [ID.brA1, p1.id]);
-  // repA1 holds the 30 units issued above, so this sale uses those, not the branch's.
-  check("sale: uses the rep's issued stock first", onHand.q === 95, `got ${onHand.q}`);
-  ok("sale: owner walk-in sale", await as(ID.owner,
-    `INSERT INTO public.sales (tenant_id, code, branch_id, sales_rep_id, product_id, quantity, unit_price, sale_date, walk_in_name)
-     VALUES ($1,'S-OWNER',$2,$3,$4,5,60000,CURRENT_DATE,'Walk-in') RETURNING id`, [tenantA, ID.brA1, ID.owner, p1.id]));
+  check("sale: a manager's walk-in deducts branch stock", onHand.q === 120, `got ${onHand.q}`);
+  ok("record_sale: owner walk-in", await as(ID.owner,
+    `SELECT * FROM public.record_sale($1,CURRENT_DATE,null,'Walk-in','',$2::jsonb,null)`, [ID.brA1, JSON.stringify([{ product_id: p1.id, quantity: 5 }])]));
   onHand = await one(`SELECT quantity_on_hand q FROM public.inventory_records WHERE branch_id=$1 AND product_id=$2`, [ID.brA1, p1.id]);
-  check("sale: deducts branch stock when nothing is issued to the seller", onHand.q === 90, `got ${onHand.q}`);
+  check("sale: the Owner's walk-in deducts branch stock", onHand.q === 115, `got ${onHand.q}`);
+  // A rep's walk-in sale from before the change: history the pay-in still counts.
+  await db.transaction(async (tx) => {
+    await tx.exec("SET LOCAL session_replication_role = replica");
+    await tx.query(`INSERT INTO public.sales (tenant_id, code, branch_id, sales_rep_id, product_id, quantity, unit_price, sale_date, walk_in_name, status)
+                    VALUES ($1,'S-1',$2,$3,$4,5,60000,CURRENT_DATE,'Walk-in','completed')`, [tenantA, ID.brA1, ID.repA1, p1.id]);
+  });
 
   // ---------------- customers & customer payments ----------------
   const cust = ok("create_customer: rep valid", await as(ID.repA1,
@@ -316,13 +285,13 @@ module.exports = async function run(db) {
   ok("update_expense: valid", await as(ID.mgrA1, `SELECT public.update_expense($1,'transport',12000,CURRENT_DATE,'Fuel',null,null)`, [exp.id]));
 
   // ---------------- manager remittance ----------------
-  // received = walk-in sales of reps with eligible payments (300,000) + confirmed customer payments (20,000)
-  // net due = 320,000 - 12,000 expenses = 308,000
+  // received = walk-in sales of reps with eligible payments (300,000) + the manager own walk-ins (300,000) + confirmed customer payments (20,000)
+  // net due = 620,000 - 12,000 expenses = 608,000
   err("submit_manager_remittance: more than net due", await as(ID.mgrA1,
-    `SELECT public.submit_manager_remittance($1,308001,0,null,null)`, [period]), { hint: "transferAmount" });
+    `SELECT public.submit_manager_remittance($1,608001,0,null,null)`, [period]), { hint: "transferAmount" });
   const rem = ok("submit_manager_remittance: valid", await as(ID.mgrA1,
-    `SELECT * FROM public.submit_manager_remittance($1,300000,8000,'TRX-R',null)`, [period]));
-  check("submit_manager_remittance: server totals", Number(rem?.total_received) === 320000 && Number(rem?.net_remittance_due) === 308000
+    `SELECT * FROM public.submit_manager_remittance($1,600000,8000,'TRX-R',null)`, [period]));
+  check("submit_manager_remittance: server totals", Number(rem?.total_received) === 620000 && Number(rem?.net_remittance_due) === 608000
     && Number(rem?.outstanding_amount) === 0, JSON.stringify(rem && { r: rem.total_received, n: rem.net_remittance_due, o: rem.outstanding_amount }));
   err("submit_manager_remittance: repeat while awaiting review", await as(ID.mgrA1,
     `SELECT public.submit_manager_remittance($1,0,0,null,null)`, [period]), { includes: "already awaiting" });

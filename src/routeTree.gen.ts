@@ -17,6 +17,7 @@ import { Route as ExpensesRouteImport } from './routes/expenses'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ManagerRemittancesRouteImport } from './routes/manager-remittances'
+import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as PaymentRouteImport } from './routes/payment'
 import { Route as RemittanceRouteImport } from './routes/remittance'
 import { Route as ReportsRouteImport } from './routes/reports'
@@ -34,8 +35,6 @@ import { Route as InventoryInventoryIdRouteImport } from './routes/inventory.$in
 import { Route as OnboardTokenRouteImport } from './routes/onboard.$token'
 import { Route as ProductsIndexRouteImport } from './routes/products.index'
 import { Route as ProductsProductIdRouteImport } from './routes/products.$productId'
-import { Route as StockRequestsIndexRouteImport } from './routes/stock-requests.index'
-import { Route as StockRequestsRequestIdRouteImport } from './routes/stock-requests.$requestId'
 import { Route as TargetsIndexRouteImport } from './routes/targets.index'
 import { Route as TargetsTargetIdRouteImport } from './routes/targets.$targetId'
 import { Route as TeamIndexRouteImport } from './routes/team.index'
@@ -81,6 +80,11 @@ const LoginRoute = LoginRouteImport.update({
 const ManagerRemittancesRoute = ManagerRemittancesRouteImport.update({
   id: '/manager-remittances',
   path: '/manager-remittances',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrdersRoute = OrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PaymentRoute = PaymentRouteImport.update({
@@ -168,16 +172,6 @@ const ProductsProductIdRoute = ProductsProductIdRouteImport.update({
   path: '/products/$productId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const StockRequestsIndexRoute = StockRequestsIndexRouteImport.update({
-  id: '/stock-requests/',
-  path: '/stock-requests/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StockRequestsRequestIdRoute = StockRequestsRequestIdRouteImport.update({
-  id: '/stock-requests/$requestId',
-  path: '/stock-requests/$requestId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const TargetsIndexRoute = TargetsIndexRouteImport.update({
   id: '/targets/',
   path: '/targets/',
@@ -219,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/manager-remittances': typeof ManagerRemittancesRoute
+  '/orders': typeof OrdersRoute
   '/payment': typeof PaymentRoute
   '/remittance': typeof RemittanceRoute
   '/reports': typeof ReportsRoute
@@ -232,14 +227,12 @@ export interface FileRoutesByFullPath {
   '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
   '/onboard/$token': typeof OnboardTokenRoute
   '/products/$productId': typeof ProductsProductIdRoute
-  '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
   '/targets/$targetId': typeof TargetsTargetIdRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/branches/': typeof BranchesIndexRoute
   '/customers/': typeof CustomersIndexRoute
   '/inventory/': typeof InventoryIndexRoute
   '/products/': typeof ProductsIndexRoute
-  '/stock-requests/': typeof StockRequestsIndexRoute
   '/targets/': typeof TargetsIndexRoute
   '/team/': typeof TeamIndexRoute
   '/owner/remittance/$remittanceId': typeof OwnerRemittanceRemittanceIdRoute
@@ -254,6 +247,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/manager-remittances': typeof ManagerRemittancesRoute
+  '/orders': typeof OrdersRoute
   '/payment': typeof PaymentRoute
   '/remittance': typeof RemittanceRoute
   '/reports': typeof ReportsRoute
@@ -267,14 +261,12 @@ export interface FileRoutesByTo {
   '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
   '/onboard/$token': typeof OnboardTokenRoute
   '/products/$productId': typeof ProductsProductIdRoute
-  '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
   '/targets/$targetId': typeof TargetsTargetIdRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/branches': typeof BranchesIndexRoute
   '/customers': typeof CustomersIndexRoute
   '/inventory': typeof InventoryIndexRoute
   '/products': typeof ProductsIndexRoute
-  '/stock-requests': typeof StockRequestsIndexRoute
   '/targets': typeof TargetsIndexRoute
   '/team': typeof TeamIndexRoute
   '/owner/remittance/$remittanceId': typeof OwnerRemittanceRemittanceIdRoute
@@ -290,6 +282,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/manager-remittances': typeof ManagerRemittancesRoute
+  '/orders': typeof OrdersRoute
   '/payment': typeof PaymentRoute
   '/remittance': typeof RemittanceRoute
   '/reports': typeof ReportsRoute
@@ -303,14 +296,12 @@ export interface FileRoutesById {
   '/inventory/$inventoryId': typeof InventoryInventoryIdRoute
   '/onboard/$token': typeof OnboardTokenRoute
   '/products/$productId': typeof ProductsProductIdRoute
-  '/stock-requests/$requestId': typeof StockRequestsRequestIdRoute
   '/targets/$targetId': typeof TargetsTargetIdRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/branches/': typeof BranchesIndexRoute
   '/customers/': typeof CustomersIndexRoute
   '/inventory/': typeof InventoryIndexRoute
   '/products/': typeof ProductsIndexRoute
-  '/stock-requests/': typeof StockRequestsIndexRoute
   '/targets/': typeof TargetsIndexRoute
   '/team/': typeof TeamIndexRoute
   '/owner/remittance/$remittanceId': typeof OwnerRemittanceRemittanceIdRoute
@@ -327,6 +318,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/manager-remittances'
+    | '/orders'
     | '/payment'
     | '/remittance'
     | '/reports'
@@ -340,14 +332,12 @@ export interface FileRouteTypes {
     | '/inventory/$inventoryId'
     | '/onboard/$token'
     | '/products/$productId'
-    | '/stock-requests/$requestId'
     | '/targets/$targetId'
     | '/team/$userId'
     | '/branches/'
     | '/customers/'
     | '/inventory/'
     | '/products/'
-    | '/stock-requests/'
     | '/targets/'
     | '/team/'
     | '/owner/remittance/$remittanceId'
@@ -362,6 +352,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/manager-remittances'
+    | '/orders'
     | '/payment'
     | '/remittance'
     | '/reports'
@@ -375,14 +366,12 @@ export interface FileRouteTypes {
     | '/inventory/$inventoryId'
     | '/onboard/$token'
     | '/products/$productId'
-    | '/stock-requests/$requestId'
     | '/targets/$targetId'
     | '/team/$userId'
     | '/branches'
     | '/customers'
     | '/inventory'
     | '/products'
-    | '/stock-requests'
     | '/targets'
     | '/team'
     | '/owner/remittance/$remittanceId'
@@ -397,6 +386,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/manager-remittances'
+    | '/orders'
     | '/payment'
     | '/remittance'
     | '/reports'
@@ -410,14 +400,12 @@ export interface FileRouteTypes {
     | '/inventory/$inventoryId'
     | '/onboard/$token'
     | '/products/$productId'
-    | '/stock-requests/$requestId'
     | '/targets/$targetId'
     | '/team/$userId'
     | '/branches/'
     | '/customers/'
     | '/inventory/'
     | '/products/'
-    | '/stock-requests/'
     | '/targets/'
     | '/team/'
     | '/owner/remittance/$remittanceId'
@@ -433,6 +421,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   ManagerRemittancesRoute: typeof ManagerRemittancesRoute
+  OrdersRoute: typeof OrdersRoute
   PaymentRoute: typeof PaymentRoute
   RemittanceRoute: typeof RemittanceRoute
   ReportsRoute: typeof ReportsRoute
@@ -446,14 +435,12 @@ export interface RootRouteChildren {
   InventoryInventoryIdRoute: typeof InventoryInventoryIdRoute
   OnboardTokenRoute: typeof OnboardTokenRoute
   ProductsProductIdRoute: typeof ProductsProductIdRoute
-  StockRequestsRequestIdRoute: typeof StockRequestsRequestIdRoute
   TargetsTargetIdRoute: typeof TargetsTargetIdRoute
   TeamUserIdRoute: typeof TeamUserIdRoute
   BranchesIndexRoute: typeof BranchesIndexRoute
   CustomersIndexRoute: typeof CustomersIndexRoute
   InventoryIndexRoute: typeof InventoryIndexRoute
   ProductsIndexRoute: typeof ProductsIndexRoute
-  StockRequestsIndexRoute: typeof StockRequestsIndexRoute
   TargetsIndexRoute: typeof TargetsIndexRoute
   TeamIndexRoute: typeof TeamIndexRoute
   OwnerRemittanceRemittanceIdRoute: typeof OwnerRemittanceRemittanceIdRoute
@@ -516,6 +503,13 @@ declare module '@tanstack/react-router' {
       path: '/manager-remittances'
       fullPath: '/manager-remittances'
       preLoaderRoute: typeof ManagerRemittancesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orders': {
+      id: '/orders'
+      path: '/orders'
+      fullPath: '/orders'
+      preLoaderRoute: typeof OrdersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/payment': {
@@ -637,20 +631,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductsProductIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/stock-requests/': {
-      id: '/stock-requests/'
-      path: '/stock-requests'
-      fullPath: '/stock-requests/'
-      preLoaderRoute: typeof StockRequestsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/stock-requests/$requestId': {
-      id: '/stock-requests/$requestId'
-      path: '/stock-requests/$requestId'
-      fullPath: '/stock-requests/$requestId'
-      preLoaderRoute: typeof StockRequestsRequestIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/targets/': {
       id: '/targets/'
       path: '/targets'
@@ -705,6 +685,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   ManagerRemittancesRoute: ManagerRemittancesRoute,
+  OrdersRoute: OrdersRoute,
   PaymentRoute: PaymentRoute,
   RemittanceRoute: RemittanceRoute,
   ReportsRoute: ReportsRoute,
@@ -718,14 +699,12 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryInventoryIdRoute: InventoryInventoryIdRoute,
   OnboardTokenRoute: OnboardTokenRoute,
   ProductsProductIdRoute: ProductsProductIdRoute,
-  StockRequestsRequestIdRoute: StockRequestsRequestIdRoute,
   TargetsTargetIdRoute: TargetsTargetIdRoute,
   TeamUserIdRoute: TeamUserIdRoute,
   BranchesIndexRoute: BranchesIndexRoute,
   CustomersIndexRoute: CustomersIndexRoute,
   InventoryIndexRoute: InventoryIndexRoute,
   ProductsIndexRoute: ProductsIndexRoute,
-  StockRequestsIndexRoute: StockRequestsIndexRoute,
   TargetsIndexRoute: TargetsIndexRoute,
   TeamIndexRoute: TeamIndexRoute,
   OwnerRemittanceRemittanceIdRoute: OwnerRemittanceRemittanceIdRoute,

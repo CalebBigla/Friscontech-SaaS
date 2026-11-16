@@ -27,6 +27,7 @@ import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { formatPrefDate } from "@/lib/audit";
 import { roleLabel } from "@/lib/format";
 import type { DateFormatPref, ReportPeriodPref } from "@/data/mock-db";
+import { BRAND_NAME } from "@/lib/brand";
 
 type Section = "general" | "organization" | "preferences" | "security";
 const sectionMeta: Record<Section, { label: string; detail: string; Icon: typeof Store }> = {
@@ -109,7 +110,7 @@ function GeneralSection() {
     setErrors({}); toast.success("Settings saved.");
   };
   return (
-    <Panel title="General" subtitle="Business details shown across Friscontech">
+    <Panel title="General" subtitle={`Business details shown across ${BRAND_NAME}`}>
       {!edit && <ReadOnlyNote />}
       <form onSubmit={submit} noValidate>
         <div className="grid gap-4 p-5 sm:grid-cols-2">
@@ -147,7 +148,7 @@ function OrganizationSection() {
     setErrors({}); toast.success("Organization details saved.");
   };
   return (
-    <Panel title="Organization" subtitle="Your company's account with Friscontech">
+    <Panel title="Organization" subtitle={`Your company's account with ${BRAND_NAME}`}>
       {!edit && <ReadOnlyNote />}
       <form onSubmit={submit} noValidate>
         <div className="grid gap-4 p-5 sm:grid-cols-2">

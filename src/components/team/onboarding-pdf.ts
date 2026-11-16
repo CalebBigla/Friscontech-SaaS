@@ -1,5 +1,6 @@
 import { guarantorStatusLabel, type Onboarding } from "@/data/onboarding";
 import { fullName, isMarried, needsSecondContact } from "@/lib/onboarding";
+import { BRAND_NAME } from "@/lib/brand";
 
 type Rows = [string, string | undefined][];
 
@@ -62,7 +63,7 @@ export async function buildOnboardingPdf(o: Onboarding): Promise<Blob> {
 
   const footer = () => {
     doc.setFontSize(8).setTextColor(...MUTED).setFont("helvetica", "normal");
-    doc.text("Friscon Tech Limited · Confidential staff record", W / 2, H - 20, { align: "center" });
+    doc.text(`${BRAND_NAME} · Confidential staff record`, W / 2, H - 20, { align: "center" });
   };
   const ensure = (h: number) => {
     if (y + h > H - 40) { footer(); doc.addPage(); y = M; }

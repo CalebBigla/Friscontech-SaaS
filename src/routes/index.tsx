@@ -8,13 +8,14 @@ import { SupervisorReportsPage } from "@/components/reports/supervisor-reports-p
 import { Button } from "@/components/ui/button";
 import { useAuth, type ProfileStatus } from "@/contexts/auth-context";
 import type { Role } from "@/data/mock-db";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Dashboard — Friscontech" },
+      { title: `Dashboard — ${BRAND_NAME}` },
       { name: "description", content: "Monitor sales, inventory, branches, targets, and team performance across your business." },
-      { property: "og:title", content: "Dashboard — Friscontech" },
+      { property: "og:title", content: `Dashboard — ${BRAND_NAME}` },
       { property: "og:description", content: "A unified view of business performance, stock health, and team targets." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -38,9 +39,9 @@ function StatusScreen({ title, detail, action }: { title: string; detail: string
 function profileStateMessage(status: ProfileStatus) {
   switch (status) {
     case "failed":
-      return { title: "Profile could not be loaded", detail: "We couldn't load your FrisconTech profile. Retry, or contact support if the problem continues." };
+      return { title: "Profile could not be loaded", detail: `We couldn't load your ${BRAND_NAME} profile. Retry, or contact support if the problem continues.` };
     case "not_found":
-      return { title: "Profile not found", detail: "Your authenticated account has no matching FrisconTech profile. Contact your administrator." };
+      return { title: "Profile not found", detail: `Your authenticated account has no matching ${BRAND_NAME} profile. Contact your administrator.` };
     case "role_unassigned":
       return { title: "Role not assigned", detail: "Your profile does not have an assigned role. Contact your administrator." };
     case "unsupported_role":

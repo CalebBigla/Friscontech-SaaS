@@ -2,14 +2,15 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { RoleGate } from "@/components/app-shell";
 import { AuditLogPage } from "@/components/audit/audit-log-page";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/audit-log")({
   head: () => ({
     meta: [
-      { title: "Audit Log — Friscontech" },
+      { title: `Audit Log — ${BRAND_NAME}` },
       { name: "description", content: "Track who did what, when, and to which record across your organization." },
-      { property: "og:title", content: "Audit Log — Friscontech" },
-      { property: "og:description", content: "A chronological record of important actions in Friscontech." },
+      { property: "og:title", content: `Audit Log — ${BRAND_NAME}` },
+      { property: "og:description", content: `A chronological record of important actions in ${BRAND_NAME}.` },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

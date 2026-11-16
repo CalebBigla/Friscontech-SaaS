@@ -12,8 +12,8 @@ import { formatDayTime } from "@/lib/format";
 
 /** Where a notification leads; every target page re-checks the role itself. */
 function target(n: AppNotification) {
-  if (n.entityType === "stock_request")
-    return { to: "/stock-requests/$requestId" as const, params: { requestId: n.entityId } };
+  // Stock requests were replaced by orders; old notifications open the orders page.
+  if (n.entityType === "customer_order" || n.entityType === "stock_request") return { to: "/orders" as const };
   if (n.entityType === "onboarding") return { to: "/team" as const };
   if (n.entityType === "approval_request") return { to: "/approvals" as const };
   if (n.entityType === "stock_exchange") return { to: "/exchanges" as const };

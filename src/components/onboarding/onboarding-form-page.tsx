@@ -16,14 +16,15 @@ import {
 import { formatDate } from "@/lib/format";
 import { guarantorUrl, isMarried, needsSecondContact, onboardingLinkState, ONBOARDING_STEPS, validateStep, type StepErrors } from "@/lib/onboarding";
 import { onboardingService } from "@/services/onboarding-service";
+import { BRAND_NAME } from "@/lib/brand";
 
 export function PublicFrame({ children, title, subtitle }: { children: ReactNode; title: string; subtitle?: string }) {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-4">
-          <span className="text-lg font-extrabold text-primary">Friscontech</span>
-          <span className="text-[11px] text-muted-foreground">Friscon Tech Limited</span>
+          <span className="text-lg font-extrabold text-primary">{BRAND_NAME}</span>
+          <span className="text-[11px] text-muted-foreground">Staff onboarding</span>
         </div>
       </header>
       <main className="mx-auto max-w-2xl px-4 py-6">

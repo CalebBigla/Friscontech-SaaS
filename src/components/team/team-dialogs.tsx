@@ -27,6 +27,7 @@ import { assignableRoles, roleNeedsBranch, userStatusLabel } from "@/lib/team";
 import { onboardingUrl } from "@/lib/onboarding";
 import { copyText } from "@/components/team/onboarding-panel";
 import { onboardingService } from "@/services/onboarding-service";
+import { BRAND_NAME } from "@/lib/brand";
 
 const NONE = "none";
 const roleTone: Record<Role, string> = { owner: "status-violet", manager: "status-brand", storekeeper: "status-warning", sales_rep: "status-success", supervisor: "status-muted" };
@@ -279,8 +280,8 @@ export function MemberStatusDialog({ member, onClose, actorId }: { member: User 
           <AlertDialogDescription>
             {deactivating
               ? deleting
-                ? `${member?.name} will be marked inactive and lose access to Friscontech. Their sales, payments, targets, stock requests and audit history will be preserved.`
-                : `${member?.name} will no longer be able to access Friscontech. Their sales, targets, stock requests and audit history are kept.`
+                ? `${member?.name} will be marked inactive and lose access to ${BRAND_NAME}. Their sales, payments, targets, stock requests and audit history will be preserved.`
+                : `${member?.name} will no longer be able to access ${BRAND_NAME}. Their sales, targets, stock requests and audit history are kept.`
               : "They regain access with their existing role and branch. Customers already moved to another rep stay there."}
           </AlertDialogDescription>
         </AlertDialogHeader>

@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { ALL, EmptyState, FilterSelect, MetricCard, Panel } from "@/components/shared";
 import { RecordSaleDialog } from "@/components/sales/record-sale-dialog";
+import { PlaceOrderDialog } from "@/components/orders/place-order-dialog";
 import { OwnerSaleAdjustments } from "@/components/sales/owner-sale-adjustments";
 import { InvoiceDialog, invoiceCustomerKey } from "@/components/sales/invoice-dialog";
 import { keptQuantity } from "@/lib/calculations";
@@ -56,6 +57,8 @@ const statusClass = {
   pending: "status-warning",
   voided: "status-danger",
 } as const;
+/** An order's lines wait for the storekeeper (pending) or were cancelled with it (voided). */
+const statusLabel = { completed: "completed", pending: "awaiting fulfilment", voided: "cancelled" } as const;
 const PAGE = 25;
 
 export function SalesPage() {
@@ -232,12 +235,17 @@ export function SalesPage() {
           : "Track sales activity, revenue and sales performance across your business."
       }
       actions={
-        scope.canRecordSales && (
+        scope.canRecordSales ? (
           <Button onClick={() => setRecordOpen(true)}>
             <Plus className="size-4" />
-            <span className="hidden sm:inline">Record Sale</span>
+            <span className="hidden sm:inline">Record walk-in sale</span>
           </Button>
-        )
+        ) : scope.canRaiseOrders ? (
+          <Button onClick={() => setRecordOpen(true)}>
+            <Plus className="size-4" />
+            <span className="hidden sm:inline">New order</span>
+          </Button>
+        ) : undefined
       }
     >
       {error && <div role="alert" className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">Could not load persisted sales data: {error instanceof Error ? error.message : "Database request failed"}</div>}
@@ -489,7 +497,7 @@ export function SalesPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`status ${statusClass[s.status]}`}>{s.status}</span>
+                    <span className={`status ${statusClass[s.status]}`}>{statusLabel[s.status]}</span>
                   </td>
                   <td className="px-4 py-2 text-right">
                     <Button variant="ghost" size="icon" aria-label={`View sale ${s.code}`}>
@@ -533,7 +541,7 @@ export function SalesPage() {
               </div>
               <div className="text-right">
                 <p className="text-xs font-bold">{formatNaira(saleTotal(s))}</p>
-                <span className={`status mt-1 ${statusClass[s.status]}`}>{s.status}</span>
+                <span className={`status mt-1 ${statusClass[s.status]}`}>{statusLabel[s.status]}</span>
               </div>
             </button>
             </div>
@@ -615,13 +623,16 @@ export function SalesPage() {
         </DialogContent>
       </Dialog>
       {invoiceFor && <InvoiceDialog open={!!invoiceFor} onOpenChange={(o) => !o && setInvoiceFor(null)} db={db} sales={invoiceFor} />}
-      <RecordSaleDialog
-        open={recordOpen}
-        onOpenChange={setRecordOpen}
-        scope={scope}
-        defaultBranchId={branchId}
-        db={db}
-      />
+      {scope.canRecordSales && (
+        <RecordSaleDialog
+          open={recordOpen}
+          onOpenChange={setRecordOpen}
+          scope={scope}
+          defaultBranchId={branchId}
+          db={db}
+        />
+      )}
+      {scope.canRaiseOrders && <PlaceOrderDialog open={recordOpen} onOpenChange={setRecordOpen} db={db} scope={scope} />}
     </AppShell>
   );
 }

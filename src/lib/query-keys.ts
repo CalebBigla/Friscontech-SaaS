@@ -236,6 +236,11 @@ export const queryKeys = {
     all: (tenantId: string) => ["exchanges", tenantId] as const,
   },
 
+  // Customer orders (rep raises, storekeeper fulfils, rep acknowledges)
+  orders: {
+    all: (tenantId: string) => ["orders", tenantId] as const,
+  },
+
   // Supervisor report requests
   reportRequests: {
     all: (tenantId: string) => ["report_requests", tenantId] as const,

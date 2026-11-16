@@ -15,6 +15,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 import { AuthProvider } from "@/contexts/auth-context";
+import { BRAND_NAME } from "@/lib/brand";
 
 function NotFoundComponent() {
   return (
@@ -81,10 +82,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Friscontech" },
+      { title: BRAND_NAME },
       { name: "description", content: "Sales and inventory operations for growing multi-branch businesses." },
-      { name: "author", content: "Friscon Tech" },
-      { property: "og:title", content: "Friscontech" },
+      { name: "author", content: BRAND_NAME },
+      { property: "og:title", content: BRAND_NAME },
       { property: "og:description", content: "Sales and inventory operations for growing multi-branch businesses." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

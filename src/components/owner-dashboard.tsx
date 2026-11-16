@@ -19,13 +19,14 @@ import { toast } from "sonner";
 
 import { AppShell, RestrictedNotice } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { EmptyState, MetricCard, Panel, RequestStatusBadge } from "@/components/shared";
+import { EmptyState, MetricCard, Panel } from "@/components/shared";
+import { OrderStatusBadge } from "@/components/orders/orders-page";
+import { orderTotal, useCustomerOrders } from "@/hooks/use-orders";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { DataGate } from "@/components/shared";
 import {
   getInventorySummary,
 } from "@/lib/inventory-calculations";
-import { getStockRequests } from "@/lib/inventory-calculations";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getAuditLogs } from "@/lib/audit";
 import { describeApproval, getApprovals } from "@/lib/approvals";
@@ -37,7 +38,7 @@ import {
   percentChange,
 } from "@/lib/calculations";
 import { getPeriodRange, isoWeek, monthOf, previousRange, type PeriodKey } from "@/lib/dates";
-import { formatCompactNaira, formatDate, formatNumber, formatPercent, formatTime } from "@/lib/format";
+import { formatCompactNaira, formatDate, formatNaira, formatNumber, formatPercent, formatTime } from "@/lib/format";
 import { getManagerRemittances } from "@/lib/remittance-calculations";
 import { canReviewApproval } from "@/lib/approvals";
 import { OnboardingReviewDialog } from "@/components/team/onboarding-review";
@@ -72,6 +73,7 @@ function OwnerDashboardContent() {
   const { db } = useLiveWorkspace({ activities: true, batches: true });
   const userId = useCurrentUserId();
   const scope = getAccessScope(db, userId);
+  const ordersQuery = useCustomerOrders();
   const [period, setPeriod] = useState<Period>("Week");
 
   const today = db.tenant.referenceDate;
@@ -138,8 +140,10 @@ function OwnerDashboardContent() {
   const tenantBranchIds = db.branches
     .filter((branch) => branch.tenantId === scope.user.tenantId)
     .map((branch) => branch.id);
-  const requests = getStockRequests(db, { branchIds: scope.branchIds ?? tenantBranchIds });
-  const pending = requests.filter((request) => request.status === "pending").length;
+  const visibleBranches = scope.branchIds ?? tenantBranchIds;
+  const orders = (ordersQuery.data ?? []).filter((order) => visibleBranches.includes(order.branchId));
+  const pending = orders.filter((order) => order.status === "pending").length;
+  const toAcknowledge = orders.filter((order) => order.status === "fulfilled").length;
   const nameOf = (id: string) => db.branches.find((b) => b.id === id)?.name ?? "—";
   const productOf = (id: string) => db.products.find((p) => p.id === id)?.name ?? "—";
 
@@ -314,58 +318,40 @@ function OwnerDashboardContent() {
 
       <section className="mt-4 grid gap-4 xl:grid-cols-2">
         <Panel
-          title="Stock requests"
-          subtitle={`${requests.length} requests · ${pending} pending`}
+          title="Customer orders"
+          subtitle={`${pending} waiting for fulfilment · ${toAcknowledge} for reps to acknowledge`}
           action={
             <Button variant="ghost" size="sm" asChild>
-              <Link to="/stock-requests">View all</Link>
+              <Link to="/orders">View all</Link>
             </Button>
           }
         >
-          {requests.length ? (
+          {orders.length ? (
             <div className="divide-y divide-border">
-              {requests.slice(0, 5).map((request) => {
-                const rep = db.users.find((user) => user.id === request.repId);
-                const storekeeperId =
-                  request.processedBy ?? request.fulfilledBy ?? request.approvedBy;
-                const storekeeper = storekeeperId
-                  ? db.users.find((user) => user.id === storekeeperId)?.name
-                  : db.users.find(
-                      (user) =>
-                        user.tenantId === scope.user.tenantId &&
-                        user.branchId === request.branchId &&
-                        user.role === "storekeeper" &&
-                        user.status === "active",
-                    )?.name;
+              {orders.slice(0, 5).map((order) => {
+                const rep = db.users.find((user) => user.id === order.repId);
                 return (
-                  <div key={request.id} className="space-y-2 p-3">
+                  <div key={order.id} className="space-y-2 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate text-xs font-semibold">
-                          {productOf(request.productId)} · {request.quantityRequested} units
+                          {order.code} · {order.customerName} · {formatNaira(orderTotal(order))}
                         </p>
                         <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                          {rep?.name ?? "Sales representative"} · {storekeeper ?? "Awaiting storekeeper"}
+                          {order.lines.map((l) => `${productOf(l.productId)} × ${l.quantity}`).join(", ")}
                         </p>
                       </div>
-                      <RequestStatusBadge request={request} />
+                      <OrderStatusBadge status={order.status} />
                     </div>
-                    <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-                      <span className="min-w-0 truncate">
-                        {nameOf(request.branchId)} · {formatDate(request.requestedAt)} {formatTime(request.requestedAt)}
-                      </span>
-                      <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2" asChild>
-                        <Link to="/stock-requests/$requestId" params={{ requestId: request.id }}>
-                          View
-                        </Link>
-                      </Button>
-                    </div>
+                    <p className="truncate text-[10px] text-muted-foreground">
+                      {rep?.name ?? "Sales representative"} · {nameOf(order.branchId)} · {formatDate(order.createdAt)} {formatTime(order.createdAt)}
+                    </p>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <EmptyState title="No stock requests yet." />
+            <EmptyState title="No customer orders yet." />
           )}
         </Panel>
         <article className="rounded-lg border border-border bg-card p-5 shadow-panel">

@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RoleGate } from "@/components/app-shell";
 import { ReportsPage } from "@/components/reports/reports-page";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/reports")({
   head: () => ({
     meta: [
-      { title: "Reports — Friscontech" },
+      { title: `Reports — ${BRAND_NAME}` },
       { name: "description", content: "Sales, target, inventory and team performance reports calculated from live records." },
-      { property: "og:title", content: "Reports — Friscontech" },
+      { property: "og:title", content: `Reports — ${BRAND_NAME}` },
       { property: "og:description", content: "Analyze sales, targets, inventory and team performance." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

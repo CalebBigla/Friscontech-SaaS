@@ -12,7 +12,9 @@ import {
   RecordCustomerPaymentDialog,
 } from "@/components/customers/customer-dialogs";
 import { PaymentStatusBadge } from "@/components/payments/payment-page";
-import { RecordSaleDialog } from "@/components/sales/record-sale-dialog";
+import { OrderRow } from "@/components/orders/orders-page";
+import { PlaceOrderDialog } from "@/components/orders/place-order-dialog";
+import { useCustomerOrders } from "@/hooks/use-orders";
 import { DataGate, DetailItem, EmptyState, Panel, StatTile } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,6 +34,7 @@ import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { useCustomerAccounts, useSetCustomerStatus } from "@/hooks/use-customers";
 import { runWrite, validateCustomerStatus } from "@/lib/validation";
+import { BRAND_NAME } from "@/lib/brand";
 
 /** Customer data is user-entered; escape it before writing the printable statement. */
 const escapeHtml = (value: string) =>
@@ -51,6 +54,7 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
   const customer = db.customers.find((c) => c.id === customerId);
   const [dialog, setDialog] = useState<"edit" | "order" | "payment" | "limit" | "reassign" | null>(null);
   const { accounts, isLoading: accountsLoading, error: accountsError } = useCustomerAccounts(db, scope);
+  const { data: allOrders = [] } = useCustomerOrders(scope.canViewOrders);
 
   if (isLoading || error || accountsLoading || accountsError)
     return (
@@ -73,6 +77,11 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
   const name = (id?: string) => db.users.find((u) => u.id === id)?.name ?? "—";
   const product = (id: string) => db.products.find((p) => p.id === id)?.name ?? "Product";
   const canAct = scope.canManageCustomers && customer.status === "active";
+  // The order book: orders raised for this customer and where each one is.
+  const book = allOrders.filter((o) => o.customerId === customer.id);
+  const inProgress = book.filter((o) => o.status !== "acknowledged");
+  const codeOf = (orderId: string) => book.find((o) => o.id === orderId)?.code ?? orderId.slice(0, 8).toUpperCase();
+  const canOrder = canAct && scope.canRaiseOrders && customer.assignedRepId === scope.user.id;
 
   const downloadCsv = () => {
     const blob = new Blob([customerStatementCsv(accounts, customer)], { type: "text/csv" });
@@ -98,7 +107,7 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
       )
       .join("");
     w.document.write(
-      `<html><head><title>Statement · ${escapeHtml(customer.name)}</title><style>body{font-family:system-ui,sans-serif;padding:32px;color:#111}h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:12px}td,th{border-bottom:1px solid #ddd;padding:6px;text-align:left}</style></head><body><h1>Friscontech · Customer statement</h1><p>${escapeHtml(customer.name)}<br/>${escapeHtml(customer.phone)} · ${escapeHtml(customer.address)}<br/>As of ${formatDate(db.tenant.referenceDate)} · Balance ${formatNaira(summary.balance)}</p><table><thead><tr><th>Date</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></body></html>`,
+      `<html><head><title>Statement · ${escapeHtml(customer.name)}</title><style>body{font-family:system-ui,sans-serif;padding:32px;color:#111}h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:12px}td,th{border-bottom:1px solid #ddd;padding:6px;text-align:left}</style></head><body><h1>${BRAND_NAME} · Customer statement</h1><p>${escapeHtml(customer.name)}<br/>${escapeHtml(customer.phone)} · ${escapeHtml(customer.address)}<br/>As of ${formatDate(db.tenant.referenceDate)} · Balance ${formatNaira(summary.balance)}</p><table><thead><tr><th>Date</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></body></html>`,
     );
     w.document.close();
     w.print();
@@ -141,7 +150,7 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {canAct && (
+          {canOrder && (
             <Button size="sm" onClick={() => setDialog("order")}>
               New order
             </Button>
@@ -231,11 +240,11 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
       <Tabs defaultValue="ledger" className="mt-4">
         <TabsList>
           <TabsTrigger value="ledger">Ledger</TabsTrigger>
-          <TabsTrigger value="orders">Orders ({orders.length})</TabsTrigger>
+          <TabsTrigger value="orders">Order book ({Math.max(book.length, orders.length)})</TabsTrigger>
           <TabsTrigger value="payments">Payments ({payments.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="ledger">
-          <Panel title="Ledger" subtitle="Orders are debits; owner-confirmed payments are credits">
+          <Panel title="Ledger" subtitle="Fulfilled orders are debits; payments are credits">
             {ledger.length ? (
               <Table head={["Date", "Description", "Debit", "Credit", "Balance"]}>
                 {ledger.map((r) => (
@@ -262,12 +271,19 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
           </Panel>
         </TabsContent>
         <TabsContent value="orders">
-          <Panel title="Orders" subtitle="Storekeepers release the items listed on each order">
+          {inProgress.length > 0 && (
+            <Panel className="mb-4" title="Orders in progress" subtitle="Raised by the rep, fulfilled by the storekeeper, then acknowledged by the rep">
+              <ul className="divide-y divide-border">
+                {inProgress.map((o) => <OrderRow key={o.id} o={o} db={db} scope={scope} />)}
+              </ul>
+            </Panel>
+          )}
+          <Panel title="Fulfilled orders" subtitle="On the customer's account from the day the storekeeper fulfilled them">
             {orders.length ? (
               <Table head={["Order", "Date", "Items", "Rep", "Total", "Paid", "Status"]}>
                 {orders.map((o) => (
                   <tr key={o.orderId}>
-                    <td className="px-4 py-3 font-mono text-[11px] font-bold">{o.orderId}</td>
+                    <td className="px-4 py-3 font-mono text-[11px] font-bold">{codeOf(o.orderId)}</td>
                     <td className="px-4 py-3 text-muted-foreground">{formatDate(o.date)}</td>
                     <td className="px-4 py-3">
                       {o.lines.map((l) => `${product(l.productId)} × ${l.quantity}${l.isPromo ? " (promo)" : ""}`).join(", ")}
@@ -286,12 +302,12 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
                 ))}
               </Table>
             ) : (
-              <EmptyState title="No orders yet." />
+              <EmptyState title="No fulfilled orders yet." {...(canOrder ? { detail: "Raise an order with New order; it appears here once the storekeeper fulfils it." } : {})} />
             )}
           </Panel>
         </TabsContent>
         <TabsContent value="payments">
-          <Panel title="Payments" subtitle="Rep submits → Manager acknowledges → Owner confirms">
+          <Panel title="Payments" subtitle="Credited to the account as soon as the rep records them">
             {payments.length ? (
               <Table head={["Date", "Payment", "Amount", "Method", "Collected by", "Status"]}>
                 {payments.map((p) => (
@@ -333,8 +349,8 @@ export function CustomerDetailPage({ customerId }: { customerId: string }) {
           customer={customer}
         />
       )}
-      {canAct && (
-        <RecordSaleDialog
+      {canOrder && (
+        <PlaceOrderDialog
           open={dialog === "order"}
           onOpenChange={(o) => setDialog(o ? "order" : null)}
           scope={scope}

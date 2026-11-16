@@ -56,6 +56,7 @@ import { roleLabel } from "@/lib/format";
 import { UserAvatar } from "@/components/shared";
 import { useMemberPhotos } from "@/hooks/use-onboardings";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { BRAND_NAME } from "@/lib/brand";
 
 /** Phone tab bar for field roles; "More" opens the full menu. */
 const mobileTabs: Record<string, { label: string; icon: LucideIcon; to: NavTo }[]> = {
@@ -68,7 +69,7 @@ const mobileTabs: Record<string, { label: string; icon: LucideIcon; to: NavTo }[
   storekeeper: [
     { label: "Home", icon: LayoutDashboard, to: "/" },
     { label: "Inventory", icon: Boxes, to: "/inventory" },
-    { label: "Requests", icon: ClipboardList, to: "/stock-requests" },
+    { label: "Orders", icon: ClipboardList, to: "/orders" },
     { label: "Approvals", icon: BadgeCheck, to: "/approvals" },
   ],
 };
@@ -82,7 +83,7 @@ type NavTo =
   | "/remittance"
   | "/owner/remittance"
   | "/inventory"
-  | "/stock-requests"
+  | "/orders"
   | "/products"
   | "/targets"
   | "/stock-movements"
@@ -117,7 +118,7 @@ const managementSections: NavSection[] = [
       { label: "Manager Remittance", icon: Landmark, to: "/remittance", managerOnly: true },
       { label: "Manager Remittance Approvals", icon: Landmark, to: "/remittance", ownerOnly: true },
       { label: "Inventory", icon: Boxes, to: "/inventory" },
-      { label: "Stock Requests", icon: ClipboardList, to: "/stock-requests" },
+      { label: "Orders", icon: ClipboardList, to: "/orders" },
       { label: "Exchanges", icon: ArrowLeftRight, to: "/exchanges" },
       { label: "Products", icon: Package, to: "/products" },
       { label: "Targets", icon: Target, to: "/targets", ownerOnly: true },
@@ -150,6 +151,7 @@ const ownerSections: NavSection[] = [
       { label: "Payment", icon: Wallet, to: "/payment" },
       { label: "Manager Remittances", icon: Landmark, to: "/manager-remittances" },
       { label: "Customers", icon: Contact, to: "/customers" },
+      { label: "Orders", icon: ClipboardList, to: "/orders" },
       { label: "Exchanges", icon: ArrowLeftRight, to: "/exchanges" },
       { label: "Expenses", icon: Receipt, to: "/expenses" },
     ],
@@ -169,8 +171,8 @@ const repSections: NavSection[] = [
     items: [
       { label: "My Sales", icon: ShoppingCart, to: "/sales" },
       { label: "Customers", icon: Contact, to: "/customers" },
+      { label: "Orders", icon: ClipboardList, to: "/orders" },
       { label: "Payment", icon: Wallet, to: "/payment" },
-      { label: "Stock Requests", icon: ClipboardList, to: "/stock-requests" },
       { label: "Exchanges", icon: ArrowLeftRight, to: "/exchanges" },
     ],
   },
@@ -204,7 +206,7 @@ const storekeeperSections: NavSection[] = [
   {
     title: "Operations",
     items: [
-      { label: "Stock Requests", icon: ClipboardList, to: "/stock-requests" },
+      { label: "Order Fulfilment", icon: ClipboardList, to: "/orders" },
       { label: "Exchanges", icon: ArrowLeftRight, to: "/exchanges" },
       { label: "My Approvals", icon: BadgeCheck, to: "/approvals" },
     ],
@@ -334,7 +336,7 @@ export function AppShell({
               <Activity className="size-4" />
             </span>
             <div className={`min-w-0 ${sidebarCollapsed ? "lg:hidden" : ""}`}>
-              <p className="truncate text-[15px] font-semibold tracking-tight">Friscontech</p>
+              <p className="truncate text-[15px] font-semibold tracking-tight">{BRAND_NAME}</p>
               <p className="truncate text-[11px] text-muted-foreground">
                 {tenant?.name ?? `${roleLabel[scope.user.role]} console`}
               </p>

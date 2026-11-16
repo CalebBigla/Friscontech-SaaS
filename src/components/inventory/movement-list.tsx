@@ -28,7 +28,7 @@ export function MovementList({ db, movements, showItem = false }: { db: Db; move
         const product = db.products.find((p) => p.id === m.productId);
         const branch = db.branches.find((b) => b.id === m.branchId);
         const inv = db.inventory.find((i) => i.branchId === m.branchId && i.productId === m.productId);
-        const who = m.type === "sale" ? `Sold by ${name(m.performedBy)}` : m.type === "promo" ? `Given by ${name(m.performedBy)}` : m.type === "stock_issued" && request ? `Issued to ${name(request.repId)} by ${name(m.performedBy)}` : m.type === "exchange_return" ? `Returned by a customer · received by ${name(m.performedBy)}` : m.type === "exchange_issue" ? `Exchange replacement issued by ${name(m.performedBy)}` : m.type === "stock_added" ? `Received by ${name(m.performedBy)}` : `Adjusted by ${name(m.performedBy)}`;
+        const who = m.type === "sale" && m.note?.startsWith("Order ") ? `Released by ${name(m.performedBy)} · ${m.note}` : m.type === "sale" ? `Sold by ${name(m.performedBy)}` : m.type === "promo" ? `Given by ${name(m.performedBy)}` : m.type === "stock_issued" && request ? `Issued to ${name(request.repId)} by ${name(m.performedBy)}` : m.type === "exchange_return" ? `Returned by a customer · received by ${name(m.performedBy)}` : m.type === "exchange_issue" ? `Exchange replacement issued by ${name(m.performedBy)}` : m.type === "stock_added" ? `Received by ${name(m.performedBy)}` : `Adjusted by ${name(m.performedBy)}`;
         return (
           <li key={m.id} className="flex gap-3 px-5 py-3.5">
             <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-md ${tone}`}><Icon className="size-4" /></span>
@@ -39,7 +39,7 @@ export function MovementList({ db, movements, showItem = false }: { db: Db; move
               </div>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
                 {formatDayTime(m.createdAt, db.tenant.referenceDate)} · {who}
-                {request && <> · <Link to="/stock-requests/$requestId" params={{ requestId: request.id }} className="font-medium text-primary hover:underline">Stock Request #{request.id}</Link></>}
+                {request && <> · Stock request {request.id}</>}
                 {sale && <> · Sale {sale.code}</>}
               </p>
               {m.note && m.type !== "stock_issued" && <p className="mt-1 text-[11px] text-muted-foreground">“{m.note}”</p>}

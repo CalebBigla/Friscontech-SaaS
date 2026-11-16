@@ -4,13 +4,15 @@ import { ArrowLeft, Plus, SlidersHorizontal } from "lucide-react";
 
 import { AppShell, RestrictedNotice } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { DataGate, DetailItem, EmptyState, Panel, RequestStatusBadge, StockStatusBadge } from "@/components/shared";
+import { DataGate, DetailItem, EmptyState, Panel, StockStatusBadge } from "@/components/shared";
+import { OrderStatusBadge } from "@/components/orders/orders-page";
+import { useCustomerOrders } from "@/hooks/use-orders";
 import { AddStockDialog } from "@/components/inventory/add-stock-dialog";
 import { AdjustStockDialog } from "@/components/inventory/adjust-stock-dialog";
 import { MovementList } from "@/components/inventory/movement-list";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { canSeeBranch, getAccessScope, useCurrentUserId } from "@/lib/session";
-import { getInventoryMovements, getInventoryRows, getStockRequests, isRequestOpen, resolveInventory } from "@/lib/inventory-calculations";
+import { getInventoryMovements, getInventoryRows, resolveInventory } from "@/lib/inventory-calculations";
 import { formatDayTime, formatNaira, formatNumber, formatUnits } from "@/lib/format";
 
 export function InventoryDetailPage({ inventoryId }: { inventoryId: string }) {
@@ -19,6 +21,7 @@ export function InventoryDetailPage({ inventoryId }: { inventoryId: string }) {
   const scope = getAccessScope(db, userId);
   const [addOpen, setAddOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const { data: orders = [] } = useCustomerOrders();
   const record = db.inventory.find((i) => i.id === inventoryId);
   const row = record ? resolveInventory(db, record) : null;
 
@@ -30,7 +33,8 @@ export function InventoryDetailPage({ inventoryId }: { inventoryId: string }) {
   }
   const { product, branch, available, status } = row;
   const movements = getInventoryMovements(db, { productId: product.id, branchId: branch.id });
-  const openRequests = getStockRequests(db, { branchId: branch.id, repId: scope.repId }).filter((r) => r.productId === product.id && isRequestOpen(r));
+  // Orders waiting to be fulfilled hold this product's units (the reserved figure).
+  const openOrders = orders.filter((o) => o.status === "pending" && o.branchId === branch.id && o.lines.some((l) => l.productId === product.id));
   const otherBranches = getInventoryRows(db, { branchIds: scope.branchIds }).filter((r) => r.product.id === product.id);
 
   return (
@@ -71,12 +75,12 @@ export function InventoryDetailPage({ inventoryId }: { inventoryId: string }) {
           <MovementList db={db} movements={movements.slice(0, 40)} />
         </Panel>
         <div className="space-y-4">
-          <Panel title="Open stock requests" subtitle="Awaiting approval or issue">
-            {openRequests.length ? <div className="divide-y divide-border">{openRequests.map((r) => (
-              <Link key={r.id} to="/stock-requests/$requestId" params={{ requestId: r.id }} className="flex items-center justify-between gap-3 px-5 py-3 text-xs hover:bg-muted/60">
-                <div className="min-w-0"><p className="font-semibold">{r.id} · {db.users.find((u) => u.id === r.repId)?.name}</p><p className="text-[11px] text-muted-foreground">{formatUnits(r.quantityRequested)} · {formatDayTime(r.requestedAt, db.tenant.referenceDate)}</p></div>
-                <RequestStatusBadge request={r} />
-              </Link>))}</div> : <EmptyState title="You're all caught up." detail="No open requests for this product." />}
+          <Panel title="Held for orders" subtitle={`${formatUnits(row.record.quantityReserved)} reserved until fulfilled`}>
+            {openOrders.length ? <div className="divide-y divide-border">{openOrders.map((o) => (
+              <Link key={o.id} to="/orders" search={{ status: "pending" }} className="flex items-center justify-between gap-3 px-5 py-3 text-xs hover:bg-muted/60">
+                <div className="min-w-0"><p className="font-semibold">{o.code} · {o.customerName}</p><p className="text-[11px] text-muted-foreground">{formatUnits(o.lines.filter((l) => l.productId === product.id).reduce((n, l) => n + l.quantity, 0))} · {db.users.find((u) => u.id === o.repId)?.name ?? "Sales rep"} · {formatDayTime(o.createdAt, db.tenant.referenceDate)}</p></div>
+                <OrderStatusBadge status={o.status} />
+              </Link>))}</div> : <EmptyState title="Nothing held." detail="No orders are waiting for this product." />}
           </Panel>
           {otherBranches.length > 1 && <Panel title="Stock across branches">
             <div className="divide-y divide-border">{otherBranches.map((r) => (

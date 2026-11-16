@@ -20,9 +20,7 @@ import { useRecordSale } from "@/hooks/use-sales";
 import type { FieldErrors } from "@/lib/validation";
 import type { AccessScope } from "@/lib/session";
 import { formatNaira, formatUnits } from "@/lib/format";
-import { getAvailableStock, getRepHeldStock } from "@/lib/inventory-calculations";
-import { getCustomersForScope } from "@/lib/customer-calculations";
-import { CustomerFormDialog } from "@/components/customers/customer-dialogs";
+import { getAvailableStock } from "@/lib/inventory-calculations";
 
 type Line = {
   key: number;
@@ -54,19 +52,21 @@ const lineDiscount = (line: Line) => {
   return Math.min(line.discountType === "percent" ? Math.round(gross * value) / 100 : value, gross);
 };
 
+/**
+ * Walk-in sale by the Owner (any branch) or a branch manager (own branch), from
+ * branch stock. Customer sales are orders the customer's rep raises instead.
+ */
 export function RecordSaleDialog({
   open,
   onOpenChange,
   scope,
   defaultBranchId,
-  presetCustomerId,
   db,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   scope: AccessScope;
   defaultBranchId?: string | undefined;
-  presetCustomerId?: string | undefined;
   db: Db;
 }) {
   const recordSale = useRecordSale();
@@ -77,22 +77,8 @@ export function RecordSaleDialog({
   const [nextKey, setNextKey] = useState(2);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
-  const [saleType, setSaleType] = useState<"walk_in" | "customer">("walk_in");
-  const [customerId, setCustomerId] = useState("");
-  const [customerQuery, setCustomerQuery] = useState("");
   const [walkInName, setWalkInName] = useState("");
   const [walkInPhone, setWalkInPhone] = useState("");
-  const [addCustomerOpen, setAddCustomerOpen] = useState(false);
-  const customers = getCustomersForScope(db, scope).filter((c) => c.status === "active");
-  const needle = customerQuery.trim().toLowerCase();
-  const customerMatches = customers
-    .filter(
-      (c) =>
-        !needle || [c.name, c.phone, c.contactPerson].some((v) => v.toLowerCase().includes(needle)),
-    )
-    .slice(0, 6);
-  const selectedCustomer = customers.find((c) => c.id === customerId);
-
   const branches = db.branches.filter(
     (b) => b.status === "active" && (!scope.branchIds || scope.branchIds.includes(b.id)),
   );
@@ -106,9 +92,6 @@ export function RecordSaleDialog({
     setLines([newLine(1)]);
     setNextKey(2);
     setErrors({});
-    setSaleType(presetCustomerId ? "customer" : "walk_in");
-    setCustomerId(presetCustomerId ?? "");
-    setCustomerQuery("");
     setWalkInName("");
     setWalkInPhone("");
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -122,10 +105,6 @@ export function RecordSaleDialog({
     setLines((rows) => rows.map((line) => (line.key === key ? { ...line, ...patch } : line)));
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (saleType === "customer" && !customerId) {
-      setErrors({ customerId: "Choose a customer" });
-      return;
-    }
     const itemErrors: NonNullable<FieldErrors["itemErrors"]> = {};
     const requiredWalkInName = walkInName.trim();
     let requestedByItem = new Map<string, number>();
@@ -140,12 +119,10 @@ export function RecordSaleDialog({
         const key = `${branchId}:${product.id}`;
         const requested = (requestedByItem.get(key) ?? 0) + quantity;
         requestedByItem.set(key, requested);
-        // A rep sells only stock issued to them; the Owner sells from the branch.
-        const available = scope.repId ? getRepHeldStock(db, scope.repId, product.id) : getAvailableStock(db, product.id, branchId);
+        // Available = on hand minus units held for customer orders.
+        const available = getAvailableStock(db, product.id, branchId);
         if (requested > available)
-          (itemErrors[index] ??= {}).quantity = scope.repId
-            ? `You hold ${available} — request more stock from the storekeeper first`
-            : `Insufficient stock — ${available} available for all lines`;
+          (itemErrors[index] ??= {}).quantity = `Insufficient stock — ${available} available for all lines`;
       }
       if (canAdjustPrice && !line.isPromo && line.discount.trim()) {
         const value = Number(line.discount);
@@ -159,7 +136,7 @@ export function RecordSaleDialog({
       toast.error("Add a product being sold");
       return;
     }
-    if (saleType === "walk_in" && !requiredWalkInName) {
+    if (!requiredWalkInName) {
       setErrors({ walkInName: "Enter the walk-in customer's name", itemErrors });
       toast.error("Enter the walk-in customer's name");
       return;
@@ -179,9 +156,9 @@ export function RecordSaleDialog({
       await recordSale.mutateAsync({
         p_branch_id: branchId,
         p_sale_date: saleDate,
-        p_customer_id: saleType === "customer" ? customerId : null,
-        p_walk_in_name: saleType === "customer" ? null : requiredWalkInName,
-        p_walk_in_phone: saleType === "customer" ? null : walkInPhone.trim() || null,
+        p_customer_id: null,
+        p_walk_in_name: requiredWalkInName,
+        p_walk_in_phone: walkInPhone.trim() || null,
         p_items: lines.map((line) => {
           const value = line.isPromo || !canAdjustPrice ? 0 : Number(line.discount);
           return {
@@ -213,43 +190,14 @@ export function RecordSaleDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Record sale</DialogTitle>
+          <DialogTitle>Record walk-in sale</DialogTitle>
           <DialogDescription className="text-xs">
             {canAdjustPrice
               ? "Add one or more products. Revenue is quantity × unit price, less any discount. Promo items are free."
-              : "Sell from the stock issued to you, at list price. Need more? Request it from the storekeeper first."}
+              : "A walk-in sale from your branch's stock, at list price. Discounts and promo items are the Owner's to give."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
-          {scope.canManageCustomers && !presetCustomerId && (
-            <div
-              role="radiogroup"
-              aria-label="Sale type"
-              className="grid grid-cols-2 gap-2 rounded-md bg-muted p-1"
-            >
-              {(
-                [
-                  ["walk_in", "Walk-in sale", "Pay now"],
-                  ["customer", "Customer order", "On account"],
-                ] as const
-              ).map(([value, label, hint]) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={saleType === value}
-                  onClick={() => setSaleType(value)}
-                  className={`rounded-sm px-3 py-2 text-left text-xs transition-colors ${saleType === value ? "bg-card font-semibold shadow-panel" : "text-muted-foreground hover:text-foreground"}`}
-                >
-                  {label}
-                  <span className="block text-[10px] font-normal text-muted-foreground">
-                    {hint}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-          {saleType === "walk_in" ? (
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="walkin-name" className="text-xs">
@@ -276,71 +224,11 @@ export function RecordSaleDialog({
                 />
               </div>
             </div>
-          ) : (
-            <div>
-              <Label className="text-xs">Customer *</Label>
-              {selectedCustomer ? (
-                <div className="mt-1.5 flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs">
-                  <span>
-                    <strong>{selectedCustomer.name}</strong> · {selectedCustomer.phone}
-                  </span>
-                  {!presetCustomerId && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCustomerId("")}
-                    >
-                      Change
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <div className="mt-1.5 space-y-2">
-                  <Input
-                    placeholder="Search customers by name or phone"
-                    aria-label="Search customers"
-                    value={customerQuery}
-                    onChange={(e) => setCustomerQuery(e.target.value)}
-                    className="h-9"
-                  />
-                  <div className="max-h-40 divide-y divide-border overflow-y-auto rounded-md border border-border">
-                    {customerMatches.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => setCustomerId(c.id)}
-                        className="block w-full px-3 py-2 text-left text-xs hover:bg-muted"
-                      >
-                        <strong>{c.name}</strong>{" "}
-                        <span className="text-muted-foreground">· {c.phone}</span>
-                      </button>
-                    ))}
-                    {!customerMatches.length && (
-                      <p className="px-3 py-2 text-xs text-muted-foreground">
-                        No matching customers.
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAddCustomerOpen(true)}
-                  >
-                    <Plus className="size-3.5" />
-                    Add customer
-                  </Button>
-                </div>
-              )}
-              <FieldError message={errors.customerId} />
-            </div>
-          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label className="text-xs">Branch *</Label>
               <div className="mt-1.5">
-                {scope.repId ? (
+                {scope.branchIds ? (
                   <Input
                     value={branches.find((b) => b.id === branchId)?.name ?? "No branch assigned"}
                     readOnly
@@ -375,7 +263,7 @@ export function RecordSaleDialog({
               <FieldError message={errors.saleDate} />
             </div>
           </div>
-          {!scope.repId && (
+          {(
             <p className="rounded-md bg-muted px-3 py-2 text-[11px] text-muted-foreground">
               Recorded as <strong className="text-foreground">{scope.user.name}</strong>.
             </p>
@@ -417,8 +305,7 @@ export function RecordSaleDialog({
                         options={[
                           { value: "none", label: "Select product" },
                           ...db.products
-                            .filter((x) => x.status === "active" && (x.productType === "promo") === line.isPromo
-                              && (!scope.repId || x.id === line.productId || getRepHeldStock(db, scope.repId, x.id) > 0))
+                            .filter((x) => x.status === "active" && (x.productType === "promo") === line.isPromo)
                             .map((x) => ({
                               value: x.id,
                               label: line.isPromo ? x.name : `${x.name} · ${formatNaira(x.unitPrice)}`,
@@ -429,9 +316,7 @@ export function RecordSaleDialog({
                     <FieldError message={itemErrors?.productId} />
                     {branchId && line.productId && (
                       <p className="mt-1 text-[11px] text-muted-foreground">
-                        {scope.repId
-                          ? `With you: ${formatUnits(getRepHeldStock(db, scope.repId, line.productId))} (issued from your stock requests)`
-                          : `Available at branch: ${formatUnits(getAvailableStock(db, line.productId, branchId))}`}
+                        {`Available at branch: ${formatUnits(getAvailableStock(db, line.productId, branchId))}`}
                       </p>
                     )}
                   </div>
@@ -561,14 +446,6 @@ export function RecordSaleDialog({
           </DialogFooter>
         </form>
       </DialogContent>
-      {scope.canManageCustomers && (
-        <CustomerFormDialog
-          open={addCustomerOpen}
-          onOpenChange={setAddCustomerOpen}
-          actorId={scope.user.id}
-          onSaved={(c) => setCustomerId(c.id)}
-        />
-      )}
     </Dialog>
   );
 }

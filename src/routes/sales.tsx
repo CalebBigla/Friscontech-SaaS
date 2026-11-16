@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { SalesPage } from "@/components/sales/sales-page";
+import { BRAND_NAME } from "@/lib/brand";
 
 const searchSchema = z.object({
   period: z.enum(["today", "week", "month", "quarter", "custom"]).optional().catch(undefined),
@@ -16,9 +17,9 @@ export const Route = createFileRoute("/sales")({
   validateSearch: (search) => searchSchema.parse(search),
   head: () => ({
     meta: [
-      { title: "Sales — Friscontech" },
+      { title: `Sales — ${BRAND_NAME}` },
       { name: "description", content: "Track sales activity, revenue and sales performance across every branch." },
-      { property: "og:title", content: "Sales — Friscontech" },
+      { property: "og:title", content: `Sales — ${BRAND_NAME}` },
       { property: "og:description", content: "Filter sales by period, branch, rep and product, and record new sales." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

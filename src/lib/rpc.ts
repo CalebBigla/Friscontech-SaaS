@@ -47,43 +47,6 @@ export type PlannedRpcs = {
     p_reason: string;
   };
   /**
-   * Sales rep stock request for their own branch. One row per product, sharing a
-   * batch_id when several products are requested together. Generates the text ids
-   * (stock_requests.id has no default), notifies every active storekeeper of the
-   * branch, writes one audit row per request. Returns the stock_requests rows.
-   */
-  create_stock_requests: {
-    p_branch_id: string;
-    p_items: { product_id: string; quantity: number }[];
-    p_note: string | null;
-    /** Same key while the form is open: a retried submit returns the first result. */
-    p_idempotency_key: string;
-  };
-  /** Pending → approved (quantity_approved = quantity_requested). Never touches stock. */
-  approve_stock_request: {
-    p_request_id: string;
-  };
-  /** Pending → rejected with a reason. The row is kept for history. */
-  reject_stock_request: {
-    p_request_id: string;
-    p_reason: string;
-  };
-  /**
-   * Approved / partially fulfilled → (partially) fulfilled. The only step that
-   * deducts stock: quantity_on_hand (stock is never reserved), stock_issued
-   * movement, lots drained FEFO, rep notified, audit row. Replaces the
-   * stock_request_fulfillment trigger, which skipped repeat partial issues and
-   * decremented quantity_reserved.
-   */
-  fulfil_stock_request: {
-    p_request_id: string;
-    p_quantity: number;
-  };
-  /** The requesting rep confirms receipt of a fulfilled request. */
-  acknowledge_stock_request: {
-    p_request_id: string;
-  };
-  /**
    * Approve one or more pending approval requests, all or nothing: every request
    * is checked (pending, caller may review it, not their own) before any is applied.
    * stock_addition (non-emergency): applies the stock like add_stock's emergency path.
@@ -175,6 +138,27 @@ export type PlannedRpcs = {
   };
   /** Business name and contacts for invoices; any active member. */
   get_business_profile: Record<string, never>;
+  /**
+   * Rep: an order for one of their customers (20261116100000). Every line is checked
+   * against what the branch has available (on hand minus reserved) with the stock rows
+   * locked, then reserved. The branch storekeepers are notified. Returns the
+   * customer_orders row.
+   */
+  place_customer_order: {
+    p_customer_id: string;
+    p_items: { product_id: string; quantity: number }[];
+    p_note: string | null;
+    /** Same key while the form is open: a retried submit returns the first order. */
+    p_idempotency_key: string;
+  };
+  /** Branch storekeeper: releases the reservation and deducts every line once. */
+  fulfil_customer_order: { p_order_id: string };
+  /** The rep who raised it, after fulfilment. */
+  acknowledge_customer_order: { p_order_id: string };
+  /** The rep who raised it or the Owner, before fulfilment: the units go back. */
+  cancel_customer_order: { p_order_id: string; p_reason: string };
+  /** Orders with their lines for whoever may read them. */
+  get_customer_orders: Record<string, never>;
   /** Rep: a customer returns units of a sale for another product. Returns the stock_exchanges row. */
   request_exchange: {
     p_sale_id: string;

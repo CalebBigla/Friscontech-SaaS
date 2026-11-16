@@ -68,6 +68,30 @@ export type Database = {
           },
         ]
       }
+      customer_orders: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          branch_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          code: string
+          created_at: string
+          customer_id: string
+          fulfilled_at: string | null
+          fulfilled_by: string | null
+          id: string
+          note: string | null
+          rep_id: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: { code: string; tenant_id: string; branch_id: string; customer_id: string; rep_id: string }
+        Update: { status?: string }
+        Relationships: []
+      }
       stock_exchanges: {
         Row: {
           acknowledged_at: string | null
@@ -1996,41 +2020,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      acknowledge_stock_request: {
-        Args: { p_request_id: string }
-        Returns: {
-          acknowledged_at: string | null
-          acknowledged_by: string | null
-          approved_at: string | null
-          approved_by: string | null
-          batch_id: string | null
-          branch_id: string
-          created_at: string
-          fulfilled_at: string | null
-          fulfilled_by: string | null
-          id: string
-          note: string | null
-          priority: string
-          processed_by: string | null
-          product_id: string
-          quantity_approved: number | null
-          quantity_fulfilled: number | null
-          quantity_requested: number
-          rejected_at: string | null
-          rejection_reason: string | null
-          rep_id: string
-          requested_at: string
-          status: string
-          tenant_id: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "stock_requests"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       add_stock: {
         Args: {
           p_batch_number: string
@@ -2134,41 +2123,6 @@ export type Database = {
           to: "approval_requests"
           isOneToOne: false
           isSetofReturn: true
-        }
-      }
-      approve_stock_request: {
-        Args: { p_request_id: string }
-        Returns: {
-          acknowledged_at: string | null
-          acknowledged_by: string | null
-          approved_at: string | null
-          approved_by: string | null
-          batch_id: string | null
-          branch_id: string
-          created_at: string
-          fulfilled_at: string | null
-          fulfilled_by: string | null
-          id: string
-          note: string | null
-          priority: string
-          processed_by: string | null
-          product_id: string
-          quantity_approved: number | null
-          quantity_fulfilled: number | null
-          quantity_requested: number
-          rejected_at: string | null
-          rejection_reason: string | null
-          rep_id: string
-          requested_at: string
-          status: string
-          tenant_id: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "stock_requests"
-          isOneToOne: true
-          isSetofReturn: false
         }
       }
       can_customer_order: {
@@ -2431,46 +2385,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      create_stock_requests: {
-        Args: {
-          p_branch_id: string
-          p_idempotency_key?: string
-          p_items: Json
-          p_note: string
-        }
-        Returns: {
-          acknowledged_at: string | null
-          acknowledged_by: string | null
-          approved_at: string | null
-          approved_by: string | null
-          batch_id: string | null
-          branch_id: string
-          created_at: string
-          fulfilled_at: string | null
-          fulfilled_by: string | null
-          id: string
-          note: string | null
-          priority: string
-          processed_by: string | null
-          product_id: string
-          quantity_approved: number | null
-          quantity_fulfilled: number | null
-          quantity_requested: number
-          rejected_at: string | null
-          rejection_reason: string | null
-          rep_id: string
-          requested_at: string
-          status: string
-          tenant_id: string
-          updated_at: string
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "stock_requests"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
       create_branch_target: {
         Args: { p_amount: number; p_branch_id: string; p_month: string }
         Returns: {
@@ -2618,41 +2532,6 @@ export type Database = {
         Args: { p_file_id: string; p_token: string }
         Returns: undefined
       }
-      fulfil_stock_request: {
-        Args: { p_quantity: number; p_request_id: string }
-        Returns: {
-          acknowledged_at: string | null
-          acknowledged_by: string | null
-          approved_at: string | null
-          approved_by: string | null
-          batch_id: string | null
-          branch_id: string
-          created_at: string
-          fulfilled_at: string | null
-          fulfilled_by: string | null
-          id: string
-          note: string | null
-          priority: string
-          processed_by: string | null
-          product_id: string
-          quantity_approved: number | null
-          quantity_fulfilled: number | null
-          quantity_requested: number
-          rejected_at: string | null
-          rejection_reason: string | null
-          rep_id: string
-          requested_at: string
-          status: string
-          tenant_id: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "stock_requests"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       get_available_inventory: {
         Args: { p_branch_id: string; p_product_id: string }
         Returns: number
@@ -2774,6 +2653,22 @@ export type Database = {
       set_max_rep_discount: {
         Args: { p_percent: number }
         Returns: Json
+      }
+      place_customer_order: {
+        Args: { p_customer_id: string; p_items: Json; p_note: string; p_idempotency_key?: string }
+        Returns: Json
+      }
+      fulfil_customer_order: { Args: { p_order_id: string }; Returns: Json }
+      acknowledge_customer_order: { Args: { p_order_id: string }; Returns: Json }
+      cancel_customer_order: { Args: { p_order_id: string; p_reason: string }; Returns: Json }
+      get_customer_orders: {
+        Args: never
+        Returns: {
+          id: string; code: string; branch_id: string; customer_id: string; customer_name: string; rep_id: string
+          status: string; note: string | null; created_at: string; fulfilled_at: string | null; fulfilled_by: string | null
+          acknowledged_at: string | null; acknowledged_by: string | null; cancelled_at: string | null
+          cancelled_by: string | null; cancel_reason: string | null; lines: Json
+        }[]
       }
       get_business_profile: {
         Args: never
@@ -2909,41 +2804,6 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "approval_requests"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      reject_stock_request: {
-        Args: { p_reason: string; p_request_id: string }
-        Returns: {
-          acknowledged_at: string | null
-          acknowledged_by: string | null
-          approved_at: string | null
-          approved_by: string | null
-          batch_id: string | null
-          branch_id: string
-          created_at: string
-          fulfilled_at: string | null
-          fulfilled_by: string | null
-          id: string
-          note: string | null
-          priority: string
-          processed_by: string | null
-          product_id: string
-          quantity_approved: number | null
-          quantity_fulfilled: number | null
-          quantity_requested: number
-          rejected_at: string | null
-          rejection_reason: string | null
-          rep_id: string
-          requested_at: string
-          status: string
-          tenant_id: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "stock_requests"
           isOneToOne: true
           isSetofReturn: false
         }

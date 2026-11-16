@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RoleGate } from "@/components/app-shell";
 import { ProductDetailPage } from "@/components/products/product-detail-page";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/products/$productId")({
   head: () => ({
     meta: [
-      { title: "Product details — Friscontech" },
+      { title: `Product details — ${BRAND_NAME}` },
       { name: "description", content: "Product information, stock by branch, sales and movement history." },
-      { property: "og:title", content: "Product details — Friscontech" },
+      { property: "og:title", content: `Product details — ${BRAND_NAME}` },
       { property: "og:description", content: "See branch stock, sales and movements for a product." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

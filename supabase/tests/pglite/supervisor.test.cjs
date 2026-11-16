@@ -79,7 +79,9 @@ module.exports = async function supervisor(db, { ID, tenantA }) {
 
   // ---------------- the report ----------------
   const data = (await as(sup, `SELECT public.get_report_data($1) d`, [salesReq?.id])).rows?.[0]?.d;
-  const expected = await one(`SELECT count(*)::int n FROM public.sales WHERE tenant_id=$1 AND branch_id=$2 AND status='completed' AND sale_date >= CURRENT_DATE - 30`, [tenantA, ID.brA1]);
+  // Within the report's own dates: fulfilled orders take the business's local date, which can be a day ahead of UTC.
+  const expected = await one(`SELECT count(*)::int n FROM public.sales s, public.report_requests r WHERE r.id=$3 AND s.tenant_id=$1 AND s.branch_id=$2
+     AND s.status='completed' AND s.sale_date BETWEEN r.period_from AND r.period_to`, [tenantA, ID.brA1, salesReq?.id]);
   check("report: every sale in scope", Array.isArray(data?.sales) && data.sales.length === expected.n && expected.n > 0, `${data?.sales?.length} vs ${expected.n}`);
   check("report: only the requested branch", data?.sales?.every((s) => s.branch_id === ID.brA1) && data?.branches?.length === 1);
   check("report: no cost prices anywhere", !JSON.stringify(data ?? {}).includes("unit_cost"));

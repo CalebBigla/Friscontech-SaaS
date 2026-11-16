@@ -15,6 +15,7 @@ import { getCustomerOrders } from "@/lib/customer-calculations";
 import { formatNaira } from "@/lib/format";
 import { buildInvoicePdf } from "@/lib/invoice-pdf";
 import { callRpc } from "@/lib/rpc";
+import { BRAND_NAME } from "@/lib/brand";
 
 const STORE_KEY = "friscontech-invoice-account";
 type Saved = { accountNumber: string; bankName: string; accountName: string };
@@ -93,7 +94,7 @@ export function InvoiceDialog({ open, onOpenChange, db, sales }: { open: boolean
         number,
         date: invoiceDate,
         business: {
-          name: business?.name || db.tenant.name || "Friscontech",
+          name: business?.name || db.tenant.name || BRAND_NAME,
           legalName: business?.legal_name || undefined,
           phone: business?.phone || undefined,
           email: business?.business_email || undefined,

@@ -47,21 +47,23 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
     `SELECT public.add_stock($1,$2,100,null,null,'2028-01-01',false,null,null)`, [ID.brA2, product.id]));
 
   const items = (...lines) => JSON.stringify(lines);
-  // Reps sell only stock issued to them (20261115100000): request, approve, issue.
-  const issue = async (repId, productId, quantity, branch = ID.brA1, keeper = ID.skA1) => {
-    const req = (await as(repId, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,null,null)`, [branch, JSON.stringify([{ product_id: productId, quantity }])])).rows?.[0];
-    await as(keeper, `SELECT public.approve_stock_request($1)`, [req?.id]);
-    return as(keeper, `SELECT public.fulfil_stock_request($1,$2)`, [req?.id, quantity]);
-  };
-  ok("setup: 150 soap issued to repA1", await issue(ID.repA1, product.id, 150));
-  ok("setup: 60 soap issued to the second rep", await issue(repA3, product.id, 60));
   const line = (extra = {}) => ({ product_id: product.id, quantity: 2, ...extra });
   const walkIn = (userId, itemsJson, key = null, branch = ID.brA1) => as(userId,
     `SELECT * FROM public.record_sale($1,CURRENT_DATE,null,'Walk-in','',$2::jsonb,$3)`, [branch, itemsJson, key]);
+  // A rep's sale is a customer order the branch storekeeper fulfils (20261116100000).
+  const order = async (repId, customerId, itemsJson, keeper = ID.skA1) => {
+    const placed = await as(repId, `SELECT * FROM public.place_customer_order($1,$2::jsonb,null,null)`, [customerId, itemsJson]);
+    if (placed.error) return placed;
+    const done = await as(keeper, `SELECT * FROM public.fulfil_customer_order($1)`, [placed.rows[0].id]);
+    if (done.error) return done;
+    return { rows: (await db.query(`SELECT * FROM public.sales WHERE order_id=$1 ORDER BY created_at`, [placed.rows[0].id])).rows };
+  };
+  const shop = ok("setup: a customer for repA1", await as(ID.repA1,
+    `SELECT * FROM public.create_customer('Corner Shop','Kemi','0805 999 0100',null,'Ikeja')`));
 
   // ---------------- discounts ----------------
-  const plain = ok("record_sale: no discount", await walkIn(ID.repA1, items(line())));
-  check("record_sale: server sets the list price", close(plain.unit_price, 1000) && close(plain.line_total, 2000), JSON.stringify(plain));
+  const plain = ok("order: a rep's order at list price", await order(ID.repA1, shop.id, items(line())));
+  check("order: server sets the list price", close(plain.unit_price, 1000) && close(plain.line_total, 2000) && plain.status === "completed", JSON.stringify(plain));
   const pct = ok("record_sale: percentage discount", await walkIn(ID.owner, items(line({ discount_type: "percent", discount_value: 10 }))));
   check("discount: 10% of a 2,000 line is 200", close(pct.discount_amount, 200) && close(pct.line_total, 1800), JSON.stringify(pct));
   check("discount: entered value is kept", pct.discount_type === "percent" && close(pct.discount_value, 10));
@@ -78,13 +80,13 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
   err("discount: negative", await walkIn(ID.owner, items(line({ discount_type: "amount", discount_value: -5 }))), { hint: "items" });
   err("discount: unknown type", await walkIn(ID.owner, items(line({ discount_type: "free", discount_value: 5 }))), { hint: "items" });
 
-  // Rep limit: the owner sets it, reps are held to it, the owner is not.
   err("set_max_rep_discount: rep cannot", await as(ID.repA1, `SELECT public.set_max_rep_discount(50)`), DENY);
   err("set_max_rep_discount: above 100", await as(ID.owner, `SELECT public.set_max_rep_discount(101)`));
   ok("set_max_rep_discount: owner", await as(ID.owner, `SELECT public.set_max_rep_discount(10)`));
-  err("rep discount: percentage refused", await walkIn(ID.repA1, items(line({ discount_type: "percent", discount_value: 5 }))), { includes: "Only the Owner" });
-  err("rep discount: amount refused", await walkIn(ID.repA1, items(line({ discount_type: "amount", discount_value: 1 }))), { includes: "Only the Owner" });
-  ok("rep discount: a zero discount is still list price", await walkIn(ID.repA1, items(line({ discount_type: "amount", discount_value: 0 }))));
+  const listOnly = ok("rep discount: an order ignores a discount and stays at list price",
+    await order(ID.repA1, shop.id, items(line({ discount_type: "percent", discount_value: 5 }))));
+  check("rep discount: no discount on the line", close(listOnly?.discount_amount, 0) && close(listOnly?.line_total, 2000), JSON.stringify(listOnly));
+  err("manager discount: refused", await walkIn(ID.mgrA1, items(line({ discount_type: "amount", discount_value: 1 }))), { includes: "Only the Owner" });
   ok("discount: owner up to 100%", await walkIn(ID.owner, items(line({ discount_type: "percent", discount_value: 100 }))));
   ok("set_max_rep_discount: remove the limit", await as(ID.owner, `SELECT public.set_max_rep_discount(null)`));
 
@@ -108,37 +110,36 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
      WHERE sales_rep_id=$1 AND product_id=$2`, [ID.repA1, product.id]);
   check("discount: reduces rep sales", Number(repLines.net) < Number(repLines.gross));
   const remit = await one(`SELECT app_private.rep_total_sales($1,$2,$3) n, public.get_rep_total_sales($2,$3) m`, [tenantA, ID.repA1, period]);
-  const allNet = await one(`SELECT sum(line_total)::numeric n FROM public.sales WHERE sales_rep_id=$1 AND customer_id IS NULL AND to_char(sale_date,'YYYY-MM')=$2`, [ID.repA1, period]);
+  const allNet = await one(`SELECT COALESCE(sum(line_total),0)::numeric n FROM public.sales WHERE sales_rep_id=$1 AND customer_id IS NULL AND status='completed' AND to_char(sale_date,'YYYY-MM')=$2`, [ID.repA1, period]);
   check("discount: rep remittance total is net of discounts", close(remit.n, allNet.n) && close(remit.m, allNet.n), `${remit.n} vs ${allNet.n}`);
 
   // Server rules
-  const repHeld = async () => Number((await one(`SELECT (SELECT COALESCE(sum(quantity_fulfilled),0) FROM public.stock_requests WHERE rep_id='${ID.repA1}' AND product_id=$1) - (SELECT COALESCE(sum(quantity_from_rep_stock),0) FROM public.sales WHERE sales_rep_id='${ID.repA1}' AND product_id=$1 AND status='completed') n`, [product.id])).n);
-  const before = await repHeld();
+  const before = await onHand(product.id);
   const key = "abcdabcd-5555-4555-8555-abcdabcdabcd";
-  ok("record_sale: first call with a key", await walkIn(ID.repA1, items(line()), key));
-  const replay = ok("record_sale: repeat with the same key", await walkIn(ID.repA1, items(line()), key));
-  const afterRepeat = await repHeld(); check("record_sale: repeat does not sell twice", afterRepeat === before - 2 && close(replay?.line_total, 2000), `before ${before} after ${afterRepeat} replay ${JSON.stringify(replay)}`);
-  const multi = await walkIn(ID.repA1, items(line(), line({ quantity: 1 })));
+  ok("record_sale: first call with a key", await walkIn(ID.owner, items(line()), key));
+  const replay = ok("record_sale: repeat with the same key", await walkIn(ID.owner, items(line()), key));
+  const afterRepeat = await onHand(product.id);
+  check("record_sale: repeat does not sell twice", afterRepeat === before - 2 && close(replay?.line_total, 2000), `before ${before} after ${afterRepeat}`);
+  const multi = await walkIn(ID.owner, items(line(), line({ quantity: 1 })));
   check("record_sale: lines of one order share an order id", multi.rows?.length === 2 && multi.rows[0].order_id === multi.rows[1].order_id);
-  err("record_sale: wrong role", await walkIn(ID.mgrA1, items(line())), DENY);
-  err("record_sale: rep at another branch", await walkIn(ID.repA1, items(line()), null, ID.brA2), { hint: "branchId" });
-  err("record_sale: walk-in name required", await as(ID.repA1,
+  err("record_sale: a rep records no walk-ins", await walkIn(ID.repA1, items(line())), DENY);
+  err("record_sale: a storekeeper records no sales", await walkIn(ID.skA1, items(line())), DENY);
+  err("record_sale: manager at another branch", await walkIn(ID.mgrA1, items(line()), null, ID.brA2), { hint: "branchId" });
+  err("record_sale: walk-in name required", await as(ID.owner,
     `SELECT * FROM public.record_sale($1,CURRENT_DATE,null,' ',null,$2::jsonb,null)`, [ID.brA1, items(line())]), { hint: "walkInName" });
-  err("record_sale: future date", await as(ID.repA1,
+  err("record_sale: future date", await as(ID.owner,
     `SELECT * FROM public.record_sale($1,CURRENT_DATE + 3,null,'W',null,$2::jsonb,null)`, [ID.brA1, items(line())]), { hint: "saleDate" });
-  err("record_sale: other tenant's product", await walkIn(ID.repA1, items({ product_id: ID.prodB, quantity: 1 })), { hint: "items" });
+  err("record_sale: other tenant's product", await walkIn(ID.owner, items({ product_id: ID.prodB, quantity: 1 })), { hint: "items" });
   const stockBefore = await onHand(product.id);
-  err("record_sale: not enough stock", await walkIn(ID.repA1, items(line(), { product_id: product.id, quantity: 99999 })), { hint: "quantity" });
+  err("record_sale: not enough stock", await walkIn(ID.owner, items(line(), { product_id: product.id, quantity: 99999 })), { hint: "quantity" });
   check("record_sale: a failed line undoes the whole order", (await onHand(product.id)) === stockBefore);
 
-  // Direct inserts (a tab on the previous app version) stay honest.
-  const direct = (price, extra = "", vals = "") => as(ID.repA1,
-    `INSERT INTO public.sales (tenant_id, code, branch_id, sales_rep_id, product_id, quantity, unit_price, sale_date, walk_in_name${extra})
-     VALUES ($1,'SAL-direct-'||gen_random_uuid(),$2,$3,$4,1,$5,CURRENT_DATE,'W'${vals}) RETURNING id`, [tenantA, ID.brA1, ID.repA1, product.id, price]);
-  ok("direct sale: at list price still works", await direct(1000));
-  err("direct sale: cannot change the price", await direct(1), DENY);
-  err("direct sale: cannot apply a discount", await direct(1000, ", discount_amount", ", 500"), DENY);
-  err("direct sale: cannot mark a line as promo", await direct(0, ", is_promo", ", true"), DENY);
+  // Sales are written only through the RPCs.
+  const direct = (userId) => as(userId,
+    `INSERT INTO public.sales (tenant_id, code, branch_id, sales_rep_id, product_id, quantity, unit_price, sale_date, walk_in_name)
+     VALUES ($1,'SAL-direct-'||gen_random_uuid(),$2,$3,$4,1,1000,CURRENT_DATE,'W') RETURNING id`, [tenantA, ID.brA1, userId, product.id]);
+  err("direct sale: a rep can't insert one", await direct(ID.repA1), DENY);
+  err("direct sale: nor can the Owner", await direct(ID.owner), DENY);
 
   // ---------------- promo goods ----------------
   const promo = ok("promo: owner adds a promo item", await as(ID.owner,
@@ -164,72 +165,32 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
   // Promo stock uses the normal inventory flow.
   ok("promo: stock added like any product", await as(ID.owner,
     `SELECT public.add_stock($1,$2,50,null,null,'2028-01-01',false,null,null)`, [ID.brA1, promo.id]));
-  const promoRequest = await as(ID.repA1, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,null,null)`,
-    [ID.brA1, JSON.stringify([{ product_id: promo.id, quantity: 1 }])]);
-  check("promo: can be requested like any product", !promoRequest.error, promoRequest.error?.message);
+  err("promo: a rep can't order a promo item", await as(ID.repA1, `SELECT * FROM public.place_customer_order($1,$2::jsonb,null,null)`,
+    [shop.id, items(line(), { product_id: promo.id, quantity: 3 })]), { hint: "items", includes: "promo item" });
 
   const salesBefore = (await one(`SELECT COALESCE(sum(line_total),0)::numeric n FROM public.sales WHERE sales_rep_id=$1`, [ID.repA1])).n;
-  err("promo: rep can't add a promo item", await walkIn(ID.repA1, items(line(), { product_id: promo.id, quantity: 3, is_promo: true })), { includes: "Only the Owner" });
-  const repSale = ok("promo: rep records the sale at list price", await walkIn(ID.repA1, items(line())));
+  const repSale = ok("promo: the rep's order at list price", await order(ID.repA1, shop.id, items(line())));
   err("add_sale_promo: rep cannot", await as(ID.repA1, `SELECT * FROM public.add_sale_promo($1,$2::jsonb)`, [repSale?.id, items({ product_id: promo.id, quantity: 1 })]), DENY);
   err("add_sale_promo: only promo products", await as(ID.owner, `SELECT * FROM public.add_sale_promo($1,$2::jsonb)`, [repSale?.id, items({ product_id: product.id, quantity: 1 })]), { includes: "not a promo item" });
   const promoAdd = await as(ID.owner, `SELECT * FROM public.add_sale_promo($1,$2::jsonb)`, [repSale?.id, items({ product_id: promo.id, quantity: 3 })]);
-  const order = { rows: [repSale, ...(promoAdd.rows ?? [])].filter(Boolean), error: promoAdd.error };
-  check("promo: goes out on a sale", !order.error && order.rows?.length === 2, order.error?.message);
+  const promoOrder = { rows: [repSale, ...(promoAdd.rows ?? [])].filter(Boolean), error: promoAdd.error };
+  check("promo: goes out on a sale", !promoOrder.error && promoOrder.rows?.length === 2, promoOrder.error?.message);
   check("promo: added to the rep's order", promoAdd.rows?.[0]?.sales_rep_id === ID.repA1 && promoAdd.rows?.[0]?.order_id === repSale?.order_id && promoAdd.rows?.[0]?.is_promo === true,
     JSON.stringify(promoAdd.rows?.[0]));
-  const promoLine = order.rows?.find((r) => r.is_promo);
+  const promoLine = promoOrder.rows?.find((r) => r.is_promo);
   check("promo: line has no value", close(promoLine?.unit_price, 0) && close(promoLine?.line_total, 0), JSON.stringify(promoLine));
   check("promo: stock falls", (await onHand(promo.id)) === 47);
   const salesAfter = (await one(`SELECT COALESCE(sum(line_total),0)::numeric n FROM public.sales WHERE sales_rep_id=$1`, [ID.repA1])).n;
   check("promo: adds nothing to revenue", close(Number(salesAfter) - Number(salesBefore), 2000), `${salesBefore} → ${salesAfter}`);
   const move = await one(`SELECT type, quantity FROM public.inventory_movements WHERE reference_type='sale' AND reference_id=$1`, [promoLine?.id]);
   check("promo: has its own movement type", move?.type === "promo" && move?.quantity === -3, JSON.stringify(move));
-  const paidMove = await one(`SELECT type FROM public.inventory_movements WHERE reference_type='sale' AND reference_id=$1`, [order.rows?.find((r) => !r.is_promo)?.id]);
-  check("promo: the rep's sold line moves no branch stock (it was issued earlier)", paidMove === undefined, JSON.stringify(paidMove));
+  const paidMove = await one(`SELECT type, quantity FROM public.inventory_movements WHERE reference_type='sale' AND reference_id=$1`, [repSale?.id]);
+  check("promo: the order's line left branch stock once, on fulfilment", paidMove?.type === "sale" && paidMove?.quantity === -2, JSON.stringify(paidMove));
 
   err("promo: needs a sold product alongside", await walkIn(ID.owner, items({ product_id: promo.id, quantity: 1, is_promo: true })), { hint: "items" });
   err("promo: cannot be sold as a normal line", await walkIn(ID.owner, items({ product_id: promo.id, quantity: 1 })), { includes: "is a promo item" });
   err("promo: a regular product cannot be given as promo", await walkIn(ID.owner, items({ product_id: product.id, quantity: 1, is_promo: true })), { includes: "not a promo item" });
   err("promo: cannot take a discount", await walkIn(ID.owner, items(line(), { product_id: promo.id, quantity: 1, is_promo: true, discount_type: "amount", discount_value: 1 })), { includes: "already free" });
-
-  // ---------------- stock issued to a rep is not deducted again when sold ----------------
-  const held = ok("setup: product for issued stock", await as(ID.owner,
-    `SELECT * FROM public.create_product('Issued Item','issued-1','Home','Piece',100,50,1,null)`));
-  ok("setup: 100 in the branch", await as(ID.owner, `SELECT public.add_stock($1,$2,100,null,null,'2028-01-01',false,null,null)`, [ID.brA1, held.id]));
-  const heldLine = (quantity) => items({ product_id: held.id, quantity });
-  const request = (await as(repA3, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,null,null)`, [ID.brA1, heldLine(10)])).rows[0];
-  ok("issued stock: approved", await as(ID.skA1, `SELECT public.approve_stock_request($1)`, [request.id]));
-  ok("issued stock: issued", await as(ID.skA1, `SELECT public.fulfil_stock_request($1,10)`, [request.id]));
-  check("issued stock: issuing deducts the branch", (await onHand(held.id)) === 90);
-  const sold6 = (await walkIn(repA3, heldLine(6))).rows?.[0];
-  check("issued stock: selling issued units leaves the branch alone", (await onHand(held.id)) === 90, `on hand ${await onHand(held.id)}`);
-  check("issued stock: split recorded", sold6?.quantity_from_rep_stock === 6);
-  check("issued stock: no movement when branch stock did not change",
-    (await one(`SELECT count(*)::int n FROM public.inventory_movements WHERE reference_type='sale' AND reference_id=$1`, [sold6?.id])).n === 0);
-  err("issued stock: a rep can't sell more than was issued to them", await walkIn(repA3, heldLine(7)), { hint: "quantity", includes: "You hold 4" });
-  check("issued stock: a refused sale leaves the branch alone", (await onHand(held.id)) === 90);
-  const sold4 = (await walkIn(repA3, heldLine(4))).rows?.[0];
-  check("issued stock: the rest of the issued units sell", sold4?.quantity_from_rep_stock === 4 && (await onHand(held.id)) === 90, JSON.stringify(sold4));
-  err("issued stock: another rep holds none of it", await walkIn(ID.repA1, heldLine(1)), { hint: "quantity", includes: "Request stock" });
-  ok("issued stock: owner sells from the branch", await walkIn(ID.owner, heldLine(1)));
-  check("issued stock: owner sale deducts the branch", (await onHand(held.id)) === 89);
-  err("issued stock: nothing left, so the rep must request more", await walkIn(repA3, heldLine(1)), { hint: "quantity" });
-  const req2 = (await as(repA3, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,null,null)`, [ID.brA1, heldLine(5)])).rows[0];
-  await as(ID.skA1, `SELECT public.approve_stock_request($1)`, [req2.id]);
-  await as(ID.skA1, `SELECT public.fulfil_stock_request($1,5)`, [req2.id]);
-  check("issued stock: a second issue deducts the branch", (await onHand(held.id)) === 84);
-  err("issued stock: one order can't use more than is held", await walkIn(repA3, items({ product_id: held.id, quantity: 3 }, { product_id: held.id, quantity: 3 })), { hint: "quantity" });
-  const split = await walkIn(repA3, items({ product_id: held.id, quantity: 3 }, { product_id: held.id, quantity: 2 }));
-  check("issued stock: lines of one order share the held units",
-    split.rows?.[0]?.quantity_from_rep_stock === 3 && split.rows?.[1]?.quantity_from_rep_stock === 2 && (await onHand(held.id)) === 84, JSON.stringify(split.rows ?? split.error));
-  ok("setup: one unit issued to repA1", await issue(ID.repA1, held.id, 1));
-  const forged = await as(ID.repA1,
-    `INSERT INTO public.sales (tenant_id, code, branch_id, sales_rep_id, product_id, quantity, unit_price, sale_date, walk_in_name, quantity_from_rep_stock)
-     VALUES ($1,'SAL-forged',$2,$3,$4,1,100,CURRENT_DATE,'W',0) RETURNING quantity_from_rep_stock q`, [tenantA, ID.brA1, ID.repA1, held.id]);
-  check("issued stock: the split can't be set by the caller", forged.rows?.[0]?.q === 1 && (await onHand(held.id)) === 83, JSON.stringify(forged.rows ?? forged.error));
-  const noStock = await walkIn(repA3, heldLine(99999));
-  err("issued stock: far more than issued", noStock, { hint: "quantity" });
 
   // ---------------- customer assignment ----------------
   const c1 = ok("create_customer: assigned to the rep who added it", await as(ID.repA1,
@@ -249,17 +210,17 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
     `SELECT public.update_customer($1,'X','X','0805 000 0001',null,'x')`, [c1.id]), DENY);
   err("record_customer_payment: not their customer", await as(repA3,
     `SELECT public.record_customer_payment($1,100,'cash',null,CURRENT_DATE,null,null,null)`, [c1.id]), { hint: "customerId" });
-  const customerSale = (userId, customerId, itemsJson, branch = ID.brA1) => as(userId,
-    `SELECT * FROM public.record_sale($1,CURRENT_DATE,$2,null,null,$3::jsonb,null)`, [branch, customerId, itemsJson]);
-  err("record_sale: not their customer", await customerSale(repA3, c1.id, items(line())), { hint: "customerId" });
-  err("record_sale: owner cannot sell on a rep's account", await customerSale(ID.owner, c1.id, items(line())), { hint: "customerId" });
+  err("place_customer_order: not their customer", await as(repA3, `SELECT * FROM public.place_customer_order($1,$2::jsonb,null,null)`,
+    [c1.id, items(line())]), { hint: "customerId" });
+  err("record_sale: customer sales go through orders", await as(ID.owner,
+    `SELECT * FROM public.record_sale($1,CURRENT_DATE,$2,null,null,$3::jsonb,null)`, [ID.brA1, c1.id, items(line())]), { hint: "customerId" });
   const directCustomer = await as(repA3,
     `INSERT INTO public.sales (tenant_id, code, branch_id, sales_rep_id, product_id, customer_id, quantity, unit_price, sale_date)
      VALUES ($1,'SAL-direct-c',$2,$3,$4,$5,1,1000,CURRENT_DATE) RETURNING id`, [tenantA, ID.brA1, repA3, product.id, c1.id]);
   err("direct sale: not their customer", directCustomer);
 
   // The old rep builds some history on the account.
-  const oldSale = await customerSale(ID.repA1, c1.id, items(line({ quantity: 10 })));
+  const oldSale = await order(ID.repA1, c1.id, items(line({ quantity: 10 })));
   ok("customer sale: owner discounts it", await as(ID.owner, `SELECT * FROM public.apply_sale_discount($1,'amount',1000)`, [oldSale.rows?.[0]?.id]));
   check("customer sale: recorded with discount", close((await one(`SELECT line_total FROM public.sales WHERE id=$1`, [oldSale.rows?.[0]?.id])).line_total, 9000), oldSale.error?.message);
   const pay = ok("customer payment by old rep", await as(ID.repA1,
@@ -319,7 +280,7 @@ module.exports = async function customersSales(db, { ID, tenantA }) {
   check("former names: nothing for a rep who never dealt with them", !otherRepNames.rows?.some((n) => n.id === c1.id));
 
   // New activity after the move belongs to the new rep.
-  const newSale = await customerSale(repA3, c1.id, items(line({ quantity: 5 })));
+  const newSale = await order(repA3, c1.id, items(line({ quantity: 5 })));
   check("new sale: recorded by the new rep", newSale.rows?.[0]?.sales_rep_id === repA3, newSale.error?.message);
   check("new sale: counts toward the new rep's target", (await achieved(target.id)) > targetBefore);
   const newPay = ok("new rep collects on the old debt", await as(repA3,

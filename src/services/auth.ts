@@ -1,9 +1,9 @@
 /**
  * Supabase Authentication Service
  *
- * Auth (Supabase) and authorization (FrisconTech `users` profile) are kept separate:
+ * Auth (Supabase) and authorization (Friscon Tech LTD `users` profile) are kept separate:
  *   - Authentication = "does this person have a valid Supabase account?"
- *   - Authorization = "is this person an ACTIVE FrisconTech user, and what
+ *   - Authorization = "is this person an ACTIVE Friscon Tech LTD user, and what
  *     organization/role/branch can they access?" (read from the public.users profile)
  *
  * Owner registration: supabase.auth.signUp with user_metadata.is_owner = true. The

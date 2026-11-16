@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RoleGate } from "@/components/app-shell";
 import { TeamPage } from "@/components/team/team-page";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/team/")({
   head: () => ({
     meta: [
-      { title: "Team — Friscontech" },
+      { title: `Team — ${BRAND_NAME}` },
       { name: "description", content: "Manage the managers, storekeepers and sales representatives in your organization." },
-      { property: "og:title", content: "Team — Friscontech" },
+      { property: "og:title", content: `Team — ${BRAND_NAME}` },
       { property: "og:description", content: "Invite, edit and activate team members by role and branch." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

@@ -1,3 +1,4 @@
+import { BRAND_NAME } from "@/lib/brand";
 /**
  * Staff onboarding model. Stored in Supabase (onboardings, onboarding_files).
  *
@@ -96,6 +97,6 @@ export const NIGERIAN_BANKS = [
 ];
 
 export const GUARANTOR_INTRO =
-  "We sincerely appreciate your time in completing this form. The above-named applicant has nominated you as his/her guarantor for employment with Friscon Tech Limited. Kindly provide honest answers to the questions below. All information provided will be treated as highly confidential.";
+  `We sincerely appreciate your time in completing this form. The above-named applicant has nominated you as his/her guarantor for employment with ${BRAND_NAME}. Kindly provide honest answers to the questions below. All information provided will be treated as highly confidential.`;
 export const DECLARATION_TEXT =
   "I certify that all the information given are correct and hereby accept full responsibility for any misrepresentation or false information discovered. I accept the right of the Company to dismiss me without notice as a result of any false information stated herein.";

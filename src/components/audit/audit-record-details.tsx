@@ -3,6 +3,8 @@ import { Link } from "@tanstack/react-router";
 
 import { DetailItem, RequestStatusBadge } from "@/components/shared";
 import type { Db } from "@/data/mock-db";
+import { OrderStatusBadge } from "@/components/orders/orders-page";
+import { orderTotal, useCustomerOrders } from "@/hooks/use-orders";
 import { saleTotal } from "@/lib/calculations";
 import { getCustomerOrders, getCustomerSummary, orderPaymentLabel } from "@/lib/customer-calculations";
 import { formatDate, formatNaira, formatNumber } from "@/lib/format";
@@ -97,6 +99,53 @@ export function SaleAuditDetails({ db, saleId }: { db: Db; saleId: string }) {
         )}
       </Section>
     </>
+  );
+}
+
+export function OrderAuditDetails({ db, orderId }: { db: Db; orderId: string }) {
+  const { data: orders = [], isLoading } = useCustomerOrders();
+  const o = orders.find((x) => x.id === orderId);
+  if (isLoading) return null;
+  if (!o) return <Section title="Order"><p className="text-sm text-muted-foreground">This order is not available to you, or no longer exists.</p></Section>;
+  const name = (id?: string | null) => (id ? (db.users.find((u) => u.id === id)?.name ?? "—") : "—");
+  const product = (id: string) => db.products.find((p) => p.id === id)?.name ?? "Product";
+  const steps = [
+    ["Raised", o.createdAt, o.repId],
+    ["Fulfilled", o.fulfilledAt, o.fulfilledBy],
+    ["Acknowledged", o.acknowledgedAt, o.acknowledgedBy],
+    ["Cancelled", o.cancelledAt, o.cancelledBy],
+  ].filter(([, at]) => !!at) as [string, string, string | null][];
+  return (
+    <Section title={`Order ${o.code}`}>
+      <div className="flex items-start justify-between gap-2">
+        <Link to="/customers/$customerId" params={{ customerId: o.customerId }} className="text-sm font-semibold hover:text-primary">{o.customerName}</Link>
+        <OrderStatusBadge status={o.status} />
+      </div>
+      <ul className="mt-3 space-y-1 text-xs">
+        {o.lines.map((l) => (
+          <li key={l.saleId} className="flex justify-between gap-3">
+            <span>{product(l.productId)} × {formatNumber(l.quantity)}{l.isPromo ? " (promo)" : ""}</span>
+            <span className="tabular-nums">{formatNaira(l.lineTotal)}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-4 grid grid-cols-3 gap-4">
+        <DetailItem label="Total">{formatNaira(orderTotal(o))}</DetailItem>
+        <DetailItem label="Sales rep">{name(o.repId)}</DetailItem>
+        <DetailItem label="Branch">{db.branches.find((b) => b.id === o.branchId)?.name ?? "—"}</DetailItem>
+      </div>
+      <ol className="mt-4 space-y-2 border-l border-border pl-4 text-xs">
+        {steps.map(([label, at, by]) => (
+          <li key={label} className="relative">
+            <span className="absolute -left-[21px] top-1 size-2.5 rounded-full border-2 border-background bg-primary" aria-hidden="true" />
+            <span className="font-semibold">{label}</span> · {stamp(at)}{by ? ` · ${name(by)}` : ""}
+          </li>
+        ))}
+      </ol>
+      {o.note && <p className="mt-3 rounded-md bg-muted/60 px-3 py-2 text-xs">Note: {o.note}</p>}
+      {o.cancelReason && <p className="mt-3 rounded-md bg-destructive/5 px-3 py-2 text-xs text-destructive">Cancelled: {o.cancelReason}</p>}
+      <Link to="/orders" className="mt-4 inline-block text-xs font-semibold text-primary hover:underline">Open orders</Link>
+    </Section>
   );
 }
 

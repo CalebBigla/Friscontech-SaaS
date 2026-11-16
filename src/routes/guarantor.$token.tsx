@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { GuarantorFormPage } from "@/components/onboarding/guarantor-form-page";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/guarantor/$token")({
   head: () => ({
     meta: [
-      { title: "Guarantor Form — Friscontech" },
-      { name: "description", content: "Confidential guarantor form for a Friscon Tech Limited applicant." },
-      { property: "og:title", content: "Guarantor Form — Friscontech" },
+      { title: `Guarantor Form — ${BRAND_NAME}` },
+      { name: "description", content: `Confidential guarantor form for a ${BRAND_NAME} applicant.` },
+      { property: "og:title", content: `Guarantor Form — ${BRAND_NAME}` },
       { property: "og:description", content: "Confidential guarantor reference." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

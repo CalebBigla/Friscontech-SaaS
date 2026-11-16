@@ -1,5 +1,5 @@
 // End-to-end role relationships, as the app uses them:
-//   rep -> storekeeper: stock request, approval, issue, acknowledgement
+//   rep -> storekeeper: customer order, fulfilment, acknowledgement
 //   storekeeper -> manager (-> Owner): stock additions awaiting approval
 // plus who can see what at each step, and that nobody can skip an RPC by
 // writing a table directly.
@@ -26,32 +26,101 @@ module.exports = async function relationships(db, { ID, tenantA }) {
   const onHand = async (productId) => (await one(`SELECT quantity_on_hand q FROM public.inventory_records WHERE branch_id=$1 AND product_id=$2`, [ID.brA1, productId]))?.q;
   const notified = async (userId, entityId) => (await one(`SELECT count(*)::int n FROM public.notifications WHERE recipient_id=$1 AND entity_id=$2`, [userId, String(entityId)])).n;
   const DENIED = (r) => r.error?.code === "42501";
+  const DENY = { code: "42501" };
+  const err = (name, r, { code, hint, includes } = {}) => {
+    const e = r.error;
+    check(name, !!e && (!code || e.code === code) && (!hint || e.hint === hint) && (!includes || e.message.includes(includes)),
+      e ? `${e.code} [${e.hint}] ${e.message}` : "expected an error, call succeeded");
+  };
 
   const product = ok("setup: product", await as(ID.owner, `SELECT * FROM public.create_product('Relay Item','relay-1','Home','Piece',500,300,5,null)`));
   ok("setup: 100 in Ikeja", await as(ID.owner, `SELECT public.add_stock($1,$2,100,null,null,'2028-01-01',false,null,null)`, [ID.brA1, product.id]));
 
-  // ---------------- rep -> storekeeper ----------------
-  const request = ok("rep: raises a stock request", await as(ID.repA1,
-    `SELECT * FROM public.create_stock_requests($1,$2::jsonb,'For a customer',null)`, [ID.brA1, JSON.stringify([{ product_id: product.id, quantity: 12 }])]));
-  check("request: the rep sees it", await sees(ID.repA1, "stock_requests", request.id));
-  check("request: their branch storekeeper sees it", await sees(ID.skA1, "stock_requests", request.id));
-  check("request: the Owner sees it", await sees(ID.owner, "stock_requests", request.id));
-  check("request: another rep does not", !(await sees(ID.repA2, "stock_requests", request.id)));
-  check("request: another branch's storekeeper does not", !(await sees(ID.skA2, "stock_requests", request.id)));
-  check("request: another business does not", !(await sees(ID.skB1, "stock_requests", request.id)));
-  check("request: the storekeeper is notified", (await notified(ID.skA1, request.id)) > 0);
+  // ---------------- rep -> storekeeper: customer orders (20261116100000) ----------------
+  const reserved = async (productId) => (await one(`SELECT quantity_reserved r FROM public.inventory_records WHERE branch_id=$1 AND product_id=$2`, [ID.brA1, productId]))?.r;
+  const buyer = ok("setup: a customer of the rep", await as(ID.repA1, `SELECT * FROM public.create_customer('Relay Stores','Uche','0805 333 0001',null,'Ikeja')`));
+  const lines = (q) => JSON.stringify([{ product_id: product.id, quantity: q }]);
+  const place = (rep, customer, q, key = null) => as(rep, `SELECT * FROM public.place_customer_order($1,$2::jsonb,'Deliver Monday',$3)`, [customer, lines(q), key]);
 
-  ok("storekeeper: approves", await as(ID.skA1, `SELECT public.approve_stock_request($1)`, [request.id]));
-  check("approve: the rep is notified", (await notified(ID.repA1, request.id)) > 0);
-  check("approve: stock not moved yet", (await onHand(product.id)) === 100);
-  ok("storekeeper: issues 12", await as(ID.skA1, `SELECT public.fulfil_stock_request($1,12)`, [request.id]));
-  check("issue: branch stock goes down", (await onHand(product.id)) === 88);
-  ok("rep: confirms receipt", await as(ID.repA1, `SELECT public.acknowledge_stock_request($1)`, [request.id]));
-  const done = await one(`SELECT status, quantity_fulfilled f, acknowledged_at IS NOT NULL ack FROM public.stock_requests WHERE id=$1`, [request.id]);
-  check("request: fulfilled and acknowledged", done.status === "fulfilled" && done.f === 12 && done.ack, JSON.stringify(done));
-  const sale = ok("rep: sells 5 of the issued units", await as(ID.repA1,
-    `SELECT * FROM public.record_sale($1,CURRENT_DATE,null,'Walk-in','',$2::jsonb,null)`, [ID.brA1, JSON.stringify([{ product_id: product.id, quantity: 5 }])]));
-  check("sale: uses the issued units, not the branch", sale?.quantity_from_rep_stock === 5 && (await onHand(product.id)) === 88);
+  const orderKey = "77777777-7777-4777-8777-777777777777";
+  const order = ok("rep: raises an order from the customer's order book", await place(ID.repA1, buyer.id, 12, orderKey));
+  check("order: waits for the storekeeper, no approval step", order?.status === "pending" && /^ORD-\d+$/.test(order?.code ?? ""), JSON.stringify(order));
+  await place(ID.repA1, buyer.id, 12, orderKey);
+  check("order: a repeated submit does not raise it twice", (await one(`SELECT count(*)::int n FROM public.customer_orders WHERE customer_id=$1`, [buyer.id])).n === 1);
+  check("order: the units are reserved, not yet deducted", (await onHand(product.id)) === 100 && (await reserved(product.id)) === 12);
+  const pendingLine = await one(`SELECT status, sale_date FROM public.sales WHERE order_id=$1`, [order.id]);
+  check("order: its line waits, so it is not a sale yet", pendingLine?.status === "pending", JSON.stringify(pendingLine));
+  check("order: not on the customer's ledger before fulfilment", Number((await one(`SELECT public.get_customer_balance($1) b`, [buyer.id])).b) === 0);
+  check("order: the rep sees it", await sees(ID.repA1, "customer_orders", order.id));
+  check("order: their branch storekeeper sees it", await sees(ID.skA1, "customer_orders", order.id));
+  check("order: their branch manager sees it", await sees(ID.mgrA1, "customer_orders", order.id));
+  check("order: the Owner sees it", await sees(ID.owner, "customer_orders", order.id));
+  check("order: another rep does not", !(await sees(ID.repA2, "customer_orders", order.id)));
+  check("order: another branch's storekeeper does not", !(await sees(ID.skA2, "customer_orders", order.id)));
+  check("order: another business does not", !(await sees(ID.skB1, "customer_orders", order.id)));
+  check("order: the storekeeper is notified", (await notified(ID.skA1, order.id)) > 0);
+  const listed = (await as(ID.skA1, `SELECT * FROM public.get_customer_orders()`)).rows ?? [];
+  const mine = listed.find((o) => o.id === order.id);
+  check("order list: the storekeeper gets the customer, rep and lines", mine?.customer_name === "Relay Stores" && mine?.rep_id === ID.repA1
+    && mine?.lines?.[0]?.product_id === product.id && mine?.lines?.[0]?.quantity === 12, JSON.stringify(mine));
+  check("order list: another rep gets none of it", !((await as(ID.repA2, `SELECT * FROM public.get_customer_orders()`)).rows ?? []).some((o) => o.id === order.id));
+
+  // Stock checks happen on the server, against what is left after reservations.
+  err("order: more than is available", await place(ID.repA1, buyer.id, 89), { hint: "items", includes: "Only 88" });
+  ok("order: exactly what is left", await place(ID.repA1, buyer.id, 88));
+  check("order: everything is now reserved", (await reserved(product.id)) === 100);
+  err("order: out of stock", await place(ID.repA1, buyer.id, 1), { hint: "items", includes: "out of stock" });
+  err("walk-in: the Owner can't sell reserved units", await as(ID.owner,
+    `SELECT * FROM public.record_sale($1,CURRENT_DATE,null,'Walk-in','',$2::jsonb,null)`, [ID.brA1, lines(1)]), { hint: "quantity", includes: "reserved" });
+  const rec = await one(`SELECT id FROM public.inventory_records WHERE branch_id=$1 AND product_id=$2`, [ID.brA1, product.id]);
+  err("count: a recount can't drop below reserved units", await as(ID.skA1, `SELECT public.adjust_stock($1,50,'Recount')`, [rec.id]), { hint: "quantity" });
+  err("order: storekeepers don't raise orders", await place(ID.skA1, buyer.id, 1), DENY);
+  err("order: not for another rep's customer", await place(ID.repA2, buyer.id, 1), { hint: "customerId" });
+  err("order: a promo or unknown product", await as(ID.repA1, `SELECT * FROM public.place_customer_order($1,$2::jsonb,null,null)`,
+    [buyer.id, JSON.stringify([{ product_id: ID.prodB, quantity: 1 }])]), { hint: "items" });
+  err("order: the same product twice", await as(ID.repA1, `SELECT * FROM public.place_customer_order($1,$2::jsonb,null,null)`,
+    [buyer.id, JSON.stringify([{ product_id: product.id, quantity: 1 }, { product_id: product.id, quantity: 1 }])]), { hint: "items" });
+
+  // Cancel the 88 so they're free again.
+  const big = (await one(`SELECT id FROM public.customer_orders WHERE customer_id=$1 AND status='pending' AND id<>$2`, [buyer.id, order.id])).id;
+  err("cancel: another rep can't", await as(ID.repA2, `SELECT public.cancel_customer_order($1,'x')`, [big]), DENY);
+  err("cancel: the storekeeper can't", await as(ID.skA1, `SELECT public.cancel_customer_order($1,'x')`, [big]), DENY);
+  err("cancel: needs a reason", await as(ID.repA1, `SELECT public.cancel_customer_order($1,' ')`, [big]), { hint: "reason" });
+  ok("cancel: the rep cancels before fulfilment", await as(ID.repA1, `SELECT public.cancel_customer_order($1,'Customer changed their mind')`, [big]));
+  check("cancel: the units are free again", (await reserved(product.id)) === 12 && (await onHand(product.id)) === 100);
+  check("cancel: its line is voided", (await one(`SELECT status FROM public.sales WHERE order_id=$1`, [big])).status === "voided");
+  check("cancel: the storekeeper is told", (await notified(ID.skA1, big)) > 0);
+  err("cancel: can't be fulfilled afterwards", await as(ID.skA1, `SELECT public.fulfil_customer_order($1)`, [big]), { includes: "cancelled" });
+
+  // Fulfilment: the storekeeper of the branch, once.
+  err("acknowledge: not before fulfilment", await as(ID.repA1, `SELECT public.acknowledge_customer_order($1)`, [order.id]), { includes: "fulfils" });
+  err("fulfil: the rep can't", await as(ID.repA1, `SELECT public.fulfil_customer_order($1)`, [order.id]), DENY);
+  err("fulfil: another branch's storekeeper can't", await as(ID.skA2, `SELECT public.fulfil_customer_order($1)`, [order.id]), DENY);
+  err("fulfil: another business can't see it", await as(ID.skB1, `SELECT public.fulfil_customer_order($1)`, [order.id]), { includes: "not found" });
+  err("fulfil: the manager can't", await as(ID.mgrA1, `SELECT public.fulfil_customer_order($1)`, [order.id]), DENY);
+  check("no approve or reject step exists", (await one(`SELECT count(*)::int n FROM pg_proc WHERE proname IN ('approve_customer_order','reject_customer_order')`)).n === 0);
+  const fulfilled = ok("storekeeper: fulfils", await as(ID.skA1, `SELECT * FROM public.fulfil_customer_order($1)`, [order.id]));
+  check("fulfil: recorded with who and when", fulfilled?.status === "fulfilled" && fulfilled?.fulfilled_by === ID.skA1 && !!fulfilled?.fulfilled_at, JSON.stringify(fulfilled));
+  check("fulfil: stock deducted once, reservation released", (await onHand(product.id)) === 88 && (await reserved(product.id)) === 0);
+  const sold = await one(`SELECT id, status, quantity_from_rep_stock f FROM public.sales WHERE order_id=$1`, [order.id]);
+  check("fulfil: the line becomes a completed sale", sold?.status === "completed" && sold?.f === 0, JSON.stringify(sold));
+  check("fulfil: one stock movement for the line",
+    (await one(`SELECT count(*)::int n, sum(quantity)::int q FROM public.inventory_movements WHERE reference_type='sale' AND reference_id=$1`, [sold.id])).q === -12);
+  check("fulfil: now on the customer's ledger", Number((await one(`SELECT public.get_customer_balance($1) b`, [buyer.id])).b) === 6000);
+  check("fulfil: the rep is notified", (await notified(ID.repA1, order.id)) > 0);
+  err("fulfil: not twice", await as(ID.skA1, `SELECT public.fulfil_customer_order($1)`, [order.id]), { includes: "already fulfilled" });
+  check("fulfil: a second attempt deducts nothing", (await onHand(product.id)) === 88);
+  err("cancel: not after fulfilment", await as(ID.owner, `SELECT public.cancel_customer_order($1,'late')`, [order.id]), { includes: "waiting" });
+
+  // Acknowledgement: only the rep who raised it, once.
+  err("acknowledge: another rep can't", await as(ID.repA2, `SELECT public.acknowledge_customer_order($1)`, [order.id]), DENY);
+  err("acknowledge: the Owner can't", await as(ID.owner, `SELECT public.acknowledge_customer_order($1)`, [order.id]), DENY);
+  const acked = ok("rep: acknowledges", await as(ID.repA1, `SELECT * FROM public.acknowledge_customer_order($1)`, [order.id]));
+  check("acknowledge: recorded with who and when", acked?.status === "acknowledged" && acked?.acknowledged_by === ID.repA1 && !!acked?.acknowledged_at);
+  err("acknowledge: not twice", await as(ID.repA1, `SELECT public.acknowledge_customer_order($1)`, [order.id]), { includes: "already acknowledged" });
+  const trail = (await db.query(`SELECT action FROM public.activities WHERE entity='order' AND entity_id=$1 ORDER BY created_at`, [order.id])).rows.map((r) => r.action);
+  check("audit: raised, fulfilled and acknowledged are on record", ["Order raised", "Order fulfilled", "Order acknowledged"].every((a) => trail.includes(a)), trail.join(", "));
+  const sale = sold;
 
   // ---------------- storekeeper -> manager -> Owner ----------------
   const addition = ok("storekeeper: asks to add 40", await as(ID.skA1,
@@ -87,11 +156,21 @@ module.exports = async function relationships(db, { ID, tenantA }) {
     `INSERT INTO public.approval_requests (tenant_id, type, status, branch_id, requested_by, requested_at) VALUES ($1,'stock_addition','approved',$2,$3,now())`,
     [tenantA, ID.brA1, ID.skA1])));
   check("direct: approval still pending", (await one(`SELECT status FROM public.approval_requests WHERE id=$1`, [pending.id])).status === "pending");
-  const sr = ok("setup: another stock request", await as(ID.repA1,
-    `SELECT * FROM public.create_stock_requests($1,$2::jsonb,null,null)`, [ID.brA1, JSON.stringify([{ product_id: product.id, quantity: 3 }])]));
-  check("direct: rep can't mark their request fulfilled", DENIED(await as(ID.repA1, `UPDATE public.stock_requests SET status='fulfilled', quantity_fulfilled=3 WHERE id=$1`, [sr.id])));
-  check("direct: storekeeper can't approve by UPDATE", DENIED(await as(ID.skA1, `UPDATE public.stock_requests SET status='approved' WHERE id=$1`, [sr.id])));
-  check("direct: nobody deletes a request", DENIED(await as(ID.owner, `DELETE FROM public.stock_requests WHERE id=$1`, [sr.id])));
+  // Old stock requests stay readable; nobody writes them any more.
+  await db.query(`INSERT INTO public.stock_requests (id, tenant_id, branch_id, rep_id, product_id, quantity_requested, quantity_approved,
+                    quantity_fulfilled, status, requested_at, priority) VALUES ('SR-OLD',$1,$2,$3,$4,5,5,5,'fulfilled',now(),'Normal')`,
+    [tenantA, ID.brA1, ID.repA1, product.id]);
+  check("history: the rep still reads their old request", await sees(ID.repA1, "stock_requests", "SR-OLD"));
+  check("history: the branch storekeeper too", await sees(ID.skA1, "stock_requests", "SR-OLD"));
+  check("direct: a rep can't raise a stock request any more", !!(await as(ID.repA1,
+    `INSERT INTO public.stock_requests (id, tenant_id, branch_id, rep_id, product_id, quantity_requested, status, requested_at, priority)
+     VALUES ('SR-NEW',$1,$2,$3,$4,1,'pending',now(),'Normal')`, [tenantA, ID.brA1, ID.repA1, product.id])).error);
+  const srTouched = await as(ID.repA1, `UPDATE public.stock_requests SET status='pending' WHERE id='SR-OLD' RETURNING id`);
+  check("direct: a rep can't change an old request", !!srTouched.error || srTouched.rows.length === 0);
+  check("direct: nobody deletes a request", DENIED(await as(ID.owner, `DELETE FROM public.stock_requests WHERE id='SR-OLD'`)));
+  check("direct: an order can't be marked fulfilled by UPDATE", DENIED(await as(ID.skA1, `UPDATE public.customer_orders SET status='fulfilled' WHERE id=$1`, [big])));
+  check("direct: nor created by INSERT", DENIED(await as(ID.repA1,
+    `INSERT INTO public.customer_orders (code, tenant_id, branch_id, customer_id, rep_id) VALUES ('ORD-X',$1,$2,$3,$4)`, [tenantA, ID.brA1, buyer.id, ID.repA1])));
   for (const [table, who] of [["inventory_records", ID.skA1], ["stock_batches", ID.skA1], ["payments", ID.repA1], ["customer_payments", ID.repA1],
     ["expenses", ID.mgrA1], ["manager_remittances", ID.mgrA1], ["owner_remittances", ID.owner], ["targets", ID.owner], ["users", ID.owner], ["tenants", ID.owner]]) {
     check(`direct: ${table} can't be changed`, DENIED(await as(who, `UPDATE public.${table} SET id = id WHERE false`)));
@@ -102,7 +181,7 @@ module.exports = async function relationships(db, { ID, tenantA }) {
     !(await as(ID.repA1, `UPDATE public.notifications SET read_at = now() WHERE recipient_id = $1`, [ID.repA1])).error);
   check("still allowed: the Owner edits a branch",
     !(await as(ID.owner, `UPDATE public.branches SET phone = phone WHERE id = $1`, [ID.brA1])).error);
-  check("still readable: the rep's own requests", (await as(ID.repA1, `SELECT count(*)::int n FROM public.stock_requests`)).rows?.[0]?.n >= 2);
+  check("still readable: the rep's own requests", (await as(ID.repA1, `SELECT count(*)::int n FROM public.stock_requests`)).rows?.[0]?.n >= 1);
 
   // ---------------- managers read their branch's customers; invoices read the business ----------------
   const custA1 = ok("setup: a customer in Ikeja", await as(ID.repA1, `SELECT * FROM public.create_customer('Branch Co','Bisi','0805 222 0001',null,'Ikeja')`));

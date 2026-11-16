@@ -42,16 +42,15 @@ export type AccessScope = {
   /** set when the user may only see their own sales */
   repId?: string;
   canManageBranches: boolean;
+  /** walk-in sales: the Owner (any branch) and a branch manager (own branch) */
   canRecordSales: boolean;
   canViewSales: boolean;
   /** add / adjust stock (storekeeper only) */
   canManageStock: boolean;
-  /** approve / reject pending stock requests */
-  canReviewRequests: boolean;
-  /** issue stock against approved requests */
-  canFulfillRequests: boolean;
-  /** submit new stock requests (sales reps) */
-  canCreateRequests: boolean;
+  /** raise customer orders from a customer's order book (sales reps) */
+  canRaiseOrders: boolean;
+  /** fulfil the branch's customer orders (storekeeper) */
+  canFulfilOrders: boolean;
   /** branch module (owner + manager only) */
   canViewBranches: boolean;
   /** add products to the shared catalogue (storekeeper) */
@@ -74,8 +73,8 @@ export type AccessScope = {
   canReviewApprovals: boolean;
   /** deactivate products directly (owner + manager); storekeepers must request it */
   canDeactivateProducts: boolean;
-  /** confirm receipt of fulfilled stock (sales reps) */
-  canAcknowledgeStock: boolean;
+  /** see customer orders: Owner all, manager and storekeeper their branch, rep their own */
+  canViewOrders: boolean;
   /** payment chain step 2: acknowledge rep and customer payments (manager only) */
   canAcknowledgePayments: boolean;
   /** payment chain step 3: confirm or decline acknowledged payments (owner only) */
@@ -92,9 +91,8 @@ export type AccessScope = {
 
 const none = {
   canManageStock: false,
-  canReviewRequests: false,
-  canFulfillRequests: false,
-  canCreateRequests: false,
+  canRaiseOrders: false,
+  canFulfilOrders: false,
   canViewBranches: false,
   canManageProducts: false,
   canViewInventoryAdmin: true,
@@ -134,7 +132,7 @@ export function getScopeForUser(user: User | null, userId: string = user?.id ?? 
       canViewOrganizationSettings: false,
       canReviewApprovals: false,
       canDeactivateProducts: false,
-      canAcknowledgeStock: false,
+      canViewOrders: false,
       canAcknowledgePayments: false,
       canConfirmPayments: false,
       canViewCustomers: false,
@@ -152,7 +150,7 @@ export function getScopeForUser(user: User | null, userId: string = user?.id ?? 
     canViewOrganizationSettings: r === "owner" || r === "manager",
     canReviewApprovals: r === "owner" || r === "manager",
     canDeactivateProducts: r === "owner" || r === "manager",
-    canAcknowledgeStock: r === "sales_rep",
+    canViewOrders: r !== "supervisor",
     canAcknowledgePayments: r === "manager",
     canConfirmPayments: r === "owner",
     // Managers read their branch's customers (read-only).
@@ -168,7 +166,7 @@ type Extra =
   | "canViewOrganizationSettings"
   | "canReviewApprovals"
   | "canDeactivateProducts"
-  | "canAcknowledgeStock"
+  | "canViewOrders"
   | "canAcknowledgePayments"
   | "canConfirmPayments"
   | "canViewCustomers"
@@ -236,13 +234,13 @@ function baseScope(user: User | null, userId: string): Omit<AccessScope, Extra> 
         canManageTeam: true,
         canViewReports: true,
       };
-    // Managers supervise: no sales entry, no catalogue additions, no rep stock-request review, no Branches module.
+    // Managers supervise and record walk-in sales for their branch; no catalogue additions, no Branches module.
     case "manager":
       return {
         user,
         branchIds: own,
         canManageBranches: false,
-        canRecordSales: false,
+        canRecordSales: true,
         canViewSales: true,
         ...none,
         canViewBranches: false,
@@ -259,9 +257,8 @@ function baseScope(user: User | null, userId: string): Omit<AccessScope, Extra> 
         canRecordSales: false,
         canViewSales: false,
         canManageStock: true,
-        canReviewRequests: true,
-        canFulfillRequests: true,
-        canCreateRequests: false,
+        canRaiseOrders: false,
+        canFulfilOrders: true,
         canViewBranches: false,
         canManageProducts: true,
         canViewInventoryAdmin: true,
@@ -286,10 +283,11 @@ function baseScope(user: User | null, userId: string): Omit<AccessScope, Extra> 
         branchIds: own,
         repId: user.id,
         canManageBranches: false,
-        canRecordSales: true,
+        // Reps sell through customer orders; walk-ins are the Owner's and managers'.
+        canRecordSales: false,
         canViewSales: true,
         ...none,
-        canCreateRequests: true,
+        canRaiseOrders: true,
         canViewInventoryAdmin: false,
       };
   }

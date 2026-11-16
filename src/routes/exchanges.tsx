@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RoleGate } from "@/components/app-shell";
 import { ExchangesPage } from "@/components/exchanges/exchanges-page";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/exchanges")({
   head: () => ({
     meta: [
-      { title: "Exchanges — Friscontech" },
+      { title: `Exchanges — ${BRAND_NAME}` },
       { name: "description", content: "Customer exchanges: requested by the rep, approved and fulfilled by the storekeeper." },
     ],
   }),

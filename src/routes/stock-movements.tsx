@@ -8,13 +8,14 @@ import type { MovementType } from "@/data/mock-db";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import { getInventoryMovements, movementTypeLabel } from "@/lib/inventory-calculations";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/stock-movements")({
   head: () => ({
     meta: [
-      { title: "Stock Movements — Friscontech" },
+      { title: `Stock Movements — ${BRAND_NAME}` },
       { name: "description", content: "Every stock addition, issue, sale and adjustment at your branch." },
-      { property: "og:title", content: "Stock Movements — Friscontech" },
+      { property: "og:title", content: `Stock Movements — ${BRAND_NAME}` },
       { property: "og:description", content: "A traceable history of every inventory change." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

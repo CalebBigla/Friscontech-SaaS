@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RoleGate } from "@/components/app-shell";
 import { BranchDetailsPage } from "@/components/branches/branch-details-page";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/branches/$branchId")({
   head: () => ({
     meta: [
-      { title: "Branch details — Friscontech" },
+      { title: `Branch details — ${BRAND_NAME}` },
       { name: "description", content: "Branch revenue, target achievement, staff, sales and inventory health." },
-      { property: "og:title", content: "Branch details — Friscontech" },
+      { property: "og:title", content: `Branch details — ${BRAND_NAME}` },
       { property: "og:description", content: "A complete operational view of a single branch." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

@@ -19,6 +19,7 @@ import { supabase } from "@/lib/supabase";
 import { onAuthStateChange } from "@/services/auth";
 import { setAuthUserRef, setCurrentUserId } from "@/lib/session";
 import type { Role, User, UserStatus } from "@/data/mock-db";
+import { BRAND_NAME } from "@/lib/brand";
 
 export type AuthStatus = "loading" | "unauthenticated" | "authenticated";
 export type ProfileStatus =
@@ -95,14 +96,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           status: queryError.status ?? queryStatus ?? null,
         });
         setProfileStatus("failed");
-        setProfileError("We couldn't load your FrisconTech profile. Retry or contact support.");
+        setProfileError(`We couldn't load your ${BRAND_NAME} profile. Retry or contact support.`);
         return;
       }
 
       if (!row) {
         console.error("[PROFILE RESULT] profile not found", { authUserId, profileUserId: null });
         setProfileStatus("not_found");
-        setProfileError("Your authenticated account has no FrisconTech profile. Contact your administrator.");
+        setProfileError(`Your authenticated account has no ${BRAND_NAME} profile. Contact your administrator.`);
         return;
       }
 
@@ -196,7 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (currentRequest !== requestId.current) return;
       console.error("[PROFILE QUERY] unexpected error", { authUserId, error });
       setProfileStatus("failed");
-      setProfileError("We couldn't load your FrisconTech profile. Retry or contact support.");
+      setProfileError(`We couldn't load your ${BRAND_NAME} profile. Retry or contact support.`);
     }
   }
 

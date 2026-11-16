@@ -40,16 +40,13 @@ module.exports = async function exchanges(db, { ID, tenantA }) {
   for (const p of [shirt, shirtL, jacket, sock]) {
     ok(`setup: stock ${p.name}`, await as(ID.owner, `SELECT public.add_stock($1,$2,50,null,'LOT-EX','2028-01-01',false,null,null)`, [ID.brA1, p.id]));
   }
-  // Reps sell only stock issued to them: request, approve, issue.
-  for (const [p, n] of [[shirt, 20], [jacket, 5]]) {
-    const r = (await as(ID.repA1, `SELECT * FROM public.create_stock_requests($1,$2::jsonb,null,null)`, [ID.brA1, JSON.stringify([{ product_id: p.id, quantity: n }])])).rows?.[0];
-    await as(ID.skA1, `SELECT public.approve_stock_request($1)`, [r?.id]);
-    ok(`setup: ${n} ${p.name} issued to the rep`, await as(ID.skA1, `SELECT public.fulfil_stock_request($1,$2)`, [r?.id, n]));
-  }
   const cust = ok("setup: customer", await as(ID.repA1, `SELECT * FROM public.create_customer('Exchange Co','Eze','0805 111 0001',null,'Ikeja')`));
-  const sell = async (productId, quantity, extra = {}) => (await as(ID.repA1,
-    `SELECT * FROM public.record_sale($1,CURRENT_DATE,$2,null,null,$3::jsonb,null)`,
-    [ID.brA1, cust.id, JSON.stringify([{ product_id: productId, quantity, ...extra }])])).rows?.[0];
+  // A rep sells through a customer order the storekeeper fulfils.
+  const sell = async (productId, quantity) => {
+    const o = (await as(ID.repA1, `SELECT * FROM public.place_customer_order($1,$2::jsonb,null,null)`, [cust.id, JSON.stringify([{ product_id: productId, quantity }])])).rows?.[0];
+    await as(ID.skA1, `SELECT public.fulfil_customer_order($1)`, [o?.id]);
+    return one(`SELECT * FROM public.sales WHERE order_id=$1`, [o?.id]);
+  };
   const sale = await sell(shirt.id, 4);
   check("setup: customer sale of 4 shirts", sale?.quantity === 4 && close(sale?.line_total, 4000));
   check("setup: owes 4,000", close(await balance(cust.id), 4000));
@@ -63,7 +60,7 @@ module.exports = async function exchanges(db, { ID, tenantA }) {
   err("request: another rep's customer", await req(ID.repA2, sale.id, 1, shirtL.id, 1), { hint: "saleId" });
   err("request: more than was sold", await req(ID.repA1, sale.id, 5, shirtL.id, 1), { hint: "returnQuantity" });
   err("request: no reason", await req(ID.repA1, sale.id, 1, shirtL.id, 1, " "), { hint: "reason" });
-  const walkIn = (await as(ID.repA1, `SELECT * FROM public.record_sale($1,CURRENT_DATE,null,'W','',$2::jsonb,null)`, [ID.brA1, JSON.stringify([{ product_id: shirt.id, quantity: 1 }])])).rows?.[0];
+  const walkIn = (await as(ID.owner, `SELECT * FROM public.record_sale($1,CURRENT_DATE,null,'W','',$2::jsonb,null)`, [ID.brA1, JSON.stringify([{ product_id: shirt.id, quantity: 1 }])])).rows?.[0];
   err("request: walk-in sales have no account", await req(ID.repA1, walkIn?.id, 1, shirtL.id, 1), { hint: "saleId" });
 
   const same = ok("request: 2 shirts for 2 larger shirts", await req(ID.repA1, sale.id, 2, shirtL.id, 2));

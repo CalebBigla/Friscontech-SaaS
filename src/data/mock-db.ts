@@ -1,7 +1,7 @@
 import type { Onboarding } from "@/data/onboarding";
 import type { OwnerRemittance } from "./remittances";
 /**
- * Domain types for Friscontech. Data is read from Supabase; see src/hooks/.
+ * Domain types for Friscon Tech LTD. Data is read from Supabase; see src/hooks/.
  * Records mirror future PostgreSQL tables: every relationship is expressed through IDs.
  * Derived values (revenue, staff counts, performance) are NEVER stored here —
  * they are computed in src/lib/calculations.ts.
@@ -233,14 +233,18 @@ export type NotificationType =
   | "exchange_requested"
   | "exchange_approved"
   | "exchange_rejected"
-  | "exchange_fulfilled";
+  | "exchange_fulfilled"
+  /** customer orders (20261116100000) */
+  | "order_submitted"
+  | "order_fulfilled"
+  | "order_cancelled";
 /** Notifications-ready rows for the next approver; delivery is added later. */
 export type AppNotification = {
   id: string;
   tenantId: string;
   recipientId: string;
   type: NotificationType;
-  entityType: "payment" | "customer_payment" | "onboarding" | "stock_request" | "approval_request" | "report_request" | "stock_exchange";
+  entityType: "payment" | "customer_payment" | "onboarding" | "stock_request" | "approval_request" | "report_request" | "stock_exchange" | "customer_order";
   entityId: string;
   message: string;
   createdAt: string;
@@ -414,7 +418,8 @@ export type AuditEntity =
   | "session"
   | "customer"
   | "report"
-  | "exchange";
+  | "exchange"
+  | "order";
 /** Audit log entry (see src/data/auditLogs.ts): actorId = user_id, createdAt = timestamp, subject = description. */
 export type Activity = {
   id: string;

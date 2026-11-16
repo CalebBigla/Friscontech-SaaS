@@ -57,7 +57,10 @@ export function getManagerCustomerCollections(db: Db, managerId: string, period:
   );
 }
 
-/** Walk-in sales of reps with an eligible payment + confirmed customer payments. Credit orders never count. */
+/**
+ * Walk-in sales of reps with an eligible payment + the manager's own walk-in sales
+ * + confirmed customer payments (as submit_manager_remittance). Credit orders never count.
+ */
 export function getManagerTotalReceived(db: Db, managerId: string, period: string) {
   const customer = getManagerCustomerCollections(db, managerId, period).reduce(
     (s, p) => s + p.amount,
@@ -71,16 +74,19 @@ function getManagerWalkInReceived(db: Db, managerId: string, period: string) {
       getManagerEligiblePayments(db, managerId, period).map((payment) => payment.salesRepId),
     ),
   ];
-  return repIds.reduce((sum, repId) => sum + getRepTotalSales(db, repId, period), 0);
+  // A manager's own walk-in takings are theirs to remit (20261116100000).
+  return repIds.reduce((sum, repId) => sum + getRepTotalSales(db, repId, period), 0) + getRepTotalSales(db, managerId, period);
 }
 
 export function getManagerPaymentBreakdown(db: Db, managerId: string, period: string) {
   const payments = getManagerEligiblePayments(db, managerId, period);
   const customer = getManagerCustomerCollections(db, managerId, period);
   return {
+    // The manager's own walk-in sales are taken in cash or transfer; counted with cash.
     cash:
       payments.reduce((sum, payment) => sum + payment.cashAmount, 0) +
-      customer.filter((p) => p.method === "cash").reduce((s, p) => s + p.amount, 0),
+      customer.filter((p) => p.method === "cash").reduce((s, p) => s + p.amount, 0) +
+      getRepTotalSales(db, managerId, period),
     transfer:
       payments.reduce((sum, payment) => sum + payment.transferAmount, 0) +
       customer.filter((p) => p.method === "transfer").reduce((s, p) => s + p.amount, 0),

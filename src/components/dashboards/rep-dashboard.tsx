@@ -18,11 +18,11 @@ import {
   MetricCard,
   Panel,
   ProgressBar,
-  RequestStatusBadge,
 } from "@/components/shared";
-import { RecordSaleDialog } from "@/components/sales/record-sale-dialog";
-import { NewRequestDialog } from "@/components/stock-requests/new-request-dialog";
+import { OrderStatusBadge } from "@/components/orders/orders-page";
+import { PlaceOrderDialog } from "@/components/orders/place-order-dialog";
 import { useLiveWorkspace } from "@/hooks/use-live-workspace";
+import { orderTotal, useCustomerOrders } from "@/hooks/use-orders";
 import { DataGate } from "@/components/shared";
 import { getAccessScope, useCurrentUserId } from "@/lib/session";
 import {
@@ -31,7 +31,6 @@ import {
   getSalesRevenue,
   saleTotal,
 } from "@/lib/calculations";
-import { getPendingStockRequests, getStockRequests } from "@/lib/inventory-calculations";
 import { getRepPaymentSummary, getPaymentsForScope } from "@/lib/payment-calculations";
 import { monthOf } from "@/lib/dates";
 import { formatDayTime, formatMonth, formatNaira, formatNumber, formatPercent } from "@/lib/format";
@@ -51,8 +50,8 @@ export function RepDashboard() {
 function RepDashboardContent() {
   const { db } = useLiveWorkspace({ activities: true });
   const scope = getAccessScope(db, useCurrentUserId());
-  const [saleOpen, setSaleOpen] = useState(false);
-  const [requestOpen, setRequestOpen] = useState(false);
+  const [orderOpen, setOrderOpen] = useState(false);
+  const { data: orders = [] } = useCustomerOrders();
   const repId = scope.user.id;
   const branchId = scope.user.branchId ?? "";
   const today = db.tenant.referenceDate;
@@ -60,13 +59,15 @@ function RepDashboardContent() {
   const todayRevenue = getSalesRevenue(db, { repId, range: { from: today, to: today } });
   const todayCount = filterSales(db, { repId, range: { from: today, to: today } }).length;
   const progress = getRepTargetProgress(db, repId, month);
-  const pendingRequests = getPendingStockRequests(db, { repId }).length;
+  const myOrders = orders.filter((o) => o.repId === repId);
+  const toAcknowledge = myOrders.filter((o) => o.status === "fulfilled").length;
+  const waiting = myOrders.filter((o) => o.status === "pending").length;
   const payment = getRepPaymentSummary(db, repId, month);
   const latestPayment = getPaymentsForScope(db, scope, { period: month })[0];
-  const recentSales = filterSales(db, { repId, includeNonCompleted: true })
+  const recentSales = filterSales(db, { repId })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 6);
-  const recentRequests = getStockRequests(db, { repId }).slice(0, 6);
+  const recentOrders = myOrders.slice(0, 6);
   const recentActivity = db.activities
     .filter((event) => event.tenantId === scope.user.tenantId && event.actorId === repId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -79,22 +80,16 @@ function RepDashboardContent() {
       title="My workspace"
       subtitle={branchName ? `Current branch: ${branchName}` : undefined}
       actions={
-        <div className="flex gap-2">
-          <Button variant="outline" className="min-h-10" onClick={() => setRequestOpen(true)}>
-            <ClipboardList className="size-4" />
-            <span className="hidden sm:inline">Request Stock</span>
-          </Button>
-          <Button className="min-h-10" onClick={() => setSaleOpen(true)}>
-            <Plus className="size-4" />
-            <span className="hidden sm:inline">Record Sale</span>
-          </Button>
-        </div>
+        <Button className="min-h-10" onClick={() => setOrderOpen(true)}>
+          <Plus className="size-4" />
+          <span className="hidden sm:inline">New order</span>
+        </Button>
       }
     >
       <div className="mb-4">
         <h1 className="text-xl font-bold">Good day, {(scope.user.name ?? "").split(" ")[0]}</h1>
         <p className="mt-1 text-xs text-muted-foreground">
-          Your sales, target, payment and stock for {formatMonth(month)}.
+          Your sales, target, payment and orders for {formatMonth(month)}.
         </p>
       </div>
 
@@ -190,39 +185,41 @@ function RepDashboardContent() {
       </Panel>
 
       <Panel
-        title="Stock Requests"
-        subtitle={`${pendingRequests} awaiting action`}
+        title="My orders"
+        subtitle={toAcknowledge ? `${toAcknowledge} fulfilled, waiting for you to acknowledge` : `${waiting} waiting for the storekeeper`}
         className="mt-4"
         action={
-          <Button size="sm" className="min-h-10" onClick={() => setRequestOpen(true)}>
-            <Plus className="size-4" />
-            New request
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/orders">
+              <ClipboardList className="size-4" />
+              All orders
+            </Link>
           </Button>
         }
       >
-        {recentRequests.length ? (
+        {recentOrders.length ? (
           <div className="divide-y divide-border">
-            {recentRequests.map((request) => (
+            {recentOrders.map((order) => (
               <Link
-                key={request.id}
-                to="/stock-requests/$requestId"
-                params={{ requestId: request.id }}
+                key={order.id}
+                to="/orders"
+                search={order.status === "fulfilled" ? { status: "fulfilled" } : {}}
                 className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 sm:px-5"
               >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold">
-                    {product(request.productId)}
+                    {order.code} · {order.customerName}
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    Qty {request.quantityRequested} · {formatDayTime(request.requestedAt, today)}
+                    {order.lines.length} item{order.lines.length === 1 ? "" : "s"} · {formatNaira(orderTotal(order))} · {formatDayTime(order.createdAt, today)}
                   </span>
                 </span>
-                <RequestStatusBadge request={request} />
+                <OrderStatusBadge status={order.status} />
               </Link>
             ))}
           </div>
         ) : (
-          <EmptyState title="No requests yet" detail="Request stock when you run low." />
+          <EmptyState title="No orders yet" detail="Open a customer and raise an order from their order book." />
         )}
       </Panel>
 
@@ -308,15 +305,14 @@ function RepDashboardContent() {
             </div>
           </>
         ) : (
-          <EmptyState title="No sales yet" detail="Record your first sale to see it here." />
+          <EmptyState title="No sales yet" detail="Your orders count as sales once the storekeeper fulfils them." />
         )}
       </Panel>
       <p className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
         <ShoppingCart className="size-3" />
         Figures include completed sales only.
       </p>
-      <RecordSaleDialog open={saleOpen} onOpenChange={setSaleOpen} scope={scope} db={db} />
-      <NewRequestDialog open={requestOpen} onOpenChange={setRequestOpen} scope={scope} />
+      <PlaceOrderDialog open={orderOpen} onOpenChange={setOrderOpen} db={db} scope={scope} />
     </AppShell>
   );
 }

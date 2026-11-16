@@ -15,12 +15,16 @@ import { canAccessMember } from "@/lib/team";
 import { getPeriodRange, type PeriodKey } from "@/lib/dates";
 import { formatNumber, formatTime, initials, roleLabel } from "@/lib/format";
 import { auditEntityLabel } from "@/data/auditLogs";
-import { SaleAuditDetails, StockRequestAuditDetails } from "@/components/audit/audit-record-details";
+import { OrderAuditDetails, SaleAuditDetails, StockRequestAuditDetails } from "@/components/audit/audit-record-details";
+
+/** Orders are audited as "ORD-12 · Customer · …"; the code is the readable reference. */
+const orderCode = (subject: string) => /^ORD-\d+/.exec(subject)?.[0];
 import type { AuditEntity } from "@/data/mock-db";
+import { BRAND_NAME } from "@/lib/brand";
 
 const entityIcon: Record<AuditEntity, LucideIcon> = {
   product: Package, sale: ShoppingCart, payment: Wallet, expense: Receipt, remittance: Landmark, stock_request: ClipboardList, target: Target, team_member: Users,
-  branch: Store, inventory: ArrowLeftRight, settings: Settings, session: KeyRound, customer: Contact, report: FileBarChart, exchange: ArrowLeftRight,
+  branch: Store, inventory: ArrowLeftRight, settings: Settings, session: KeyRound, customer: Contact, report: FileBarChart, exchange: ArrowLeftRight, order: ClipboardList,
 };
 const periods = [{ value: ALL, label: "All time" }, { value: "today", label: "Today" }, { value: "week", label: "Last 7 days" }, { value: "month", label: "This month" }, { value: "quarter", label: "This quarter" }];
 
@@ -65,7 +69,7 @@ export function AuditLogPage() {
     <AppShell title="Audit Log" subtitle={personal ? "Only actions you performed" : "Organization activity"}>
       <div className="mb-5">
         <h1 className="text-xl font-bold">{personal ? "My Activity" : "Audit Log"}</h1>
-        <p className="mt-1 text-xs text-muted-foreground">{personal ? "A record of every action you performed in Friscontech." : "Track important activity across your organization."}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{personal ? `A record of every action you performed in ${BRAND_NAME}.` : "Track important activity across your organization."}</p>
       </div>
 
       <DataGate isLoading={isLoading} error={error}>
@@ -148,7 +152,7 @@ export function AuditLogPage() {
         <DetailItem label="Role">{u ? roleLabel[u.role] : "—"}</DetailItem>
         <DetailItem label="Date & time">{stamp(row.createdAt)}</DetailItem>
         <DetailItem label="Entity">{auditEntityLabel[row.entity]}</DetailItem>
-        <DetailItem label="Reference">{row.entity === "sale" ? (db.sales.find((s) => s.id === row.entityId)?.code ?? "—") : row.entityId && /^(SR|SAL)-/.test(row.entityId) ? row.entityId : "—"}</DetailItem>
+        <DetailItem label="Reference">{row.entity === "sale" ? (db.sales.find((s) => s.id === row.entityId)?.code ?? "—") : row.entity === "order" ? (orderCode(row.subject) ?? "—") : row.entityId && /^(SR|SAL)-/.test(row.entityId) ? row.entityId : "—"}</DetailItem>
         <DetailItem label="Related branch">{bname(row.branchId)}</DetailItem>
         {product && <DetailItem label="Product">{product.name}</DetailItem>}
       </div>
@@ -156,8 +160,8 @@ export function AuditLogPage() {
       {row.entity === "sale" && row.entityId && <SaleAuditDetails db={db} saleId={row.entityId} />}
       {row.entity === "exchange" && row.metadata?.saleId && <SaleAuditDetails db={db} saleId={row.metadata.saleId} />}
       {row.entity === "exchange" && <Link to="/exchanges" className="mt-4 inline-block text-xs font-semibold text-primary hover:underline">Open exchanges</Link>}
+      {row.entity === "order" && row.entityId && <OrderAuditDetails db={db} orderId={row.entityId} />}
       {row.entityId?.startsWith("SR-") && <StockRequestAuditDetails db={db} requestId={row.entityId} />}
-      {row.entityId?.startsWith("SR-") && <Link to="/stock-requests/$requestId" params={{ requestId: row.entityId }} className="mt-4 inline-block text-xs font-semibold text-primary hover:underline">Open stock request</Link>}
     </>;
   }
 }

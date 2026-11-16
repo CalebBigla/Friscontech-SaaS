@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import * as auth from "@/services/auth";
 import { useAuth } from "@/contexts/auth-context";
+import { BRAND_NAME } from "@/lib/brand";
 
 // ─────────────────────────── Layout ───────────────────────────
 
@@ -77,7 +78,7 @@ function AuthFrame({ title, subtitle, children, footer }: { title: string; subti
 
         <div className="relative flex items-center gap-3">
           <BrandMark className="size-10" />
-          <span className="text-lg font-semibold tracking-tight">Friscontech</span>
+          <span className="text-lg font-semibold tracking-tight">{BRAND_NAME}</span>
         </div>
 
         <div className="relative max-w-md">
@@ -102,13 +103,13 @@ function AuthFrame({ title, subtitle, children, footer }: { title: string; subti
           </ul>
         </div>
 
-        <p className="relative text-xs text-white/55">© {year} Friscon Tech Limited</p>
+        <p className="relative text-xs text-white/55">© {year} {BRAND_NAME}</p>
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-2.5 px-4 pt-6 sm:px-8 lg:hidden">
           <BrandMark className="size-9" />
-          <span className="text-base font-semibold tracking-tight">Friscontech</span>
+          <span className="text-base font-semibold tracking-tight">{BRAND_NAME}</span>
         </header>
 
         <div className="flex flex-1 items-center justify-center px-4 py-10 sm:px-8">
@@ -125,7 +126,7 @@ function AuthFrame({ title, subtitle, children, footer }: { title: string; subti
         <footer className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-4 pb-6 text-xs text-muted-foreground lg:justify-end lg:px-8">
           <span className="inline-flex items-center gap-1.5"><Lock className="size-3.5 text-[oklch(0.6_0.16_150)]" aria-hidden="true" />Secure sign-in</span>
           <span aria-hidden="true" className="lg:hidden">·</span>
-          <span className="lg:hidden">© {new Date().getFullYear()} Friscon Tech Limited</span>
+          <span className="lg:hidden">© {new Date().getFullYear()} {BRAND_NAME}</span>
         </footer>
       </main>
     </div>

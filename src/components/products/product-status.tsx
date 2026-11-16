@@ -30,8 +30,8 @@ export function ProductStatusDialog({ product, onClose, actorId }: { product: Pr
         <AlertDialogHeader>
           <AlertDialogTitle>{deleting ? "Delete" : needsApproval ? "Request deactivation of" : deactivating ? "Deactivate" : "Activate"} {product?.name}?</AlertDialogTitle>
           <AlertDialogDescription>{needsApproval ? (pending ? "A deactivation request for this product is already waiting for your manager." : "Your manager must approve this. The product stays active until then.") : deactivating
-            ? "It will no longer be available for new sales, stock requests or stock additions. Historical sales, requests and movements stay intact."
-            : "It becomes available again for new sales, stock requests and stock additions."}</AlertDialogDescription>
+            ? "It will no longer be available for new sales, orders or stock additions. Historical sales, orders and movements stay intact."
+            : "It becomes available again for new sales, orders and stock additions."}</AlertDialogDescription>
         </AlertDialogHeader>
         {needsApproval && !pending && <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason for your manager" aria-label="Reason for deactivation" className="text-sm" />}
         <AlertDialogFooter>

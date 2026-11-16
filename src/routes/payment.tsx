@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RoleGate } from "@/components/app-shell";
 import { PaymentPage } from "@/components/payments/payment-page";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/payment")({
   head: () => ({
     meta: [
-      { title: "Payment — Friscontech" },
+      { title: `Payment — ${BRAND_NAME}` },
       { name: "description", content: "Submit, review and reconcile sales payments." },
     ],
   }),

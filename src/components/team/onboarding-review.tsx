@@ -22,6 +22,7 @@ import { fullName, onboardingUrl } from "@/lib/onboarding";
 import { queryKeys } from "@/lib/query-keys";
 import type { AccessScope } from "@/lib/session";
 import { onboardingService } from "@/services/onboarding-service";
+import { BRAND_NAME } from "@/lib/brand";
 
 type Outcome = { ok: boolean; errors?: { form?: string } };
 
@@ -250,7 +251,7 @@ function CorrectionsDialog({ open, onOpenChange, o, onDone }: {
   useEffect(() => { if (open) { setNote(""); setRedo(declined); setErr(""); setLink(""); } }, [open, declined]);
 
   const name = o.data.firstName || "there";
-  const message = `Hello ${name}, please update your Friscontech onboarding form. What to correct: ${note.trim()}\n\nOpen this link (valid for 7 days): ${link}`;
+  const message = `Hello ${name}, please update your ${BRAND_NAME} onboarding form. What to correct: ${note.trim()}\n\nOpen this link (valid for 7 days): ${link}`;
   const email = o.data.email;
 
   return (

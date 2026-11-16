@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RoleGate } from "@/components/app-shell";
 import { OwnerRemittancePage } from "@/components/remittances/owner-remittance-page";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/owner/remittance/")({
   head: () => ({
     meta: [
-      { title: "Remittance — Friscontech" },
+      { title: `Remittance — ${BRAND_NAME}` },
       { name: "description", content: "Manage outgoing Owner remittances." },
     ],
   }),
