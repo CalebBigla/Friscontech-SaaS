@@ -84,7 +84,7 @@ module.exports = async function relationships(db, { ID, tenantA }) {
   // Cancel the 88 so they're free again.
   const big = (await one(`SELECT id FROM public.customer_orders WHERE customer_id=$1 AND status='pending' AND id<>$2`, [buyer.id, order.id])).id;
   err("cancel: another rep can't", await as(ID.repA2, `SELECT public.cancel_customer_order($1,'x')`, [big]), DENY);
-  err("cancel: the storekeeper can't", await as(ID.skA1, `SELECT public.cancel_customer_order($1,'x')`, [big]), DENY);
+  err("cancel: the manager can't", await as(ID.mgrA1, `SELECT public.cancel_customer_order($1,'x')`, [big]), DENY);
   err("cancel: needs a reason", await as(ID.repA1, `SELECT public.cancel_customer_order($1,' ')`, [big]), { hint: "reason" });
   ok("cancel: the rep cancels before fulfilment", await as(ID.repA1, `SELECT public.cancel_customer_order($1,'Customer changed their mind')`, [big]));
   check("cancel: the units are free again", (await reserved(product.id)) === 12 && (await onHand(product.id)) === 100);
@@ -211,6 +211,42 @@ module.exports = async function relationships(db, { ID, tenantA }) {
   check("index: a rep's sales in a month", (await plan(`SELECT sum(line_total) FROM public.sales WHERE sales_rep_id = '${ID.repA1}' AND sale_date BETWEEN CURRENT_DATE - 30 AND CURRENT_DATE`)).includes("idx_sales_rep_date"));
   check("index: notifications for one person", (await plan(`SELECT * FROM public.notifications WHERE recipient_id = '${ID.repA1}' ORDER BY created_at DESC`)).includes("idx_notifications_recipient_created"));
   await db.exec("RESET enable_seqscan");
+
+  // ---------------- storekeeper cancels; the Owner voids a fulfilled order (20261117100000) ----------------
+  const item = ok("setup: product for voids", await as(ID.owner, `SELECT * FROM public.create_product('Void Item','void-1','Home','Piece',1000,500,1,null)`));
+  ok("setup: 40 with a batch", await as(ID.owner, `SELECT public.add_stock($1,$2,40,null,'LOT-V','2028-01-01',false,null,null)`, [ID.brA1, item.id]));
+  const vHand = async () => (await one(`SELECT quantity_on_hand q, quantity_reserved r FROM public.inventory_records WHERE branch_id=$1 AND product_id=$2`, [ID.brA1, item.id]));
+  const vLot = async () => (await one(`SELECT sum(quantity_remaining)::int n FROM public.stock_batches WHERE branch_id=$1 AND product_id=$2`, [ID.brA1, item.id])).n;
+  const vOrder = (q) => as(ID.repA1, `SELECT * FROM public.place_customer_order($1,$2::jsonb,null,null)`, [buyer.id, JSON.stringify([{ product_id: item.id, quantity: q }])]);
+  const balanceOf = async () => Number((await one(`SELECT public.get_customer_balance($1) b`, [buyer.id])).b);
+
+  const waiting = ok("cancel: an order waiting", await vOrder(5));
+  err("cancel: another branch's storekeeper can't", await as(ID.skA2, `SELECT public.cancel_customer_order($1,'No stock')`, [waiting.id]), DENY);
+  const skCancel = ok("cancel: the branch storekeeper can", await as(ID.skA1, `SELECT * FROM public.cancel_customer_order($1,'Damaged on the shelf')`, [waiting.id]));
+  check("cancel: by the storekeeper, units free again", skCancel?.status === "cancelled" && skCancel?.cancelled_by === ID.skA1 && (await vHand()).r === 0);
+  check("cancel: the rep is told", (await notified(ID.repA1, waiting.id)) > 0);
+
+  const before = await balanceOf();
+  const mistake = ok("void: an order raised by mistake", await vOrder(8));
+  ok("void: fulfilled", await as(ID.skA1, `SELECT public.fulfil_customer_order($1)`, [mistake.id]));
+  check("void: fulfilment took the stock and charged the customer", (await vHand()).q === 32 && (await vLot()) === 32 && (await balanceOf()) === before + 8000);
+  err("void: the rep can't", await as(ID.repA1, `SELECT public.void_customer_order($1,'x')`, [mistake.id]), DENY);
+  err("void: the storekeeper can't", await as(ID.skA1, `SELECT public.void_customer_order($1,'x')`, [mistake.id]), DENY);
+  err("void: the manager can't", await as(ID.mgrA1, `SELECT public.void_customer_order($1,'x')`, [mistake.id]), DENY);
+  err("void: needs a reason", await as(ID.owner, `SELECT public.void_customer_order($1,' ')`, [mistake.id]), { hint: "reason" });
+  err("void: not for an order still waiting", await as(ID.owner, `SELECT public.void_customer_order($1,'x')`, [(ok("setup: another waiting order", await vOrder(1))).id]), { includes: "Cancel" });
+  const voided = ok("void: the Owner voids it", await as(ID.owner, `SELECT * FROM public.void_customer_order($1,'Raised for the wrong customer')`, [mistake.id]));
+  check("void: recorded with who, when and why", voided?.status === "voided" && voided?.cancelled_by === ID.owner && voided?.cancel_reason === "Raised for the wrong customer");
+  check("void: the units are back on hand and in the batch", (await vHand()).q === 40 && (await vLot()) === 40, JSON.stringify(await vHand()));
+  check("void: off the customer's ledger", (await balanceOf()) === before);
+  check("void: lines voided, so no target or revenue",
+    (await one(`SELECT count(*) FILTER (WHERE status='voided')::int v, count(*)::int n FROM public.sales WHERE order_id=$1`, [mistake.id])).v === 1);
+  check("void: a stock movement for the return",
+    (await one(`SELECT sum(quantity)::int q FROM public.inventory_movements WHERE type='order_void' AND reference_id IN (SELECT id::text FROM public.sales WHERE order_id=$1)`, [mistake.id])).q === 8);
+  check("void: the rep and storekeeper are told", (await notified(ID.repA1, mistake.id)) > 0 && (await notified(ID.skA1, mistake.id)) > 0);
+  check("void: audited", (await one(`SELECT count(*)::int n FROM public.activities WHERE action='Order voided' AND entity_id=$1`, [mistake.id])).n === 1);
+  err("void: not twice", await as(ID.owner, `SELECT public.void_customer_order($1,'again')`, [mistake.id]), { includes: "already voided" });
+  check("void: a second attempt returns nothing more", (await vHand()).q === 40);
 
   console.log(`\nRelationship tests: ${passed} passed, ${failures.length} failed`);
   for (const f of failures) console.log("  FAIL " + f);

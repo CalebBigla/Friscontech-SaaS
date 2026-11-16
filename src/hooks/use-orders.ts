@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { callRpc, type PlannedRpcs } from "@/lib/rpc";
 import { queryKeys } from "@/lib/query-keys";
 
-export type OrderStatus = "pending" | "fulfilled" | "acknowledged" | "cancelled";
+export type OrderStatus = "pending" | "fulfilled" | "acknowledged" | "cancelled" | "voided";
 export type OrderLine = {
   saleId: string;
   productId: string;
@@ -56,13 +56,16 @@ const toOrder = (r: RawOrder): CustomerOrderRecord => ({
   })),
 });
 
-export const orderTotal = (o: CustomerOrderRecord) => o.lines.reduce((sum, l) => sum + (l.status === "voided" ? 0 : l.lineTotal), 0);
+/** What the order is worth; a cancelled or voided order shows what it was for. */
+export const orderTotal = (o: CustomerOrderRecord) =>
+  o.lines.reduce((sum, l) => sum + (l.status === "voided" && o.status !== "cancelled" && o.status !== "voided" ? 0 : l.lineTotal), 0);
 
 export const orderStatusView: Record<OrderStatus, { label: string; tone: string }> = {
   pending: { label: "Waiting for fulfilment", tone: "status-warning" },
   fulfilled: { label: "Fulfilled · rep to acknowledge", tone: "status-violet" },
   acknowledged: { label: "Completed", tone: "status-success" },
   cancelled: { label: "Cancelled", tone: "status-danger" },
+  voided: { label: "Voided", tone: "status-danger" },
 };
 
 /** Orders the signed-in user may see: Owner all, manager and storekeeper their branch, a rep their own. */
@@ -76,7 +79,7 @@ export function useCustomerOrders(enabled = true) {
 }
 
 /** An order step moves stock, sales, the customer's ledger, notifications and the audit log. */
-function useOrderMutation<N extends "place_customer_order" | "fulfil_customer_order" | "acknowledge_customer_order" | "cancel_customer_order">(name: N) {
+function useOrderMutation<N extends "place_customer_order" | "fulfil_customer_order" | "acknowledge_customer_order" | "cancel_customer_order" | "void_customer_order">(name: N) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const tenantId = user?.tenantId ?? "";
@@ -94,3 +97,4 @@ export const usePlaceOrder = () => useOrderMutation("place_customer_order");
 export const useFulfilOrder = () => useOrderMutation("fulfil_customer_order");
 export const useAcknowledgeOrder = () => useOrderMutation("acknowledge_customer_order");
 export const useCancelOrder = () => useOrderMutation("cancel_customer_order");
+export const useVoidOrder = () => useOrderMutation("void_customer_order");

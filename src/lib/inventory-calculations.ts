@@ -8,7 +8,7 @@ import { addDays } from "@/lib/dates";
 export type InventoryStatus = "in_stock" | "low_stock" | "out_of_stock";
 export const inventoryStatusLabel: Record<InventoryStatus, string> = { in_stock: "In Stock", low_stock: "Low Stock", out_of_stock: "Out of Stock" };
 export const requestStatusLabel: Record<StockRequestStatus, string> = { pending: "Pending", approved: "Approved", partially_fulfilled: "Partially Fulfilled", fulfilled: "Fulfilled", rejected: "Rejected" };
-export const movementTypeLabel: Record<InventoryMovement["type"], string> = { exchange_return: "Returned (exchange)", exchange_issue: "Replacement (exchange)", stock_added: "Stock Added", stock_issued: "Stock Issued", sale: "Sale", adjustment: "Adjustment", promo: "Promo Given" };
+export const movementTypeLabel: Record<InventoryMovement["type"], string> = { order_void: "Returned (order voided)", exchange_return: "Returned (exchange)", exchange_issue: "Replacement (exchange)", stock_added: "Stock Added", stock_issued: "Stock Issued", sale: "Sale", adjustment: "Adjustment", promo: "Promo Given" };
 
 export const getAvailable = (inv: Pick<InventoryRecord, "quantityOnHand" | "quantityReserved">) => Math.max(inv.quantityOnHand - inv.quantityReserved, 0);
 export function getInventoryStatus(inv: InventoryRecord): InventoryStatus {

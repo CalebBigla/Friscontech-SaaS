@@ -12,6 +12,7 @@ const icon: Record<InventoryMovement["type"], { Icon: LucideIcon; tone: string }
   adjustment: { Icon: SlidersHorizontal, tone: "bg-violet-soft text-violet" },
   promo: { Icon: Gift, tone: "bg-muted text-primary" },
   exchange_return: { Icon: Undo2, tone: "bg-success-soft text-success" },
+  order_void: { Icon: Undo2, tone: "bg-success-soft text-success" },
   exchange_issue: { Icon: ArrowLeftRight, tone: "bg-warning-soft text-warning" },
 };
 
@@ -28,7 +29,7 @@ export function MovementList({ db, movements, showItem = false }: { db: Db; move
         const product = db.products.find((p) => p.id === m.productId);
         const branch = db.branches.find((b) => b.id === m.branchId);
         const inv = db.inventory.find((i) => i.branchId === m.branchId && i.productId === m.productId);
-        const who = m.type === "sale" && m.note?.startsWith("Order ") ? `Released by ${name(m.performedBy)} · ${m.note}` : m.type === "sale" ? `Sold by ${name(m.performedBy)}` : m.type === "promo" ? `Given by ${name(m.performedBy)}` : m.type === "stock_issued" && request ? `Issued to ${name(request.repId)} by ${name(m.performedBy)}` : m.type === "exchange_return" ? `Returned by a customer · received by ${name(m.performedBy)}` : m.type === "exchange_issue" ? `Exchange replacement issued by ${name(m.performedBy)}` : m.type === "stock_added" ? `Received by ${name(m.performedBy)}` : `Adjusted by ${name(m.performedBy)}`;
+        const who = m.type === "sale" && m.note?.startsWith("Order ") ? `Released by ${name(m.performedBy)} · ${m.note}` : m.type === "sale" ? `Sold by ${name(m.performedBy)}` : m.type === "promo" ? `Given by ${name(m.performedBy)}` : m.type === "stock_issued" && request ? `Issued to ${name(request.repId)} by ${name(m.performedBy)}` : m.type === "order_void" ? `Returned by ${name(m.performedBy)}` : m.type === "exchange_return" ? `Returned by a customer · received by ${name(m.performedBy)}` : m.type === "exchange_issue" ? `Exchange replacement issued by ${name(m.performedBy)}` : m.type === "stock_added" ? `Received by ${name(m.performedBy)}` : `Adjusted by ${name(m.performedBy)}`;
         return (
           <li key={m.id} className="flex gap-3 px-5 py-3.5">
             <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-md ${tone}`}><Icon className="size-4" /></span>

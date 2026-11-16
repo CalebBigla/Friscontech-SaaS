@@ -2661,6 +2661,7 @@ export type Database = {
       fulfil_customer_order: { Args: { p_order_id: string }; Returns: Json }
       acknowledge_customer_order: { Args: { p_order_id: string }; Returns: Json }
       cancel_customer_order: { Args: { p_order_id: string; p_reason: string }; Returns: Json }
+      void_customer_order: { Args: { p_order_id: string; p_reason: string }; Returns: Json }
       get_customer_orders: {
         Args: never
         Returns: {

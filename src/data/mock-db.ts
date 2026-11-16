@@ -237,7 +237,8 @@ export type NotificationType =
   /** customer orders (20261116100000) */
   | "order_submitted"
   | "order_fulfilled"
-  | "order_cancelled";
+  | "order_cancelled"
+  | "order_voided";
 /** Notifications-ready rows for the next approver; delivery is added later. */
 export type AppNotification = {
   id: string;
@@ -320,7 +321,7 @@ export type StockBatch = {
   quantityRemaining: number;
   receivedAt: string;
 };
-export type MovementType = "stock_added" | "stock_issued" | "sale" | "adjustment" | "promo" | "exchange_return" | "exchange_issue";
+export type MovementType = "stock_added" | "stock_issued" | "sale" | "adjustment" | "promo" | "exchange_return" | "exchange_issue" | "order_void";
 /** quantity is a signed delta applied to quantityOnHand. */
 export type InventoryMovement = {
   id: string;

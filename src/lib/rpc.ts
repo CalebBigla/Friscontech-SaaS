@@ -157,6 +157,8 @@ export type PlannedRpcs = {
   acknowledge_customer_order: { p_order_id: string };
   /** The rep who raised it or the Owner, before fulfilment: the units go back. */
   cancel_customer_order: { p_order_id: string; p_reason: string };
+  /** Owner: undo a fulfilled order (lines voided, units back in stock, off the ledger). */
+  void_customer_order: { p_order_id: string; p_reason: string };
   /** Orders with their lines for whoever may read them. */
   get_customer_orders: Record<string, never>;
   /** Rep: a customer returns units of a sale for another product. Returns the stock_exchanges row. */

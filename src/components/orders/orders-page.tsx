@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { CheckCheck, ClipboardList, Loader2, PackageCheck, Plus, X } from "lucide-react";
+import { Ban, CheckCheck, ClipboardList, Loader2, PackageCheck, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/app-shell";
@@ -17,6 +17,7 @@ import {
   useCancelOrder,
   useCustomerOrders,
   useFulfilOrder,
+  useVoidOrder,
   type CustomerOrderRecord,
   type OrderStatus,
 } from "@/hooks/use-orders";
@@ -62,7 +63,7 @@ export function OrdersPage({ initialStatus }: { initialStatus?: OrderStatus | un
           <StatTile label="Waiting for fulfilment" value={formatNumber(count("pending"))} tone="warning" />
           <StatTile label="Fulfilled, to acknowledge" value={formatNumber(count("fulfilled"))} />
           <StatTile label="Completed" value={formatNumber(count("acknowledged"))} tone="success" />
-          <StatTile label="Cancelled" value={formatNumber(count("cancelled"))} />
+          <StatTile label="Cancelled or voided" value={formatNumber(count("cancelled") + count("voided"))} />
         </div>
         <Panel
           className="mt-4 overflow-hidden"
@@ -75,6 +76,7 @@ export function OrdersPage({ initialStatus }: { initialStatus?: OrderStatus | un
               { value: "fulfilled", label: orderStatusView.fulfilled.label },
               { value: "acknowledged", label: orderStatusView.acknowledged.label },
               { value: "cancelled", label: orderStatusView.cancelled.label },
+              { value: "voided", label: orderStatusView.voided.label },
             ]} />
           }
         >
@@ -99,7 +101,9 @@ export function OrderRow({ o, db, scope }: { o: CustomerOrderRecord; db: Db; sco
   const fulfil = useFulfilOrder();
   const acknowledge = useAcknowledgeOrder();
   const cancel = useCancelOrder();
-  const [cancelling, setCancelling] = useState(false);
+  const voidOrder = useVoidOrder();
+  // "cancel" before fulfilment; "void" (Owner) after it.
+  const [cancelling, setCancelling] = useState<false | "cancel" | "void">(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const today = db.tenant.referenceDate;
@@ -107,9 +111,10 @@ export function OrderRow({ o, db, scope }: { o: CustomerOrderRecord; db: Db; sco
   const person = (id: string | null) => (id ? (db.users.find((u) => u.id === id)?.name ?? "—") : "—");
   const isStorekeeper = scope.canFulfilOrders && (scope.branchIds?.includes(o.branchId) ?? true);
   const isRaiser = scope.user.id === o.repId;
-  const canCancel = o.status === "pending" && (isRaiser || scope.user.role === "owner");
+  const canCancel = o.status === "pending" && (isRaiser || isStorekeeper || scope.user.role === "owner");
+  const canVoid = scope.user.role === "owner" && (o.status === "fulfilled" || o.status === "acknowledged");
   const lines = o.lines.filter((l) => l.status !== "voided" || o.status === "cancelled");
-  const busy = fulfil.isPending || acknowledge.isPending || cancel.isPending;
+  const busy = fulfil.isPending || acknowledge.isPending || cancel.isPending || voidOrder.isPending;
 
   async function run(label: string, fn: () => Promise<unknown>) {
     setError("");
@@ -154,11 +159,14 @@ export function OrderRow({ o, db, scope }: { o: CustomerOrderRecord; db: Db; sco
           {o.note && <p className="text-[11px] text-muted-foreground">“{o.note}”</p>}
           {o.fulfilledAt && <p className="text-[11px] text-muted-foreground">Fulfilled by {person(o.fulfilledBy)} · {formatDayTime(o.fulfilledAt, today)}</p>}
           {o.acknowledgedAt && <p className="text-[11px] text-muted-foreground">Acknowledged by {person(o.acknowledgedBy)} · {formatDayTime(o.acknowledgedAt, today)}</p>}
-          {o.cancelledAt && <p className="text-[11px] text-destructive">Cancelled by {person(o.cancelledBy)} · {formatDayTime(o.cancelledAt, today)}{o.cancelReason ? ` · ${o.cancelReason}` : ""}</p>}
+          {o.cancelledAt && <p className="text-[11px] text-destructive">{o.status === "voided" ? "Voided" : "Cancelled"} by {person(o.cancelledBy)} · {formatDayTime(o.cancelledAt, today)}{o.cancelReason ? ` · ${o.cancelReason}` : ""}</p>}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {canCancel && !cancelling && (
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => setCancelling(true)}><X className="size-3.5" />Cancel order</Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => setCancelling("cancel")}><X className="size-3.5" />Cancel order</Button>
+          )}
+          {canVoid && !cancelling && (
+            <Button size="sm" variant="outline" className="text-destructive" disabled={busy} onClick={() => setCancelling("void")}><Ban className="size-3.5" />Void order</Button>
           )}
           {isStorekeeper && o.status === "pending" && !cancelling && (
             <Button size="sm" disabled={busy} onClick={() => void run(`${o.code} fulfilled`, () => fulfil.mutateAsync({ p_order_id: o.id }))}>
@@ -173,14 +181,31 @@ export function OrderRow({ o, db, scope }: { o: CustomerOrderRecord; db: Db; sco
         </div>
       </div>
       {cancelling && (
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <Input autoFocus aria-label="Reason for cancelling" placeholder="Why is the order cancelled?" value={reason} onChange={(e) => setReason(e.target.value)} className="h-9 flex-1" />
-          <div className="flex gap-2">
-            <Button size="sm" variant="ghost" onClick={() => { setCancelling(false); setError(""); }}>Keep order</Button>
-            <Button size="sm" variant="outline" className="text-destructive" disabled={busy}
-              onClick={() => void run(`${o.code} cancelled`, () => cancel.mutateAsync({ p_order_id: o.id, p_reason: reason.trim() }))}>
-              {cancel.isPending && <Loader2 className="size-3.5 animate-spin" />}Cancel order
-            </Button>
+        <div className="mt-3 space-y-2">
+          {cancelling === "void" && (
+            <p className="rounded-md bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
+              Voiding takes {formatNaira(orderTotal(o))} off {o.customerName}'s account and {person(o.repId)}'s sales, and puts the items back in stock.
+              Only do this if the goods are back on the shelf or never left. It can't be undone.
+            </p>
+          )}
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input autoFocus aria-label={cancelling === "void" ? "Reason for voiding" : "Reason for cancelling"}
+              placeholder={cancelling === "void" ? "Why is the order voided?" : "Why is the order cancelled?"}
+              value={reason} onChange={(e) => setReason(e.target.value)} className="h-9 flex-1" />
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={() => { setCancelling(false); setError(""); }}>Keep order</Button>
+              {cancelling === "void" ? (
+                <Button size="sm" variant="outline" className="text-destructive" disabled={busy}
+                  onClick={() => void run(`${o.code} voided`, () => voidOrder.mutateAsync({ p_order_id: o.id, p_reason: reason.trim() }))}>
+                  {voidOrder.isPending && <Loader2 className="size-3.5 animate-spin" />}Void order
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" className="text-destructive" disabled={busy}
+                  onClick={() => void run(`${o.code} cancelled`, () => cancel.mutateAsync({ p_order_id: o.id, p_reason: reason.trim() }))}>
+                  {cancel.isPending && <Loader2 className="size-3.5 animate-spin" />}Cancel order
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       )}
